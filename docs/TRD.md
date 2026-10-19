@@ -384,6 +384,8 @@ CLI                                         SERVER
  │◄─ result ─────────────────────────────────
 ```
 
+The client retains the transient service result with `Type=exec` and `RemainAfterExit=yes`, reads its exit status, then stops and resets the unit. It checks both the uploaded binary checksum and version before starting the service ([ADR 0029](ADR.md#0029-verify-deployment-uploads-and-retain-the-activation-result)).
+
 The confirmation must come over a **new** SSH connection: it proves that the user can still reach the server after the change, which is what protects against a change that blocks SSH.
 
 ### 8.2 The lock
