@@ -5,7 +5,7 @@
     {
       "id": "M1",
       "name": "Core on one server (Go; generations; Compose)",
-      "status": "in_progress",
+      "status": "done",
       "features": [
         "core-plan-apply",
         "lock-file",
@@ -52,26 +52,29 @@
   ],
   "features": {
     "core-plan-apply": {
-      "status": "in_progress",
+      "status": "done",
       "file": "features/core-plan-apply.md",
       "updated": "2026-10-20",
-      "summary": "Per-tool content-addressed mounts/uploads implemented; full M1 command integration and lab evidence pending."
+      "summary": "M1 full CLI cycle verified on reset Ubuntu lab in 77.902 s: pinned apply/no-op/selective changes, rollback, health failure, contention, real CLI kill, GC and scoped destroy."
     },
     "lock-file": {
       "status": "done",
-      "file": "features/lock-file.md"
+      "file": "features/lock-file.md",
+      "updated": "2026-10-20"
     },
     "catalog-lock": {
       "status": "done",
       "file": "features/catalog-lock.md"
     },
     "remote-ssh": {
-      "status": "in_progress",
-      "file": "features/remote-ssh.md"
+      "status": "done",
+      "file": "features/remote-ssh.md",
+      "updated": "2026-10-20"
     },
     "activator": {
-      "status": "in_progress",
-      "file": "features/activator.md"
+      "status": "done",
+      "file": "features/activator.md",
+      "updated": "2026-10-20"
     },
     "recipe-format": {
       "status": "not_started",
@@ -99,7 +102,8 @@
     },
     "deploy": {
       "status": "done",
-      "file": "features/deploy.md"
+      "file": "features/deploy.md",
+      "updated": "2026-10-20"
     }
   },
   "decisions": [
@@ -119,6 +123,9 @@
     "ADR 0027 activate by manifest id, server-side store links and health source",
     "ADR 0028 manifest health checks and activator HealthSource adapter",
     "ADR 0029 verified deployment uploads and retained systemd activation results",
-    "ADR 0030 stable per-tool content-addressed config entries"
+    "ADR 0030 stable per-tool content-addressed config entries",
+    "ADR 0031 request-bound activation and saved plans",
+    "ADR 0032 server-key HMAC fingerprints and secret transactions",
+    "ADR 0033 image tag overrides recorded in lock"
   ]
 }

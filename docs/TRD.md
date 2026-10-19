@@ -379,7 +379,7 @@ CLI                                         SERVER
  │                                            2. install secrets; update fingerprints
  │                                            3. docker compose pull
  │                                            4. docker compose up -d --remove-orphans
- │                                               (+ --force-recreate for tools whose secrets changed)
+ │                                               (+ --force-recreate --no-deps for only tools whose secrets changed)
  │                                            5. health checks, per tool, in parallel
  │                                               fail → re-activate previous generation, exit
  │                                            6. state.json: awaiting-confirm, nonce, deadline
@@ -392,6 +392,8 @@ CLI                                         SERVER
 ```
 
 The client retains the transient service result with `Type=exec` and `RemainAfterExit=yes`, reads its exit status, then stops and resets the unit. It checks both the uploaded binary checksum and version before starting the service ([ADR 0029](ADR.md#0029-verify-deployment-uploads-and-retain-the-activation-result)).
+
+Each detached operation records its random request id in state; the CLI confirms only its own request and a fresh nonce. A saved plan is compared again before preparation, and its expected current id is checked under the activator lock. `--yes` only skips local approval. See [ADR 0031](ADR.md#0031-bind-activation-confirmation-and-saved-plans-to-one-request).
 
 The confirmation must come over a **new** SSH connection: it proves that the user can still reach the server after the change, which is what protects against a change that blocks SSH.
 
@@ -408,10 +410,12 @@ An exclusive `flock` on `/var/lib/olympus/lock`, held by the activator process f
 ### 8.4 Secrets
 
 1. At `apply`, the CLI reads `.env` and builds a payload holding only the secrets each tool's recipe declares.
-2. It sends the payload over the SSH session's standard input into a root-only file (`install -m 0600 /dev/stdin …`). Secret values never appear in command lines, environment variables of the SSH session, or logs.
-3. The activator writes each secret to `secrets/<tool>/<name>`, mode 0600, owned by the tool's container user, and deletes the payload.
+2. It sends a unique per-request payload over the SSH session's standard input into a root-only file (`install -m 0600 /dev/stdin …`). Secret values never appear in command lines, environment variables of the SSH session, or logs.
+3. The activator writes each secret to `secrets/<tool>/<name>`, mode 0600, root-owned for the current environment delivery contract, and deletes the payload.
 4. Change detection: the activator stores `HMAC-SHA256(server key, value)` per secret. `plan` fetches the key over SSH (root-only file), computes the same HMACs locally and compares, so it can report "secret changed" for a tool without either side storing or sending a plain hash. The server key is random per server, so fingerprints cannot be compared across servers.
 5. Tools whose fingerprints changed are recreated with `--force-recreate`; others keep running.
+
+Fingerprints include both named secret and environment delivery targets, domain-separated by kind/name. They live in each tool's secrets directory and are backed up with the values. A partial installation restores earlier tools; a restoration failure returns exit 5. Explicit rollback uses current credentials, while an automatic revert restores the failed transaction's previous values. No historical secret archive is retained. See [ADR 0032](ADR.md#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs).
 
 ### 8.5 Health checks
 
@@ -464,14 +468,16 @@ Every secret value read from `.env` is registered with `internal/redact` before 
 | --- | --- | --- | --- |
 | `check` | no | no | Validates; writes `stack.lock` only if missing |
 | `build [-o dir]` | no | no | Writes the generation to `./.olympus/build/` |
-| `plan [-known-hosts path] [--detailed-exitcode]` | read | no | Builds in memory and compares the current generation; saved plans (`-out`) are deferred |
-| `apply [file] [--no-confirm]` | write | yes | `--no-confirm` skips the confirmation wait and warns that lost access will not roll back |
+| `plan [-known-hosts path] [--detailed-exitcode]` | read | no | Builds in memory and compares the current generation; `-out <file>` saves a version-1 JSON plan; apply rejects a changed desired generation, server current, SSH target or secret fingerprint |
+| `apply [plan-file] [--yes] [-activator path]` | write | yes | Rebuilds, shows the plan and asks y/N; `--yes` skips only that question; detached confirmation remains mandatory |
 | `status [--json]` | read | no | Tool state, health, image, generation number |
 | `rollback` | write | yes | Previous generation, with confirm-or-revert |
 | `update` | no | no | Rewrites `stack.lock` |
-| `gc` | write | yes | Section 8.6 |
+| `gc [-keep N]` | write | yes | Uses server.keep, else 5; section 8.6 |
 | `destroy [--delete-data]` | write | yes | `docker compose down`; keeps volumes and `/var/lib/olympus/` unless `--delete-data` |
 | `activate`, `confirm` | — | — | Internal; run on the server by the CLI |
+
+All client server commands share stack connection settings and the known_hosts selection/prompt policy. `status --json` returns an array of name, state, health, image and generation; status runs a bounded current readiness check when declared. `rollback` uses the same detached start and fresh SSH confirmation as apply. `destroy` always asks y/N; without `--delete-data` it keeps project volumes and server state. With that flag it also deletes all volumes labelled for the Olympus project, including removed tools' volumes, and the Olympus root.
 
 ### 10.1 Exit codes
 

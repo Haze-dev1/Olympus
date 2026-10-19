@@ -1,6 +1,6 @@
 # Activator
 
-- **Status:** In progress (package and tests complete; not yet wired into commands)
+- **Status:** Done for M1, integrated CLI lab acceptance verified
 - **Milestone:** M1
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -60,3 +60,9 @@ Not in this slice: CLI commands (`activate`, `confirm`, `rollback`, `gc` wiring)
 ## Per-tool store retention, 2026-10-20
 
 GC also retains tool hashes referenced by kept manifests (ADR 0030), independent of Compose text references. A regression test protects a manifest-referenced tool entry. Full M1 command/lab integration remains in progress.
+
+## M1 integration, 2026-10-20
+
+Server activate, confirm, rollback, status, GC and destroy now use the manifest HealthSource and real scoped Compose runner. Per-request state prevents foreign confirmation. Secret fingerprints select recreation; partial-install restoration includes fingerprints and reports failed restoration as exit 5. GC retains manifest tool entries and needed activator versions. Full CLI lab cycles prove health failure, secret-only rotation, autonomous rollback after real CLI termination, GC and scoped destroy. See core-plan-apply.md for exact results and limits; ADRs 0030–0032 record these contracts.
+
+Final integration evidence: the source-complete `TestLabM1` passed on a reset Ubuntu VM in 77.902 s on 2026-10-20. Build, vet, full unit suite and gofmt passed. The M1 integration section supersedes earlier slice deferrals; retained release limits are in [core-plan-apply.md](core-plan-apply.md). No external vulnerability or secret scanner was run.
