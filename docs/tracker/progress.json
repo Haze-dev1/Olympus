@@ -19,7 +19,7 @@
     {
       "id": "M2",
       "name": "Recipe format",
-      "status": "not_started",
+      "status": "in_progress",
       "features": [
         "recipe-format",
         "first-recipes"
@@ -28,7 +28,7 @@
     {
       "id": "M3",
       "name": "Shared MCP servers and skills",
-      "status": "not_started",
+      "status": "done",
       "features": [
         "shared-mcps-skills"
       ]
@@ -36,7 +36,7 @@
     {
       "id": "M4",
       "name": "Chat channels",
-      "status": "not_started",
+      "status": "in_progress",
       "features": [
         "channels"
       ]
@@ -74,20 +74,28 @@
       "file": "features/activator.md"
     },
     "recipe-format": {
-      "status": "not_started",
-      "file": "features/recipe-format.md"
+      "status": "done",
+      "file": "features/recipe-format.md",
+      "updated": "2026-10-20",
+      "summary": "Recipe schema and loader support command, writable, build, MCP style, skills mode and channel env maps."
     },
     "first-recipes": {
-      "status": "not_started",
-      "file": "features/first-recipes.md"
+      "status": "in_progress",
+      "file": "features/first-recipes.md",
+      "updated": "2026-10-20",
+      "summary": "Hermes, Codex and OpenCode recipes build offline with shared MCP, skills and Telegram; server deploy pending."
     },
     "shared-mcps-skills": {
-      "status": "not_started",
-      "file": "features/shared-mcps-skills.md"
+      "status": "done",
+      "file": "features/shared-mcps-skills.md",
+      "updated": "2026-10-20",
+      "summary": "One MCP and skill definition renders into YAML, TOML and JSON; skills mount or copy per recipe."
     },
     "channels": {
-      "status": "not_started",
-      "file": "features/channels.md"
+      "status": "in_progress",
+      "file": "features/channels.md",
+      "updated": "2026-10-20",
+      "summary": "Hermes Telegram renders as environment variables with a required allow-list; live bot test pending."
     },
     "recipe-catalog": {
       "status": "not_started",
@@ -119,6 +127,11 @@
     "ADR 0027 activate by manifest id, server-side store links and health source",
     "ADR 0028 manifest health checks and activator HealthSource adapter",
     "ADR 0029 verified deployment uploads and retained systemd activation results",
-    "ADR 0030 stable per-tool content-addressed config entries"
+    "ADR 0030 stable per-tool content-addressed config entries",
+    "ADR 0035 build recipes from a content-addressed Dockerfile",
+    "ADR 0036 writable config through a Compose init service",
+    "ADR 0037 MCP secrets as tool-native environment references",
+    "ADR 0038 skills mounted or copied per recipe",
+    "ADR 0039 Hermes channels as environment variables"
   ]
 }
