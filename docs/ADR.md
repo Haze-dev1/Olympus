@@ -30,6 +30,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0022](#0022-atomically-replace-owned-local-build-directories) | Atomically replace owned local build directories | Accepted |
 | [0023](#0023-hash-the-extracted-catalog-tree-in-a-canonical-form) | Hash the extracted catalog tree in a canonical form | Accepted |
 | [0024](#0024-resolve-image-digests-with-the-standard-library) | Resolve image digests with the standard library | Accepted |
+| [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -707,6 +708,34 @@ v1 supports public registries with anonymous bearer auth only. Docker credential
 - **Shell out to `crane`, `skopeo` or `docker`:** adds an external tool and a version to support, and Docker is explicitly not required.
 - **Keep the tag in the lock:** moves on every pull and breaks A7 and reproducible generations.
 - **Query the registry's web API or a third-party service:** undocumented, rate-limited, and trusts a third party for a security-relevant value.
+
+## 0025. Test against a local QEMU VM from the Ubuntu cloud image
+
+- **Status:** Accepted
+- **Date:** 2026-10-19
+
+### Context
+
+Everything from `olym plan` onward needs a real server to test against: SSH, sudo, systemd, a Docker install and Compose. The owner wants testing to leave their own machine's configuration untouched. Options were a privileged Docker container with systemd and Docker inside, a local VM, or a paid VPS.
+
+### Decision
+
+We will test against one disposable local VM, started by `lab/lab.sh`. It runs the official Ubuntu 24.04 server cloud image under QEMU with KVM, configured by cloud-init with a lab-only SSH key and a passwordless-sudo user `olympus`. QEMU's user-mode network makes it reachable only at `127.0.0.1:2222`. Its disk is a copy-on-write layer over the downloaded image, so a reset discards all changes in about 15 seconds. Everything the lab creates lives in `.lab/` in the repository; the only host requirement is the QEMU package. Tests pass the lab key, the lab `known_hosts` file and `XDG_CACHE_HOME=.lab/cache` to Olympus explicitly.
+
+### Consequences
+
+- Tests run against the same image cloud providers boot, with a real kernel, systemd and a from-scratch Docker install.
+- No host configuration changes: no bridges, firewall rules, services, group changes, or writes to `~/.ssh` or `~/.cache`.
+- Olympus needs a way to use a `known_hosts` file other than `~/.ssh/known_hosts` (the remote package already accepts one; the CLI must expose it).
+- The lab is amd64 and runs on a developer machine. Port exposure from outside, a change that blocks SSH, and arm64 still need one run on a real VPS before release.
+- About 4 GB of RAM while the VM runs, and about 600 MB for the image.
+
+### Alternatives considered
+
+- **Privileged Docker container with systemd and Docker inside:** fastest, but Docker-in-Docker storage, networking and systemd differ from a real server, and it needs a privileged container on the host.
+- **The owner's Ubuntu 24.04 desktop ISO:** no download, but needs an installer run and produces a desktop system unlike a VPS.
+- **A paid VPS for every test:** most realistic, but costs money, is slower to reset and needs network access for every run. Kept for the pre-release check.
+- **libvirt or Incus:** convenient management, but they add system services, network bridges and group membership on the host.
 
 ## Template
 
