@@ -45,11 +45,14 @@ Read-only questions and planning-only runs leave these files unchanged. User ins
 
 ## Validation before you commit
 
-Use Go 1.25 or newer. Run:
+Use Go 1.25 or newer. Build, vet and test:
 
 - `go build -o /tmp/olym ./cmd/olym/`
 - `go vet ./...`
 - `go test ./...`
+- `gofmt -l .` prints nothing; any listed file needs formatting.
+
+Run the package-scoped command (`go test ./internal/<package>/...`) while iterating and the full set before committing.
 
 For docs changes:
 

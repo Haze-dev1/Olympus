@@ -1,6 +1,6 @@
 # Lock file
 
-- **Status:** Not started
+- **Status:** In progress
 - **Milestone:** M1
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -10,3 +10,8 @@ Pin the recipe input's git revision and hash, and each tool's image digest, in `
 
 - The same `stack.yaml` and `stack.lock` give identical digests on two servers.
 - `update` rewrites the lock and nothing else.
+
+## Progress
+
+- 2026-10-19: the standalone `internal/lock` package reads, validates and writes the lock byte-identically, and resolves image tags to index digests; `internal/catalog` verifies the locked recipe input. See [catalog-lock.md](catalog-lock.md) for implementation and verification evidence.
+- Not wired: no command reads or writes the lock yet; `update` is deferred until slice 1 lands. A live registry check is still outstanding.
