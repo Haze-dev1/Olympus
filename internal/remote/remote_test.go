@@ -115,6 +115,119 @@ func TestHostKeyChangedRefused(t *testing.T) {
 	}
 }
 
+func TestConfirmedHostIsSaved(t *testing.T) {
+	hostKey := newSigner(t)
+	keyFile, pub := writeClientKey(t)
+	addr := startTestServer(t, hostKey, pub)
+	known := knownHostsFile(t)
+
+	prompts := 0
+	cfg := Config{
+		Host:       addr,
+		User:       "tester",
+		KeyFile:    keyFile,
+		KnownHosts: known,
+		Confirm:    func(string, string) bool { prompts++; return true },
+	}
+	c, err := dialTest(t, cfg)
+	if err != nil {
+		t.Fatalf("first Dial: %v", err)
+	}
+	c.Close()
+	if prompts != 1 {
+		t.Fatalf("prompts after the first connection = %d, want 1", prompts)
+	}
+
+	c, err = dialTest(t, cfg)
+	if err != nil {
+		t.Fatalf("second Dial: %v", err)
+	}
+	c.Close()
+	if prompts != 1 {
+		t.Fatalf("second connection prompted again; prompts = %d", prompts)
+	}
+
+	data, err := os.ReadFile(known)
+	if err != nil {
+		t.Fatalf("read known_hosts: %v", err)
+	}
+	if n := strings.Count(string(data), knownhosts.Normalize(addr)); n != 1 {
+		t.Errorf("known_hosts has %d entries for %s, want 1:\n%s", n, knownhosts.Normalize(addr), data)
+	}
+	info, err := os.Stat(known)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("known_hosts mode = %o, want 600", perm)
+	}
+}
+
+func TestSavedHostThenChangedKeyRefused(t *testing.T) {
+	hostKey := newSigner(t)
+	otherKey := newSigner(t)
+	keyFile, pub := writeClientKey(t)
+	addr, stop := listenTestServer(t, "127.0.0.1:0", hostKey, pub)
+	known := knownHostsFile(t)
+
+	prompts := 0
+	cfg := Config{
+		Host:       addr,
+		User:       "tester",
+		KeyFile:    keyFile,
+		KnownHosts: known,
+		Confirm:    func(string, string) bool { prompts++; return true },
+	}
+	c, err := dialTest(t, cfg)
+	if err != nil {
+		t.Fatalf("first Dial: %v", err)
+	}
+	c.Close()
+	stop()
+
+	_, stop = listenTestServer(t, addr, otherKey, pub)
+	t.Cleanup(stop)
+
+	_, err = dialTest(t, cfg)
+	if err == nil {
+		t.Fatal("Dial succeeded after the saved host key changed")
+	}
+	if !strings.Contains(err.Error(), "changed") {
+		t.Fatalf("error = %v, want it to mention a changed host key", err)
+	}
+	if prompts != 1 {
+		t.Fatalf("Confirm called %d times; a changed key must not prompt", prompts)
+	}
+}
+
+func TestAppendKnownHostNormalizesAndDeduplicates(t *testing.T) {
+	path := knownHostsFile(t)
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	key := newSigner(t).PublicKey()
+	host := "127.0.0.1:2222"
+	for i := 0; i < 2; i++ {
+		if err := appendKnownHost(path, host, key); err != nil {
+			t.Fatalf("appendKnownHost: %v", err)
+		}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(string(data), "[127.0.0.1]:2222"); n != 1 {
+		t.Errorf("known_hosts has %d entries for the non-22 port, want 1:\n%s", n, data)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("known_hosts mode = %o, want 600", perm)
+	}
+}
+
 func TestRunQuotesArgumentsAndSendsStdin(t *testing.T) {
 	hostKey := newSigner(t)
 	keyFile, pub := writeClientKey(t)
@@ -228,6 +341,15 @@ func knownHostsFile(t *testing.T, lines ...string) string {
 
 func startTestServer(t *testing.T, hostKey ssh.Signer, clientKey ssh.PublicKey) string {
 	t.Helper()
+	addr, stop := listenTestServer(t, "127.0.0.1:0", hostKey, clientKey)
+	t.Cleanup(stop)
+	return addr
+}
+
+// listenTestServer starts an in-process SSH server and returns its address and a
+// stop function, so a test can rebind the same address with a different host key.
+func listenTestServer(t *testing.T, addr string, hostKey ssh.Signer, clientKey ssh.PublicKey) (string, func()) {
+	t.Helper()
 	cfg := &ssh.ServerConfig{
 		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 			if bytes.Equal(key.Marshal(), clientKey.Marshal()) {
@@ -237,12 +359,13 @@ func startTestServer(t *testing.T, hostKey ssh.Signer, clientKey ssh.PublicKey) 
 		},
 	}
 	cfg.AddHostKey(hostKey)
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		t.Fatalf("listen: %v", err)
+		t.Fatalf("listen %s: %v", addr, err)
 	}
-	t.Cleanup(func() { _ = ln.Close() })
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
@@ -251,7 +374,11 @@ func startTestServer(t *testing.T, hostKey ssh.Signer, clientKey ssh.PublicKey) 
 			go serveConn(conn, cfg)
 		}
 	}()
-	return ln.Addr().String()
+	stop := func() {
+		_ = ln.Close()
+		<-done
+	}
+	return ln.Addr().String(), stop
 }
 
 func serveConn(conn net.Conn, cfg *ssh.ServerConfig) {

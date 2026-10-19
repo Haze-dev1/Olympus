@@ -94,9 +94,12 @@ func DockerInstallSteps(o OS) []Step {
 	}
 	base := "https://download.docker.com/linux/" + o.ID
 	repo := "deb [signed-by=/etc/apt/keyrings/docker.asc] " + base + " " + codename + " stable\n"
+	apt := func(args ...string) []string {
+		return append([]string{"env", "DEBIAN_FRONTEND=noninteractive"}, args...)
+	}
 	return []Step{
-		{Args: []string{"apt-get", "update"}},
-		{Args: []string{"apt-get", "install", "-y", "ca-certificates", "curl"}},
+		{Args: apt("apt-get", "update")},
+		{Args: apt("apt-get", "install", "-y", "ca-certificates", "curl")},
 		{Args: []string{"install", "-m", "0755", "-d", "/etc/apt/keyrings"}},
 		{Args: []string{"curl", "-fsSL", base + "/gpg", "-o", "/etc/apt/keyrings/docker.asc"}},
 		{Args: []string{"chmod", "a+r", "/etc/apt/keyrings/docker.asc"}},
@@ -104,10 +107,10 @@ func DockerInstallSteps(o OS) []Step {
 		// command that writes a file, and a shell redirect would be a raw
 		// string (A2).
 		{Args: []string{"tee", "/etc/apt/sources.list.d/docker.list"}, Stdin: []byte(repo)},
-		{Args: []string{"apt-get", "update"}},
-		{Args: []string{
+		{Args: apt("apt-get", "update")},
+		{Args: apt(
 			"apt-get", "install", "-y", "docker-ce", "docker-ce-cli", "containerd.io",
 			"docker-buildx-plugin", "docker-compose-plugin",
-		}},
+		)},
 	}
 }

@@ -67,9 +67,16 @@ func TestDockerInstallSteps(t *testing.T) {
 	}
 	var repo string
 	installsCompose := false
+	aptNonInteractive := 0
 	for i, step := range steps {
 		if len(step.Args) == 0 {
 			t.Fatalf("step %d has no arguments", i)
+		}
+		if step.Args[0] == "apt-get" {
+			t.Errorf("step %q runs apt-get without DEBIAN_FRONTEND", step.Args)
+		}
+		if len(step.Args) >= 3 && step.Args[0] == "env" && step.Args[1] == "DEBIAN_FRONTEND=noninteractive" && step.Args[2] == "apt-get" {
+			aptNonInteractive++
 		}
 		if step.Args[0] == "tee" {
 			repo = string(step.Stdin)
@@ -79,6 +86,9 @@ func TestDockerInstallSteps(t *testing.T) {
 				installsCompose = true
 			}
 		}
+	}
+	if aptNonInteractive != 4 {
+		t.Errorf("apt steps with DEBIAN_FRONTEND=noninteractive = %d, want 4", aptNonInteractive)
 	}
 	if !strings.Contains(repo, "download.docker.com/linux/ubuntu") || !strings.Contains(repo, "noble") {
 		t.Errorf("repository line = %q, want the ubuntu repository at codename noble", repo)

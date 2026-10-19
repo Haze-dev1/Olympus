@@ -216,6 +216,9 @@ func hostKeyCallback(path string, confirm ConfirmFunc) (ssh.HostKeyCallback, err
 			return fmt.Errorf("remote: host key for %s changed (now %s): refusing to connect", host, fingerprint)
 		}
 		if confirm != nil && confirm(host, fingerprint) {
+			if err := appendKnownHost(path, host, key); err != nil {
+				return fmt.Errorf("remote: save host key for %s: %w", host, err)
+			}
 			return nil
 		}
 		return fmt.Errorf("remote: unknown host key for %s (%s): refusing to connect", host, fingerprint)
@@ -234,6 +237,9 @@ func knownHostsPath(path string) (string, error) {
 		path = filepath.Join(home, ".ssh", "known_hosts")
 	}
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			return "", fmt.Errorf("remote: create known_hosts directory %s: %w", filepath.Dir(path), err)
+		}
 		if err := os.WriteFile(path, nil, 0o600); err != nil {
 			return "", fmt.Errorf("remote: create known_hosts %s: %w", path, err)
 		}
@@ -241,6 +247,39 @@ func knownHostsPath(path string) (string, error) {
 		return "", fmt.Errorf("remote: stat known_hosts %s: %w", path, err)
 	}
 	return path, nil
+}
+
+// appendKnownHost adds key for host to the known_hosts file after the user
+// confirmed it, so later connections verify silently and a different key is
+// reported as changed instead of unknown (A6). It keeps the file at 0600 and
+// never adds the same line twice.
+func appendKnownHost(path, host string, key ssh.PublicKey) error {
+	line := knownhosts.Line([]string{knownhosts.Normalize(host)}, key)
+	existing, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	for _, l := range strings.Split(string(existing), "\n") {
+		if strings.TrimSpace(l) == line {
+			return nil
+		}
+	}
+	prefix := ""
+	if len(existing) > 0 && existing[len(existing)-1] != '\n' {
+		prefix = "\n"
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.WriteString(prefix + line + "\n"); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }
 
 func closeIf(c net.Conn) {
