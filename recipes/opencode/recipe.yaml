@@ -1,0 +1,39 @@
+name: opencode
+kind: coding-agent
+image: ghcr.io/anomalyco/opencode:1.0.196
+resources:
+  min_ram: 2GB
+volumes:
+  config: /root/.config/opencode
+  data: /root/.local/share/opencode
+command:
+  - serve
+  - --hostname
+  - 0.0.0.0
+  - --port
+  - "4096"
+ports: [4096]
+health:
+  http:
+    port: 4096
+    path: /global/health
+  timeout: 60s
+secrets:
+  model-key:
+    env: ANTHROPIC_API_KEY
+  github-token:
+    env: GITHUB_TOKEN
+supports:
+  mcps:
+    file: /root/.config/opencode/opencode.json
+    format: json
+    style: opencode
+    key: mcp
+  skills:
+    dir: /root/.config/opencode/skills
+    mode: mount
+writable:
+  - /root/.config/opencode/opencode.json
+templates:
+  - src: opencode.json.tmpl
+    dst: /root/.config/opencode/opencode.json
