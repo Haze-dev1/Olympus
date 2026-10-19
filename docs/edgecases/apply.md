@@ -44,6 +44,9 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Port already used by something else | Fail for that tool in `plan`; name the port and the process using it |
 | Server has less RAM than a recipe's `min_ram` | Warn in `plan`; continue only if the user confirms |
 | ARM server and an image with no ARM build | Fail for that tool; name the image and architecture |
+| Built tool and init service share a local tag | Skip both during pull, build once before up; reuse the image on rollback |
+| Build fails before up | Restore the previous generation or take down the first failed deployment; suppress build output |
+| Catalog ref changes while a lock exists | Keep the locked commit until update; reject a changed source URL |
 | Disk full during image pull | Fail for that tool; report free space |
 
 ## During apply

@@ -195,7 +195,7 @@ hooks:
   post_install: ["hermes", "setup", "--non-interactive"]
 ```
 
-The Hermes recipe above is the shipped `recipes/hermes` shape. The concrete image tag, the configuration environment variables and the image's default command are still marked unverified in that folder's README; paths and ports are checked against Hermes's own documentation (PRD section 9.2).
+The Hermes recipe above is the shipped `recipes/hermes` shape. The recipe README records the image pin policy and observed lab behavior; paths and ports are checked against Hermes's own documentation (PRD section 9.2).
 
 Rules:
 
@@ -297,10 +297,10 @@ Because secrets are excluded, a secret change never changes a hash (PRD N-P2). S
 
 ### 6.4 Lock resolution
 
-- **Catalog:** `update` (or the first `check` with no lock) asks the git host for the newest commit of the catalog's default branch, downloads its tarball, and computes a content hash over the extracted tree: SHA-256 over `olympus-catalog-v1` + NUL, then for each regular file sorted by relative slash path, the path, NUL, its permission bits in octal, NUL, size in decimal, NUL, contents and NUL. The result is `sha256-<hex>`; it is both the lock hash and the cache directory name. See [ADR 0023](ADR.md#0023-hash-the-extracted-catalog-tree-in-a-canonical-form).
+- **Catalog:** `update` (or the first `check` with no lock) asks the git host for the newest commit of the catalog's optional ref or default branch, downloads its tarball, and computes a content hash over the extracted tree: SHA-256 over `olympus-catalog-v1` + NUL, then for each regular file sorted by relative slash path, the path, NUL, its permission bits in octal, NUL, size in decimal, NUL, contents and NUL. The result is `sha256-<hex>`; it is both the lock hash and the cache directory name. See [ADR 0023](ADR.md#0023-hash-the-extracted-catalog-tree-in-a-canonical-form).
 - **Images:** for each tool, resolve the recipe's image tag (or the stack's `image_tag` override) to its index digest through the registry API, without a local Docker.
 - `update` rewrites `stack.lock` beside the selected stack file and nothing else except the catalog cache. `check` creates a missing lock; `build` requires one. Both reject a missing tool entry and direct the user to `olym update`. An existing lock must match the selected catalog URL.
-- The catalog source accepts `github:<owner>/<repo>[/<path>]`, defaulting to `github:Haze-dev1/Olympus/recipes`. The GitHub API's `commits/HEAD` endpoint resolves the default branch. `GITHUB_TOKEN`, when set, is used only for GitHub commit and tarball requests, including redirects confined to GitHub origins. It is never persisted or passed to registries, and response bodies and transport errors cannot echo it into diagnostics.
+- The catalog source accepts `github:<owner>/<repo>[/<path>][?ref=<URL-encoded ref>]`, defaulting to `github:Haze-dev1/Olympus/recipes`. The GitHub API's `commits/<ref>` endpoint resolves a supplied branch, tag or revision to a full commit; omission resolves `HEAD`. Exactly one nonempty `ref` parameter is accepted. The complete source URL remains in the lock ([ADR 0040](ADR.md#0040-resolve-optional-catalog-refs-to-locked-commits)). `GITHUB_TOKEN`, when set, is used only for GitHub commit and tarball requests, including redirects confined to GitHub origins. It is never persisted or passed to registries, and response bodies and transport errors cannot echo it into diagnostics.
 - Explicit `-recipes <directory>` is a development override for `check` and `build`. It announces that the catalog pin is skipped. Existing tool image pins remain mandatory; without a lock this mode permits local tagged artifacts without resolution. It retains the local content identity in the manifest. `update -recipes` is refused because local catalogs have no GitHub revision to pin.
 
 ### 6.5 Current offline slice
@@ -313,7 +313,7 @@ The local generation contains `compose.yaml`, `manifest.json` and `store/<tool h
 
 All ports remain bound to localhost. Public port requests still fail explicitly in this slice. Channels are rendered for recipes that declare them as environment variables; every channel requires a non-empty allow-list. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity. Health checks are also persisted in each manifest tool for the activator; builds execute neither hooks nor checks. Skills, when requested and supported, are rendered from confined local folders and either bind-mounted or copied by the init service.
 
-Every MCP variable must map to an explicitly supplied recipe secret with an `env` target. The evaluator rewrites it to that environment variable and encodes the server in the tool's declared syntax; no secret value is built. Compose points to `/var/lib/olympus/secrets/<tool>/environment`. The shipped Hermes, Codex and OpenCode recipes exercise the YAML, TOML and JSON shapes, and the three formats are checked by the golden build. Codex built images need `docker compose build`, which the current activator does not run; built recipes are therefore build-only until activation adds it.
+Every MCP variable must map to an explicitly supplied recipe secret with an `env` target. The evaluator rewrites it to that environment variable and encodes the server in the tool's declared syntax; no secret value is built. Compose points to `/var/lib/olympus/secrets/<tool>/environment`. The shipped Hermes, Codex and OpenCode recipes exercise the YAML, TOML and JSON shapes, and the three formats are checked by the golden build. The activator pulls non-buildable services with `--ignore-buildable`, builds missing content-addressed images once and starts with `--no-build --pull never`. Built init services share the build declaration so their local tags are never pulled. Existing built images are reused on rollback ([ADR 0041](ADR.md#0041-prepare-content-addressed-built-images-before-starting-services)).
 
 The build directory is tool-owned only when it contains a valid version-1 Olympus manifest whose generation ID matches its canonical contents. A complete new generation is written to a fresh sibling directory and atomically exchanged with prior owned output. The prior directory is then removed, eliminating stale files. An existing directory without a valid manifest, including an empty directory or a symlinked manifest, is refused. Staging and publication failures leave prior output intact. Native exchange and exclusive initial publication use Linux `renameat2` or macOS `renameatx_np`, on amd64/arm64. Other platforms and unsupported filesystems fail explicitly without a non-atomic fallback. This updates the original preservation policy in [ADR 0022](ADR.md#0022-atomically-replace-owned-local-build-directories). See [ADR 0020](ADR.md#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) and [0021](ADR.md#0021-keep-the-first-generation-contract-offline).
 
@@ -386,8 +386,8 @@ CLI                                         SERVER
  │── systemd-run olym activate G ───► activator (survives SSH disconnect)
  │                                            1. take flock; write lock.json; fail fast if held
  │                                            2. install secrets; update fingerprints
- │                                            3. docker compose pull
- │                                            4. docker compose up -d --remove-orphans
+ │                                            3. docker compose pull --ignore-buildable; build missing local images once
+ │                                            4. docker compose up --no-build --pull never -d --remove-orphans
  │                                               (+ --force-recreate --no-deps for only tools whose secrets changed)
  │                                            5. health checks, per tool, in parallel
  │                                               fail → re-activate previous generation, exit
@@ -614,7 +614,7 @@ Before the first release, check that `olym` is not already taken in Homebrew and
 - [x] Per tool: how secrets inside MCP entries are delivered: environment references in each tool's syntax, declared by `supports.mcps.style` ([ADR 0037](ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references)).
 - [x] Skills: a shared read-only mount for Codex and OpenCode, a copy into the volume for Hermes, selected by `supports.skills.mode` ([ADR 0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
 - [x] Tools that rewrite their own config files: a Compose one-shot init service copies the rendered file into the volume ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
-- [ ] Activation must build or otherwise obtain the image for a recipe with a `build` block; the current activator only pulls.
+- [x] Activation prepares missing built images before up and reuses them on rollback ([ADR 0041](ADR.md#0041-prepare-content-addressed-built-images-before-starting-services)).
 - [x] Integration test servers: a local QEMU VM from the Ubuntu cloud image ([ADR 0025](ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)), plus one VPS run before release.
 - [ ] The final URL scheme for the catalog input and whether `git` is ever required locally.
 - [ ] CLI framework: `cobra` or the standard library.

@@ -68,7 +68,7 @@ The stack file and the recipe set remain the source of truth: edits the tool mak
 2. the service gets a content-addressed local tag, `olympus/<tool>:sha256-<12 hex>`, derived from the Dockerfile bytes and the pinned base reference;
 3. Compose `build.context` is the directory holding the generated Dockerfile, `build.dockerfile` is its base name, and `BASE_IMAGE` carries the pinned base reference ([ADR 0035](../ADR.md#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile)).
 
-The current activator pulls images and does not run `docker compose build`, so a built recipe can be checked and built locally but not deployed yet. This is recorded in the tracker as a limit.
+The tool and its init service share the build declaration. Activation pulls with `--ignore-buildable`, builds each missing local image once, then starts with `--no-build --pull never`. Existing built images are reused during rollback. Package installs in recipe Dockerfiles must use exact versions; Codex also fixes build and installed-file timestamps ([ADR 0041](../ADR.md#0041-prepare-content-addressed-built-images-before-starting-services)).
 
 ## Templates
 
