@@ -7,7 +7,15 @@ description: Run an Olympus QA pass when asked to test or verify Olympus. Covers
 
 One run proves a change (or the whole tool) on six fronts and ends in one report. Every front ends **green**, **red**, or **not run (reason)**. A pass applies only to what was exercised in this session; old evidence is reported separately.
 
-> As of 2026-10-19 there is no code. Fronts 1 and 4 have no commands yet. When the Go module is created, put the commands in `AGENTS.md` under "Validation before you commit" and in this skill.
+As of 2026-10-19, only the offline core exists. Use Go 1.25 or newer:
+
+- `go build -o /tmp/olym ./cmd/olym/`
+- `go vet ./...`
+- `go test ./...`
+
+The tests include the sample recipe, golden generation, secret-value and key-order purity, CLI diagnostics, and path confinement. To regenerate expected output after reviewing an intentional format change, run `go test ./internal/eval -update`, then inspect `testdata/golden/`.
+
+For an offline-only change, mark front 4 and the server-only parts of front 5 not run. `plan`, `apply`, `rollback` and `destroy` are not implemented.
 
 ## Guardrails
 

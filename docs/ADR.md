@@ -25,6 +25,8 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0017](#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms) | Activate on the server, and roll back unless the CLI confirms | Accepted |
 | [0018](#0018-build-structured-config-as-data-and-publish-json-schemas) | Build structured config as data, and publish JSON Schemas | Accepted |
 | [0019](#0019-name-the-project-olympus-with-the-command-olym) | Name the project Olympus, with the command olym | Accepted |
+| [0020](#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) | Use goccy YAML and pelletier TOML for the offline core | Accepted |
+| [0021](#0021-keep-the-first-generation-contract-offline) | Keep the first generation contract offline | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -362,7 +364,7 @@ We will write Olympus in Go and ship it as a single static binary, as Terraform 
 
 ## 0014. Evaluate the stack locally into a generation, then activate it on the server
 
-- **Status:** Accepted, amended by [0017](#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms) (activation runs on the server with confirm-or-rollback)
+- **Status:** Accepted, amended by [0017](#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms) (activation runs on the server with confirm-or-rollback) and [0021](#0021-keep-the-first-generation-contract-offline) (first offline artifact contract)
 - **Date:** 2026-10-19
 - **Supersedes:** [0011](#0011-make-apply-converge-to-the-desired-state-tracked-by-container-labels)
 
@@ -535,6 +537,67 @@ The project is **Olympus**. The command and binary are **`olym`** (`olym plan`, 
 - **Keep "AITerraform":** implies an affiliation with HashiCorp's Terraform and invites trademark trouble.
 - **`olympus` as the command:** clear, but long to type in every command.
 - **homebrew-core from the first release:** needs a track record the project does not have yet.
+
+## 0020. Use goccy YAML and pelletier TOML for the offline core
+
+- **Status:** Accepted, explicitly approved by the user
+- **Date:** 2026-10-19
+
+### Context
+
+Go has no standard YAML or TOML parser. Offline builds need YAML positions for safe diagnostics and deterministic encoders for YAML, TOML and JSON. Dependencies require explicit approval.
+
+### Decision
+
+Pin `github.com/goccy/go-yaml v1.19.2` for YAML syntax trees and encoding, and `github.com/pelletier/go-toml/v2 v2.4.3` for TOML decoding and encoding. Both were approved at these exact versions before installation. Keep JSON, flags, templates, hashing and tests in the standard library.
+
+Maintenance evidence checked on 2026-10-19: [goccy v1.19.2](https://github.com/goccy/go-yaml/releases/tag/v1.19.2) fixes an anchor-reference regression; [pelletier v2.4.3](https://github.com/pelletier/go-toml/releases/tag/v2.4.3), released 2026-07-05, includes correctness fixes and nesting limits. Both modules declare Go 1.21 and no dependencies. Olympus requires Go 1.25 for confined filesystem APIs.
+
+The published input schemas are embedded. A small validator evaluates only their current vocabulary, retaining YAML positions and adding semantic checks in `stack` and `recipe`. It is not a general JSON Schema implementation. New schema keywords require validator support and tests. YAML is decoded as inert data, then validated into typed inputs; aliases, anchors and tags are rejected. Diagnostics do not echo scalar input or parser snippets.
+
+### Consequences
+
+- Only two external modules are needed for this slice.
+- Encoded output and hash streams are deterministic and covered by golden tests.
+- Schema vocabulary support must evolve with the schemas. A complete schema implementation remains a later dependency decision.
+
+### Alternatives considered
+
+- **Hand-written YAML/TOML parsers:** substantially more code and edge cases than maintained libraries.
+- **A third JSON Schema library:** unnecessary for the vocabulary used in this slice and not approved.
+- **A CLI framework:** standard `flag` handles two commands.
+
+## 0021. Keep the first generation contract offline
+
+- **Status:** Accepted
+- **Date:** 2026-10-19
+- **Amends:** [0014](#0014-evaluate-the-stack-locally-into-a-generation-then-activate-it-on-the-server), for the first offline slice only
+
+### Context
+
+M1 steps 1–3 must run before catalog fetching, lock files, image resolution or activation exist. The user explicitly scoped this slice to local recipe input and a fictional test recipe. Runtime MCP secret delivery remains open per real tool in TRD section 16.
+
+### Decision
+
+Use local recipes and canonical recipe/template content identity instead of a pinned catalog revision. Emit `compose.yaml`, `manifest.json` and `tools/<tool>/files/<container path>` into `.olympus/build`, or `-o`. File binds are relative to this local directory. Service hashes include canonical service JSON and the TRD 6.3 file stream; generation hashes exclude `id`. Canonical JSON recursively sorts keys. Omit the derived hash label to avoid hashing a label containing itself.
+
+The CLI scans `.env` names without retaining or resolving values; only names enter evaluation. For the test recipe, explicitly supplied secrets map to recipe `env` targets, and MCP config references those target names. Compose references a future per-tool runtime environment file; this slice never creates it. No general MCP secret mechanism or wrapper scripts are introduced. Real-tool delivery stays open.
+
+Keep ports private, reject public requests and channel rendering, and never execute hooks or health checks. Allow identical output directories to be reused; preserve differing existing output and require a fresh directory. This avoids unrequested deletion and stale files. Server artifact assembly, digest enforcement and runtime secret materialization belong to later slices.
+
+### Consequences
+
+- Offline builds are deterministic and testable without credentials, Docker or a server.
+- The artifact contains tagged images and future secret-file references. It is not a deployable locked generation.
+- Changed builds need a fresh `-o` directory.
+- This does not settle per-tool runtime secret syntax or delivery.
+
+### Alternatives considered
+
+- **Implement catalog/lock/activation now:** outside the requested scope.
+- **Resolve secrets while rendering:** violates purity and risks leaking values into outputs and hashes.
+- **A general wrapper mechanism:** explicitly deferred by the user.
+- **Delete the existing output automatically:** risks deleting user files and requires separate confirmation under repository policy.
 
 ## Template
 

@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Draft for v1; nothing implemented yet |
+| **Status** | Draft for v1; M1 offline check/build implemented |
 | **Date** | 2026-10-19 |
 | **Owner** | Devansh (Haze) |
 | **Companion** | [PRD.md](PRD.md) covers what and why. This document is self-contained: each decision is stated with its reason here. [ADR.md](ADR.md) holds the full decision records. |
@@ -289,6 +289,20 @@ Because secrets are excluded, a secret change never changes a hash (PRD N-P2). S
 - **Catalog:** `update` (or the first `check` with no lock) asks the git host for the newest commit of the catalog's default branch, downloads its tarball, and computes a content hash over the extracted tree (sorted paths, file modes, contents), like a Nix NAR hash.
 - **Images:** for each tool, resolve the recipe's image tag (or the stack's `image_tag` override) to its index digest through the registry API, without a local Docker.
 - `update` rewrites the lock and nothing else. Commands other than `check` and `update` refuse to run with a missing lock entry.
+
+### 6.5 Current offline slice
+
+The M1 offline slice implements `check` and `build` with local `-recipes recipes` input and no lock or network access. The CLI uses standard `flag`; `-f` selects the stack file and `build -o` selects its output directory, defaulting to `.olympus/build`. `check` validates the stack and checks names in the adjacent `.env`; `build` additionally validates recipes and renders artifacts. Process environment fallback is deferred.
+
+Published stack and recipe schemas are embedded. The core evaluates the schema vocabulary they use, with additional semantic checks for references and confinement. YAML aliases, anchors, tags, multiple documents and duplicate keys are rejected. String values that resemble YAML boolean or leading-zero numeric scalars must be quoted. Input documents and recipe sources are bounded to 4 MiB, and YAML data nesting to 64 levels.
+
+The local generation contains `compose.yaml`, `manifest.json` and `tools/<tool>/files/<container path>`. Compose uses relative read-only file binds and named data volumes. The local recipe input identity is the hash of canonical recipe data and template source bytes, not a catalog revision. There is no tool-hash label because including a tool hash in the service being hashed would be circular. This is an offline artifact contract; server store assembly and hash labels belong to activation.
+
+All ports remain bound to localhost. Public port requests and channel rendering fail explicitly in this slice. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity but never executed. Skills, when requested and supported, are copied from confined local folders.
+
+Only the fictional test recipe's MCP secret convention is exercised. Each MCP variable must map to an explicitly supplied recipe secret with an `env` target. Its config references that environment variable name. Compose points to `/var/lib/olympus/secrets/<tool>/environment`; no environment file or secret value is built. Real-tool secret syntax and delivery remain open under section 16. There are no wrapper scripts.
+
+An identical generation can reuse an existing build directory. A different or unrelated existing output is preserved and the command requires a fresh `-o` directory. This avoids deleting user files or mixing stale artifacts in this first slice. See [ADR 0020](ADR.md#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) and [0021](ADR.md#0021-keep-the-first-generation-contract-offline).
 
 ## 7. Server
 
