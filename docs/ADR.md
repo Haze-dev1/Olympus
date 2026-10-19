@@ -11,7 +11,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0003](#0003-target-an-existing-server-over-ssh-in-v1) | Target an existing server over SSH in v1 | Accepted |
 | [0004](#0004-use-yaml-for-the-stack-file) | Use YAML for the stack file | Accepted |
 | [0005](#0005-describe-each-tool-with-a-declarative-yaml-recipe) | Describe each tool with a declarative YAML recipe | Accepted, amended by 0016, 0018 |
-| [0006](#0006-keep-official-recipes-in-one-folder-in-this-repo) | Keep official recipes in one folder in this repo | Accepted |
+| [0006](#0006-keep-official-recipes-in-one-folder-in-this-repo) | Keep official recipes in one folder in this repo | Accepted, source restriction superseded by 0026 |
 | [0007](#0007-run-each-tool-in-its-own-docker-container) | Run each tool in its own Docker container | Accepted |
 | [0008](#0008-pin-exact-versions-in-stacklock) | Pin exact versions in stack.lock | Accepted, amended by 0016 |
 | [0009](#0009-keep-secrets-in-a-git-ignored-env-referenced-by-name) | Keep secrets in a git-ignored .env, referenced by name | Accepted |
@@ -21,16 +21,17 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0013](#0013-write-olympus-in-go) | Write Olympus in Go | Accepted |
 | [0014](#0014-evaluate-the-stack-locally-into-a-generation-then-activate-it-on-the-server) | Evaluate the stack locally into a generation, then activate it on the server | Accepted, amended by 0017 |
 | [0015](#0015-use-one-docker-compose-project-as-the-runtime) | Use one Docker Compose project as the runtime | Accepted |
-| [0016](#0016-pin-the-recipe-set-as-a-flake-style-input) | Pin the recipe set as a flake-style input | Accepted |
+| [0016](#0016-pin-the-recipe-set-as-a-flake-style-input) | Pin the recipe set as a flake-style input | Accepted, source restriction superseded by 0026 |
 | [0017](#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms) | Activate on the server, and roll back unless the CLI confirms | Accepted |
 | [0018](#0018-build-structured-config-as-data-and-publish-json-schemas) | Build structured config as data, and publish JSON Schemas | Accepted |
 | [0019](#0019-name-the-project-olympus-with-the-command-olym) | Name the project Olympus, with the command olym | Accepted |
 | [0020](#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) | Use goccy YAML and pelletier TOML for the offline core | Accepted |
-| [0021](#0021-keep-the-first-generation-contract-offline) | Keep the first generation contract offline | Accepted, output policy superseded by 0022 |
+| [0021](#0021-keep-the-first-generation-contract-offline) | Keep the first generation contract offline | Accepted, output policy superseded by 0022; catalog boundary amended by 0026 |
 | [0022](#0022-atomically-replace-owned-local-build-directories) | Atomically replace owned local build directories | Accepted |
 | [0023](#0023-hash-the-extracted-catalog-tree-in-a-canonical-form) | Hash the extracted catalog tree in a canonical form | Accepted |
 | [0024](#0024-resolve-image-digests-with-the-standard-library) | Resolve image digests with the standard library | Accepted |
 | [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted |
+| [0026](#0026-wire-github-catalogs-and-preserve-local-development-overrides) | Wire GitHub catalogs and preserve local development overrides | Accepted |
 | [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
@@ -165,7 +166,7 @@ We will describe each tool as a recipe: `recipes/<tool>/recipe.yaml` plus config
 
 ## 0006. Keep official recipes in one folder in this repo
 
-- **Status:** Accepted
+- **Status:** Accepted; catalog/local development boundary amended by [0026](#0026-wire-github-catalogs-and-preserve-local-development-overrides)
 - **Date:** 2026-10-19
 
 ### Context
@@ -430,7 +431,7 @@ We will render each generation as one Compose project (`docker compose -p olympu
 
 ## 0016. Pin the recipe set as a flake-style input
 
-- **Status:** Accepted
+- **Status:** Accepted; catalog/local development boundary amended by [0026](#0026-wire-github-catalogs-and-preserve-local-development-overrides)
 - **Date:** 2026-10-19
 - **Amends:** [0005](#0005-describe-each-tool-with-a-declarative-yaml-recipe), [0008](#0008-pin-exact-versions-in-stacklock)
 
@@ -574,7 +575,7 @@ The published input schemas are embedded. A small validator evaluates only their
 
 ## 0021. Keep the first generation contract offline
 
-- **Status:** Accepted; output preservation policy superseded by [0022](#0022-atomically-replace-owned-local-build-directories)
+- **Status:** Accepted; catalog/local development boundary amended by [0026](#0026-wire-github-catalogs-and-preserve-local-development-overrides); output preservation policy superseded by [0022](#0022-atomically-replace-owned-local-build-directories)
 - **Date:** 2026-10-19
 - **Amends:** [0014](#0014-evaluate-the-stack-locally-into-a-generation-then-activate-it-on-the-server), for the first offline slice only
 
@@ -738,6 +739,37 @@ We will test against one disposable local VM, started by `lab/lab.sh`. It runs t
 - **A paid VPS for every test:** most realistic, but costs money, is slower to reset and needs network access for every run. Kept for the pre-release check.
 - **libvirt or Incus:** convenient management, but they add system services, network bridges and group membership on the host.
 
+## 0026. Wire GitHub catalogs and preserve local development overrides
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+- **Supersedes:** The official-source-only restriction in [0006](#0006-keep-official-recipes-in-one-folder-in-this-repo) and [0016](#0016-pin-the-recipe-set-as-a-flake-style-input), and the catalog/lock deferral in [0021](#0021-keep-the-first-generation-contract-offline)
+
+### Context
+
+The requested M1 wiring selects arbitrary GitHub catalogs through `inputs.recipes` while retaining the existing local recipe development workflow. Official-only source restrictions and the first offline slice no longer describe the implemented CLI.
+
+### Decision
+
+Default to `github:Haze-dev1/Olympus/recipes` and accept `github:<owner>/<repo>[/<path>]`. Resolve the GitHub default-branch HEAD on `update` or the first `check`; pin its revision, canonical tree hash and tool index digests. Require an existing lock for catalog builds. Keep the existing lock format and pure evaluator, passing resolved revisions and image references as inputs.
+
+An explicit local `-recipes` override skips the catalog pin with a visible message. Existing image pins remain enforced. Without a lock, local check/build retains the earlier development behavior and content identity. Refuse local `update`, which cannot produce a GitHub catalog revision. These artifacts remain subject to the existing offline runtime limitations.
+
+Read optional `GITHUB_TOKEN` only at the CLI boundary and use it only on GitHub origins for commit lookups and tarballs. Strip it on redirects elsewhere and omit remote response bodies and transport details from catalog HTTP diagnostics.
+
+### Consequences
+
+- Existing locks give reproducible catalog builds without moving tags or resolving registry images again.
+- Other GitHub catalogs are supported, but their recipes remain executable deployment inputs that users must trust.
+- Local development can still produce unpinned artifacts without a lock and must not be treated as a deployable locked generation.
+- Private registries remain unsupported; GitHub credentials never become registry credentials.
+
+### Alternatives considered
+
+- **Keep official-only sources:** conflicts with the requested source syntax and private repository support.
+- **Require a synthetic local catalog pin:** would change the lock format and break the existing development workflow.
+- **Forward one authenticated client to all downloads:** risks credential exposure to registries and redirect hosts.
+
 ## 0027. Activate a generation from the store by manifest id
 
 - **Status:** Accepted
@@ -766,7 +798,7 @@ Compose is always `docker compose -p olympus -f <generation>/compose.yaml ...`, 
 - The generation is the only input: the activator needs no recipes, no stack lock and no network access of its own.
 - A malformed or mismatched id fails before anything is created, and the store and secrets directories are the trust boundary for every uploaded value.
 - Health data is a caller responsibility until the manifest carries it, so `olym rollback` on the server has nothing to pass yet. Automatic rollback re-runs the previous generation's Compose services and its health checks only when the caller supplied them. The follow-up below closes this.
-- Rollback cannot restore the previous generation's secret values: the payload is deleted once installed (A1) and no fingerprints exist yet. If an apply changes secrets and then fails, the new values stay on disk until the next successful apply. This is a TRD 8.3/8.4 gap.
+- A revert restores the previous secret values: before installing new ones, the activator copies each affected tool's secrets to `secrets/<tool>.previous`, restores them if the new generation fails, and deletes the copy once the new generation is confirmed. If writing the new values fails partway (an I/O error, since the payload is validated first), the copies are not yet restored automatically; that edge is a follow-up.
 - Relative symlinks keep the root movable and make `generations/<n>` readable on its own.
 - The nonce costs one file and one field, and it is what makes a late `olym confirm` harmless instead of dangerous.
 

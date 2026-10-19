@@ -247,3 +247,66 @@ func TestParseSource(t *testing.T) {
 		}
 	}
 }
+
+func TestLatestAndCredentialConfinement(t *testing.T) {
+	const credential = "sentinel-private-github-token"
+	var foreignRequests int
+	foreign := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		foreignRequests++
+		if r.Header.Get("Authorization") != "" {
+			t.Error("credential followed redirect to another origin")
+		}
+		http.Error(w, credential, http.StatusForbidden)
+	}))
+	defer foreign.Close()
+	var mode string
+	github := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		want := "Bearer " + credential
+		if mode == "public" {
+			want = ""
+		}
+		if r.Header.Get("Authorization") != want {
+			t.Error("unexpected GitHub authorization")
+		}
+		switch mode {
+		case "redirect":
+			http.Redirect(w, r, foreign.URL, http.StatusFound)
+		case "invalid":
+			w.Write([]byte(`{"sha":"bad"}`))
+		case "error":
+			http.Error(w, credential, http.StatusUnauthorized)
+		default:
+			w.Write([]byte(`{"sha":"` + testRev + `"}`))
+		}
+	}))
+	defer github.Close()
+	src := Source{Owner: "owner", Repo: "repo"}
+	f := Fetcher{APIURL: github.URL, BaseURL: github.URL, Token: credential}
+	for _, modeValue := range []string{"private", "public", "invalid", "error", "redirect"} {
+		mode = modeValue
+		f.Token = credential
+		if mode == "public" {
+			f.Token = ""
+		}
+		rev, err := f.Latest(context.Background(), src)
+		if mode == "private" || mode == "public" {
+			if err != nil || rev != testRev {
+				t.Fatalf("lookup: %s %v", rev, err)
+			}
+		} else if err == nil || strings.Contains(err.Error(), credential) {
+			t.Fatal("lookup failed to reject or leaked credential")
+		}
+	}
+	mode = "redirect"
+	f.Token = credential
+	if _, _, err := f.Fetch(context.Background(), src, testRev, ""); err == nil || strings.Contains(err.Error(), credential) {
+		t.Fatal("download failed to reject or leaked credential")
+	}
+	if foreignRequests != 2 {
+		t.Fatalf("foreign requests: %d", foreignRequests)
+	}
+	github.Close()
+	if _, err := f.Latest(context.Background(), src); err == nil || strings.Contains(err.Error(), credential) {
+		t.Fatal("transport error leaked credential")
+	}
+}

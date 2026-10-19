@@ -50,3 +50,9 @@ Not in this slice: CLI commands (`activate`, `confirm`, `rollback`, `gc` wiring)
 - `gc` does not collect old activator binaries from `bin/`, and activation does not write them.
 - `--no-confirm` is a CLI decision: the activator always waits, so the CLI must confirm immediately or skip calling it.
 - One activation at a time is enforced by `flock`; there is no queue and no timeout for a holder that hangs.
+
+## Merge into development (2026-10-20)
+
+- Reviewed the fixes: `gc` aborts when a kept generation is unreadable; a failed revert returns `RollbackFailedError` with status `rollback_failed`; previous secrets are restored on revert and dropped on confirm; a failed `Rollback` records the generation it tried. Each has a test.
+- Merged `development` (catalog wiring, ADR 0026). This ADR is 0027. ADR 0027's consequence about secrets was updated to match the restore behaviour.
+- Follow-up: if `installSecrets` fails partway through writing (after validation, so only on I/O errors), the `.previous` copies are not restored before returning. Restore them on that path too.

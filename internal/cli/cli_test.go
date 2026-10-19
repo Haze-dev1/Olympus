@@ -23,7 +23,7 @@ func TestOfflineCommands(t *testing.T) {
 		t.Fatal(e)
 	}
 	var stdout, stderr bytes.Buffer
-	if code := Run([]string{"check", "-f", file}, &stdout, &stderr); code != 0 {
+	if code := Run([]string{"check", "-f", file, "-recipes", "../../testdata/sample/recipes"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("check returned %d: %s", code, &stderr)
 	}
 	output := filepath.Join(dir, "build")

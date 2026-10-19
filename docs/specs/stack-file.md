@@ -10,7 +10,7 @@ The stack file describes everything that should run on one server. Users write i
 
 ```yaml
 inputs:
-  recipes: github:haze/olympus/recipes
+  recipes: github:Haze-dev1/Olympus/recipes
 
 server:
   host: 1.2.3.4
@@ -60,7 +60,7 @@ At least one of `agents` or `apps` must be present.
 
 | Key | Meaning |
 | --- | --- |
-| `recipes` | Git source of the recipe set, such as `github:haze/olympus/recipes`. v1 accepts only the official repo ([ADR 0006](../ADR.md#0006-keep-official-recipes-in-one-folder-in-this-repo)). The revision is pinned in `stack.lock`, not here. |
+| `recipes` | GitHub source of the recipe set: `github:<owner>/<repo>[/<path>]`. Defaults to `github:Haze-dev1/Olympus/recipes`. Other GitHub catalogs are supported ([ADR 0026](../ADR.md#0026-wire-github-catalogs-and-preserve-local-development-overrides)). The revision is pinned in `stack.lock`, not here. |
 
 ## `server`
 
@@ -97,7 +97,11 @@ Either a local command (stdio) or a remote URL (HTTP), not both.
 
 ## Current offline commands
 
-`olym check -f stack.yaml` validates this file and requires each referenced name to exist in `.env` beside it. It does not resolve values or use process environment fallback. `olym build` additionally loads recipes from `-recipes recipes`, with no fetching, digest resolution or lock file. See [TRD section 6.5](../TRD.md#65-current-offline-slice) for the exact implemented boundary.
+`olym check -f stack.yaml` validates the stack, recipes and rendering, requiring each referenced secret name in the adjacent `.env` without resolving values. It creates a missing adjacent `stack.lock` from the newest default-branch commit and image index digests. `olym update` refreshes that lock without rendering output or checking runtime secret names. `olym build` requires an existing lock. Both `check` and `build` verify the catalog hash, use locked digests and reject missing tool entries. Change the catalog URL through `update`, rather than silently reusing an unrelated lock.
+
+`GITHUB_TOKEN` from the process environment authenticates only GitHub commit lookups and tarball downloads. It is never stored or printed and is never forwarded to registries or other redirect origins. Public catalogs work without it.
+
+Explicit `-recipes <directory>` on `check` or `build` selects local development recipes and announces that the catalog pin is skipped. An existing lock still supplies every tool's image digest; without a lock, local artifacts may use tags and no lock is created. Local manifests keep a content hash instead of a catalog revision. `update -recipes` is refused. See [TRD section 6.5](../TRD.md#65-current-offline-slice) for the remaining offline artifact boundaries.
 
 ## Variables
 
@@ -114,7 +118,7 @@ Written by Olympus only (`check` when missing, and `update`). JSON with sorted k
 ```json
 {
   "version": 1,
-  "inputs": { "recipes": { "url": "github:haze/olympus/recipes", "rev": "3f2a9c1e…", "hash": "sha256-…" } },
+  "inputs": { "recipes": { "url": "github:Haze-dev1/Olympus/recipes", "rev": "3f2a9c1e…", "hash": "sha256-…" } },
   "tools": { "hermes": { "image": "nousresearch/hermes-agent@sha256:…" } }
 }
 ```
