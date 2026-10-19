@@ -70,6 +70,18 @@ func (a *Activator) GC(ctx context.Context, keep int) (GCResult, error) {
 			return result, fmt.Errorf("activate: cannot resolve generations/%d, refusing to collect: %w", n, err)
 		}
 		referenced[filepath.Base(dst)] = true
+		t, _, err := a.number(n)
+		if err != nil {
+			return result, fmt.Errorf("activate: invalid kept generation, refusing to collect: %w", err)
+		}
+		for _, tool := range t.manifest.Tools {
+			if !idPattern.MatchString(tool.Hash) {
+				return result, fmt.Errorf("activate: invalid tool hash, refusing to collect")
+			}
+			if len(tool.Files) > 0 {
+				referenced[tool.Hash] = true
+			}
+		}
 		compose, err := os.ReadFile(filepath.Join(dst, "compose.yaml"))
 		if err != nil {
 			return result, fmt.Errorf("activate: cannot read the compose file of generations/%d, refusing to collect: %w", n, err)

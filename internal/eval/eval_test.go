@@ -119,7 +119,7 @@ func TestGoldenAndPurity(t *testing.T) {
 			}
 		}
 	}
-	config := g.Files["tools/research/files/opt/observatory/config.yaml"]
+	config := g.Files["store/"+g.Manifest.Tools["research"].Hash+"/files/opt/observatory/config.yaml"]
 	if !bytes.Contains(config, []byte("${GITHUB_TOKEN}")) {
 		t.Fatal("MCP runtime variable reference missing")
 	}
@@ -145,7 +145,7 @@ func TestManagedFormatsPreserveBase(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			b := g.Files["tools/research/files/opt/observatory/config."+format]
+			b := g.Files["store/"+g.Manifest.Tools["research"].Hash+"/files/opt/observatory/config."+format]
 			doc, e := encode.Unmarshal(format, b)
 			if e != nil {
 				t.Fatal(e)
@@ -248,7 +248,7 @@ func TestConfinedSkillsAndUnsupportedWarning(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(g.Files["tools/research/files/opt/observatory/skills/research/SKILL.md"]) == 0 {
+	if len(g.Files["store/"+g.Manifest.Tools["research"].Hash+"/files/opt/observatory/skills/research/SKILL.md"]) == 0 {
 		t.Fatal("missing skill")
 	}
 	if e := os.Symlink(filepath.Join(skillDir, "SKILL.md"), filepath.Join(skillDir, "link")); e != nil {
@@ -299,8 +299,37 @@ func TestTOMLSeedRetainsInteger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output := g.Files["tools/research/files/opt/observatory/config.toml"]
+	output := g.Files["store/"+g.Manifest.Tools["research"].Hash+"/files/opt/observatory/config.toml"]
 	if !bytes.Contains(output, []byte("port = 8642\n")) || !bytes.Contains(output, []byte("large = 9007199254740993\n")) {
 		t.Fatalf("seed integers changed: %s", output)
+	}
+}
+
+func TestUnchangedToolKeepsMountSource(t *testing.T) {
+	in := sample(t)
+	in.Stack.Agents["second"] = in.Stack.Agents["research"]
+	first, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delete(in.Stack.Agents, "second")
+	second, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Manifest.ID == second.Manifest.ID {
+		t.Fatal("generation did not change")
+	}
+	if first.Manifest.Tools["research"].Hash != second.Manifest.Tools["research"].Hash {
+		t.Fatal("unchanged tool hash changed")
+	}
+	a, _ := encode.Unmarshal("yaml", first.Files["compose.yaml"])
+	b, _ := encode.Unmarshal("yaml", second.Files["compose.yaml"])
+	if !reflect.DeepEqual(a["services"].(map[string]any)["research"], b["services"].(map[string]any)["research"]) {
+		t.Fatal("unchanged service changed")
+	}
+	hash := first.Manifest.Tools["research"].Hash
+	if !bytes.Contains(first.Files["compose.yaml"], []byte("/var/lib/olympus/store/"+hash+"/files/")) {
+		t.Fatal("mount is not content addressed")
 	}
 }

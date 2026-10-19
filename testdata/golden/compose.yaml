@@ -17,11 +17,11 @@ services:
       target: /opt/observatory
       type: volume
     - read_only: true
-      source: ./tools/research/files/opt/observatory/SOUL.md
+      source: /var/lib/olympus/store/sha256-9441e7bf671df087fe7e9250cbd41e900a331d7f749e5deb9d94216326a440a1/files/opt/observatory/SOUL.md
       target: /opt/observatory/SOUL.md
       type: bind
     - read_only: true
-      source: ./tools/research/files/opt/observatory/config.yaml
+      source: /var/lib/olympus/store/sha256-9441e7bf671df087fe7e9250cbd41e900a331d7f749e5deb9d94216326a440a1/files/opt/observatory/config.yaml
       target: /opt/observatory/config.yaml
       type: bind
 volumes:

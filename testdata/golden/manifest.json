@@ -1,5 +1,5 @@
 {
-  "id": "sha256-fb4ad6d902f209603b3c52d37646a916069af29ce99ea21685404dda837165d7",
+  "id": "sha256-1dda4763280e9e29bb54c6498ac399b8c173eacb3d2f581c70b9deb763f4708e",
   "inputs": {
     "recipes": "sha256-a5db5ba8705f1ed3954af8e708823b5990867a36edf80896711e71863a7000e8"
   },
@@ -10,7 +10,7 @@
         "/opt/observatory/SOUL.md": "sha256-8fbfee040b3467d67bc6bdbda062d578385c5858877dd4ce6ddeda5d5c580434",
         "/opt/observatory/config.yaml": "sha256-7ae84f2a5e9fe38ca7d81024283a336b3ac5aa4fcc4fb299c90ce001a01e5fe8"
       },
-      "hash": "sha256-fe28983d6dbc11dd12fe778c28fb0c1839ba470bf8990fdbc949d9cd1f004948",
+      "hash": "sha256-9441e7bf671df087fe7e9250cbd41e900a331d7f749e5deb9d94216326a440a1",
       "health": {
         "http": {
           "path": "/health",

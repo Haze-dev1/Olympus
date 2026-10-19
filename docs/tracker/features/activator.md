@@ -56,3 +56,7 @@ Not in this slice: CLI commands (`activate`, `confirm`, `rollback`, `gc` wiring)
 - Reviewed the fixes: `gc` aborts when a kept generation is unreadable; a failed revert returns `RollbackFailedError` with status `rollback_failed`; previous secrets are restored on revert and dropped on confirm; a failed `Rollback` records the generation it tried. Each has a test.
 - Merged `development` (catalog wiring, ADR 0026). This ADR is 0027. ADR 0027's consequence about secrets was updated to match the restore behaviour.
 - Follow-up: if `installSecrets` fails partway through writing (after validation, so only on I/O errors), the `.previous` copies are not restored before returning. Restore them on that path too.
+
+## Per-tool store retention, 2026-10-20
+
+GC also retains tool hashes referenced by kept manifests (ADR 0030), independent of Compose text references. A regression test protects a manifest-referenced tool entry. Full M1 command/lab integration remains in progress.

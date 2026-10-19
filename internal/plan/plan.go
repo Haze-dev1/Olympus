@@ -144,12 +144,15 @@ func ReadCurrent(ctx context.Context, r Reader, root bool) (generation.Manifest,
 		if !stack.ValidName(n) {
 			return m, nil, fmt.Errorf("invalid manifest tool name")
 		}
+		if !hashPattern.MatchString(m.Tools[n].Hash) {
+			return m, nil, fmt.Errorf("invalid manifest tool hash")
+		}
 		actual[n] = map[string]string{}
 		for _, f := range schema.Keys(m.Tools[n].Files) {
 			if !recipe.CleanAbsolute(f) || f == "/" || strings.ContainsAny(f, "\x00\r\n\x1b") || !hashPattern.MatchString(m.Tools[n].Files[f]) {
 				return m, nil, fmt.Errorf("invalid manifest file")
 			}
-			file := path.Join(dir, "tools", n, "files", strings.TrimPrefix(f, "/"))
+			file := path.Join("/var/lib/olympus/store", m.Tools[n].Hash, "files", strings.TrimPrefix(f, "/"))
 			b, err := run("sha256sum", "--", file)
 			if err != nil {
 				_, missingErr := run("test", "-e", file)

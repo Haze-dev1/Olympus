@@ -342,14 +342,16 @@ func Build(in Inputs) (*generation.Generation, error) {
 			if !r.Confined(p) {
 				return nil, fmt.Errorf("%s: unsafe generated path", name)
 			}
-			rel := path.Join("tools", name, "files", strings.TrimPrefix(p, "/"))
-			g.Files[rel] = files[p]
 			tool.Files[p] = generation.Hash(files[p])
-			service.Volumes = append(service.Volumes, Mount{Type: "bind", Source: "./" + rel, Target: p, ReadOnly: true})
 		}
 		tool.Hash, err = generation.ToolHash(files, service)
 		if err != nil {
 			return nil, err
+		}
+		for _, p := range schema.Keys(files) {
+			rel := path.Join("store", tool.Hash, "files", strings.TrimPrefix(p, "/"))
+			g.Files[rel] = files[p]
+			service.Volumes = append(service.Volumes, Mount{Type: "bind", Source: "/var/lib/olympus/" + rel, Target: p, ReadOnly: true})
 		}
 		g.Manifest.Tools[name] = tool
 		compose.Services[name] = service

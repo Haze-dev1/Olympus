@@ -328,3 +328,41 @@ func TestSendSecretsRejectsUndeclared(t *testing.T) {
 		}
 	}
 }
+
+func TestToolEntryReuseAndVerification(t *testing.T) {
+	f, dir := filesystemConn(t, false)
+	c := Client{Conn: f, Version: "test"}
+	g := testGeneration(t)
+	data := []byte("config")
+	hash := generation.Hash([]byte("tool"))
+	g.Manifest.Tools["demo"] = generation.Tool{Hash: hash, Files: map[string]string{"/config": generation.Hash(data)}}
+	g.Files["store/"+hash+"/files/config"] = data
+	if err := g.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.UploadGeneration(context.Background(), g); err != nil {
+		t.Fatal(err)
+	}
+	g.Manifest.Inputs["recipes"] = "different"
+	if err := g.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.UploadGeneration(context.Background(), g); err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, a := range f.calls {
+		if a[0] == "tar" {
+			count++
+		}
+	}
+	if count != 3 {
+		t.Fatalf("want one tool and two generations uploaded, got %d", count)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "store", hash, "files/config"), []byte("drift"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.UploadGeneration(context.Background(), g); err == nil {
+		t.Fatal("reused corrupt tool entry")
+	}
+}

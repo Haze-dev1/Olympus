@@ -88,7 +88,7 @@ func (f *fakeReader) Run(_ context.Context, args []string, _ io.Reader) ([]byte,
 		if f.missing {
 			return nil, nil, exitCode(1)
 		}
-		if !strings.Contains(args[2], "/tools/demo/files/a") {
+		if !strings.Contains(args[2], "/store/"+f.hash+"/files/a") {
 			f.t.Fatal(args)
 		}
 		return []byte(strings.TrimPrefix(f.hash, "sha256-") + "  file\n"), nil, nil
@@ -99,7 +99,7 @@ func (f *fakeReader) Run(_ context.Context, args []string, _ io.Reader) ([]byte,
 }
 func TestReadCurrent(t *testing.T) {
 	hash := generation.Hash([]byte("contents"))
-	g := generation.Generation{Manifest: generation.Manifest{Version: 1, Olym: "test", Tools: map[string]generation.Tool{"demo": {Files: map[string]string{"/a": hash}}}}, Files: map[string][]byte{}}
+	g := generation.Generation{Manifest: generation.Manifest{Version: 1, Olym: "test", Tools: map[string]generation.Tool{"demo": {Hash: hash, Files: map[string]string{"/a": hash}}}}, Files: map[string][]byte{}}
 	if err := g.Finish(); err != nil {
 		t.Fatal(err)
 	}
