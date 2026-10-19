@@ -784,3 +784,152 @@ func TestEnvironmentRejectsANewline(t *testing.T) {
 		t.Error("the environment file was written")
 	}
 }
+
+func TestGCNeverDeletesWhenAKeptGenerationIsUnreadable(t *testing.T) {
+	f := newFixture(t)
+	var ids []string
+	for _, seed := range []string{"gen1", "gen2", "gen3"} {
+		id := f.addGeneration(t, seed, map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+		f.activate(t, id)
+		ids = append(ids, id)
+	}
+	if err := os.Remove(filepath.Join(f.Root, "store", "gen-"+ids[1], "compose.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(f.Root, "store", "orphan"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := f.GC(context.Background(), 2)
+	if err == nil || !strings.Contains(err.Error(), "refusing to collect") {
+		t.Fatalf("GC = %v, want a refusal", err)
+	}
+	for _, entry := range []string{"gen-" + ids[0], "gen-" + ids[1], "gen-" + ids[2], "orphan"} {
+		if !exists(filepath.Join(f.Root, "store", entry)) {
+			t.Errorf("store/%s was deleted", entry)
+		}
+	}
+}
+
+func TestRevertReportsWhenRollbackItselfFails(t *testing.T) {
+	f := newFixture(t)
+	first := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.health[first] = map[string]Health{"observatory": {HTTP: &HTTPCheck{Port: 8080, Path: "/"}}}
+	f.activate(t, first)
+
+	second := f.addGeneration(t, "gen2", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.health[second] = map[string]Health{"observatory": {HTTP: &HTTPCheck{Port: 8080, Path: "/"}}}
+	// Every tool is unhealthy from here on, so the re-activation fails too.
+	f.checker.fail["observatory"] = -1
+
+	err := f.wait(t, func() <-chan error {
+		result := make(chan error, 1)
+		go func() { result <- f.Activate(context.Background(), second) }()
+		return result
+	}())
+	var failed *RollbackFailedError
+	if !errors.As(err, &failed) {
+		t.Fatalf("want a RollbackFailedError, got %v", err)
+	}
+	var rolled *RolledBackError
+	if errors.As(err, &rolled) {
+		t.Errorf("a failed rollback was reported as a clean rollback: %v", err)
+	}
+	if failed.Activation == nil || failed.Rollback == nil {
+		t.Errorf("both causes must be kept: %v", err)
+	}
+	if got := f.mustState(t).Status; got != StatusRollbackFailed {
+		t.Errorf("state is %q, want %q", got, StatusRollbackFailed)
+	}
+}
+
+func TestFailedActivationRestoresThePreviousSecrets(t *testing.T) {
+	f := newFixture(t)
+	tools := map[string]generation.Tool{"observatory": tool("model_key")}
+	first := f.addGeneration(t, "gen1", tools, "services: {}\n")
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"observatory":{"secrets":{"model_key":"old"},"environment":{"MODEL_KEY":"old"}}}}`)
+	f.activate(t, first)
+
+	second := f.addGeneration(t, "gen2", tools, "services: {}\n")
+	f.checker.contains = "gen-" + second
+	f.checker.fail["observatory"] = -1
+	f.health[second] = map[string]Health{"observatory": {HTTP: &HTTPCheck{Port: 8080, Path: "/"}}}
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"observatory":{"secrets":{"model_key":"new"},"environment":{"MODEL_KEY":"new"}}}}`)
+
+	err := f.wait(t, func() <-chan error {
+		result := make(chan error, 1)
+		go func() { result <- f.Activate(context.Background(), second) }()
+		return result
+	}())
+	var rolled *RolledBackError
+	if !errors.As(err, &rolled) {
+		t.Fatalf("want a RolledBackError, got %v", err)
+	}
+	secret, err := os.ReadFile(filepath.Join(f.Root, "secrets", "observatory", "model_key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(secret) != "old" {
+		t.Errorf("secret is %q after the revert, want the previous value", secret)
+	}
+	env, err := os.ReadFile(filepath.Join(f.Root, "secrets", "observatory", "environment"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(env) != "MODEL_KEY=old\n" {
+		t.Errorf("environment is %q after the revert", env)
+	}
+	if exists(filepath.Join(f.Root, "secrets", "observatory.previous")) {
+		t.Error("the copy survived the revert")
+	}
+}
+
+func TestConfirmedActivationKeepsOnlyTheNewSecrets(t *testing.T) {
+	f := newFixture(t)
+	tools := map[string]generation.Tool{"observatory": tool("model_key")}
+	first := f.addGeneration(t, "gen1", tools, "services: {}\n")
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"observatory":{"secrets":{"model_key":"old"}}}}`)
+	f.activate(t, first)
+
+	second := f.addGeneration(t, "gen2", tools, "services: {}\n")
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"observatory":{"secrets":{"model_key":"new"}}}}`)
+	f.activate(t, second)
+
+	secret, err := os.ReadFile(filepath.Join(f.Root, "secrets", "observatory", "model_key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(secret) != "new" {
+		t.Errorf("secret is %q, want the new value", secret)
+	}
+	if exists(filepath.Join(f.Root, "secrets", "observatory.previous")) {
+		t.Error("a copy outlived the confirmation")
+	}
+}
+
+func TestRollbackRecordsTheGenerationItTriedToActivate(t *testing.T) {
+	f := newFixture(t)
+	first := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.activate(t, first)
+	second := f.addGeneration(t, "gen2", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.activate(t, second)
+
+	err := f.wait(t, func() <-chan error {
+		result := make(chan error, 1)
+		go func() { result <- f.Rollback(context.Background()) }()
+		return result
+	}())
+	var rolled *RolledBackError
+	if !errors.As(err, &rolled) {
+		t.Fatalf("want a RolledBackError, got %v", err)
+	}
+	if got := f.mustState(t).ID; got != first {
+		t.Errorf("state records %s, want the generation rollback tried to activate", got)
+	}
+	if got := f.mustState(t).Status; got != StatusRolledBack {
+		t.Errorf("state is %q", got)
+	}
+	if got := readlink(t, filepath.Join(f.Root, "current")); got != "generations/2" {
+		t.Errorf("current is %q, want generations/2", got)
+	}
+}

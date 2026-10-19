@@ -65,14 +65,14 @@ func (a *Activator) GC(ctx context.Context, keep int) (GCResult, error) {
 		}
 		dst, err := filepath.EvalSymlinks(filepath.Join(a.generationsDir(), strconv.Itoa(n)))
 		if err != nil {
-			a.logf("generations/%d cannot be resolved: %v", n, err)
-			continue
+			// Deleting a store entry this generation needs would break it:
+			// collect nothing rather than guess.
+			return result, fmt.Errorf("activate: cannot resolve generations/%d, refusing to collect: %w", n, err)
 		}
 		referenced[filepath.Base(dst)] = true
 		compose, err := os.ReadFile(filepath.Join(dst, "compose.yaml"))
 		if err != nil {
-			a.logf("generations/%d has no readable compose file: %v", n, err)
-			continue
+			return result, fmt.Errorf("activate: cannot read the compose file of generations/%d, refusing to collect: %w", n, err)
 		}
 		for _, entry := range storeRefs(compose) {
 			referenced[entry] = true

@@ -50,6 +50,9 @@ const (
 	StatusAwaiting   = "awaiting-confirm"
 	StatusConfirmed  = "confirmed"
 	StatusRolledBack = "rolled-back"
+	// StatusRollbackFailed means the new generation failed and the server
+	// could not be returned to the previous one.
+	StatusRollbackFailed = "rollback_failed"
 )
 
 // Clock is the activator's view of time, so tests never wait.
@@ -152,6 +155,21 @@ func (e *RolledBackError) Error() string {
 
 func (e *RolledBackError) Unwrap() error { return e.Cause }
 
+// RollbackFailedError reports that a generation failed and the server could
+// not be returned to the previous one: it may be down or only partly up. The
+// generation that failed is in state.json with status rollback_failed.
+type RollbackFailedError struct {
+	Activation error // why the new generation failed
+	Rollback   error // why returning to the previous one failed
+}
+
+func (e *RollbackFailedError) Error() string {
+	return fmt.Sprintf("activate: the server could not roll back, %v; rollback failed: %v", e.Activation, e.Rollback)
+}
+
+// Unwrap exposes both causes.
+func (e *RollbackFailedError) Unwrap() []error { return []error{e.Activation, e.Rollback} }
+
 // Activator performs one activation, rollback or collection at a time under
 // Root. Zero values fall back to the defaults; Runner and Health are required.
 type Activator struct {
@@ -207,15 +225,16 @@ func (a *Activator) Activate(ctx context.Context, id string) error {
 	}
 	a.logf("activating generation %s", t.id)
 	// A1/A5: secrets arrive in a root-only file and are gone before Compose runs.
-	if err := a.installSecrets(t); err != nil {
+	bk, err := a.installSecrets(t)
+	if err != nil {
 		return err
 	}
 	if err := a.start(ctx, t); err != nil {
-		return a.revertOrDown(ctx, t, err)
+		return a.revertOrDown(ctx, t, err, bk)
 	}
 	// A confirmation left behind by an earlier activation is never reused.
 	if err := a.clearConfirm(); err != nil {
-		return a.revertOrDown(ctx, t, err)
+		return a.revertOrDown(ctx, t, err, bk)
 	}
 	nonce, err := newNonce()
 	if err != nil {
@@ -223,17 +242,18 @@ func (a *Activator) Activate(ctx context.Context, id string) error {
 	}
 	state := State{Version: 1, ID: t.id, Status: StatusAwaiting, Nonce: nonce, Deadline: a.clock().Now().Add(a.confirmTimeout())}
 	if err := a.writeState(state); err != nil {
-		return a.revertOrDown(ctx, t, err)
+		return a.revertOrDown(ctx, t, err, bk)
 	}
 	a.logf("generation %s is up; waiting for confirmation until %s", t.id, state.Deadline.UTC().Format(time.RFC3339))
 	if err := a.waitConfirm(ctx, state); err != nil {
-		return a.revertOrDown(ctx, t, err)
+		return a.revertOrDown(ctx, t, err, bk)
 	}
 	n, err := a.publish(t.id)
 	if err != nil {
-		return a.revertOrDown(ctx, t, err)
+		return a.revertOrDown(ctx, t, err, bk)
 	}
 	a.clearConfirm()
+	a.discardSecrets(bk)
 	a.finish(t.id, StatusConfirmed)
 	a.logf("generation %s is live as generations/%d", t.id, n)
 	return nil
@@ -298,11 +318,11 @@ func (a *Activator) Rollback(ctx context.Context) error {
 	}
 	a.logf("rolling back from %s to %s", cur.id, prev.id)
 	if err := a.start(ctx, prev); err != nil {
-		return a.revertOrDown(ctx, cur, err)
+		return a.revertOrDown(ctx, prev, err, nil)
 	}
 	// A confirmation left behind by an earlier activation is never reused.
 	if err := a.clearConfirm(); err != nil {
-		return a.revertOrDown(ctx, cur, err)
+		return a.revertOrDown(ctx, prev, err, nil)
 	}
 	nonce, err := newNonce()
 	if err != nil {
@@ -310,14 +330,14 @@ func (a *Activator) Rollback(ctx context.Context) error {
 	}
 	state := State{Version: 1, ID: prev.id, Status: StatusAwaiting, Nonce: nonce, Deadline: a.clock().Now().Add(a.confirmTimeout())}
 	if err := a.writeState(state); err != nil {
-		return a.revertOrDown(ctx, cur, err)
+		return a.revertOrDown(ctx, prev, err, nil)
 	}
 	a.logf("generation %s is up; waiting for confirmation until %s", prev.id, state.Deadline.UTC().Format(time.RFC3339))
 	if err := a.waitConfirm(ctx, state); err != nil {
-		return a.revertOrDown(ctx, cur, err)
+		return a.revertOrDown(ctx, prev, err, nil)
 	}
 	if err := a.pointCurrent(pn); err != nil {
-		return a.revertOrDown(ctx, cur, err)
+		return a.revertOrDown(ctx, prev, err, nil)
 	}
 	a.clearConfirm()
 	a.finish(prev.id, StatusConfirmed)
@@ -347,14 +367,18 @@ func (a *Activator) revertDown(ctx context.Context, failed target, cause error) 
 	a.logf("no previous generation: taking the %s project down", Project)
 	if err := a.Runner.Down(ctx, failed.composeFile()); err != nil {
 		a.logf("taking the project down failed: %v", err)
+		a.finish(failed.id, StatusRollbackFailed)
+		return &RollbackFailedError{Activation: cause, Rollback: fmt.Errorf("taking the project down: %w", err)}
 	}
 	a.finish(failed.id, StatusRolledBack)
 	return &RolledBackError{Cause: cause}
 }
 
-// revertOrDown re-activates the generation current points at, or takes the
-// project down when the failed generation was the first one.
-func (a *Activator) revertOrDown(ctx context.Context, failed target, cause error) error {
+// revertOrDown restores the previous secrets, re-activates the generation
+// current points at, or takes the project down when the failed generation was
+// the first one. It reports RolledBackError only when that worked.
+func (a *Activator) revertOrDown(ctx context.Context, failed target, cause error, bk *secretsBackup) error {
+	a.restoreSecrets(bk)
 	prev, _, ok, err := a.current()
 	if err != nil {
 		a.logf("reading current failed: %v", err)
@@ -366,6 +390,8 @@ func (a *Activator) revertOrDown(ctx context.Context, failed target, cause error
 	a.logf("generation %s failed: %v; re-activating %s", failed.id, cause, prev.id)
 	if err := a.start(ctx, prev); err != nil {
 		a.logf("re-activating %s failed: %v", prev.id, err)
+		a.finish(failed.id, StatusRollbackFailed)
+		return &RollbackFailedError{Activation: cause, Rollback: err}
 	}
 	a.finish(failed.id, StatusRolledBack)
 	return &RolledBackError{Cause: cause}
@@ -619,67 +645,189 @@ func (a *Activator) pointCurrent(n int) error {
 	return nil
 }
 
+// secretsBackup is the secrets an activation replaced. They live under
+// secrets/<tool>.previous until the generation is confirmed.
+type secretsBackup struct {
+	tools []string
+}
+
 // installSecrets writes the secrets the generation's tools declare. The
 // payload is deleted before anything is written, so no secret outlives the
-// activation that needed it (A1, A5).
-func (a *Activator) installSecrets(t target) error {
+// activation that needed it (A1, A5). The current values are copied aside
+// first, so a revert can re-activate the previous generation with its own
+// secrets rather than the new ones.
+func (a *Activator) installSecrets(t target) (*secretsBackup, error) {
 	path := a.PayloadPath()
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return fmt.Errorf("activate: read secrets payload: %w", err)
+		return nil, fmt.Errorf("activate: read secrets payload: %w", err)
 	}
 	if err := os.Remove(path); err != nil {
-		return fmt.Errorf("activate: delete secrets payload: %w", err)
+		return nil, fmt.Errorf("activate: delete secrets payload: %w", err)
 	}
 	var p payload
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&p); err != nil {
-		return fmt.Errorf("activate: parse secrets payload: %w", err)
+		return nil, fmt.Errorf("activate: parse secrets payload: %w", err)
 	}
 	if p.Version != 1 {
-		return fmt.Errorf("activate: secrets payload has version %d", p.Version)
+		return nil, fmt.Errorf("activate: secrets payload has version %d", p.Version)
 	}
+	// Validate the whole payload before replacing a single file.
+	files := make(map[string]map[string][]byte, len(p.Tools))
 	for _, tool := range schema.Keys(p.Tools) {
 		declaredTool, ok := t.manifest.Tools[tool]
 		if !ok {
-			return fmt.Errorf("activate: secrets payload names the unknown tool %q", tool)
+			return nil, fmt.Errorf("activate: secrets payload names the unknown tool %q", tool)
 		}
 		declared := make(map[string]bool, len(declaredTool.Secrets))
 		for _, name := range declaredTool.Secrets {
 			declared[name] = true
 		}
 		ts := p.Tools[tool]
-		dir := a.secretsDir(tool)
-		if len(ts.Secrets) > 0 || len(ts.Environment) > 0 {
-			if err := writeSecretDir(dir); err != nil {
-				return err
-			}
-		}
+		content := make(map[string][]byte, len(ts.Secrets)+1)
 		for _, name := range schema.Keys(ts.Secrets) {
 			if !declared[name] || !safeName(name) {
-				return fmt.Errorf("activate: tool %q does not declare the secret %q", tool, name)
+				return nil, fmt.Errorf("activate: tool %q does not declare the secret %q", tool, name)
 			}
-			if err := writeFile(filepath.Join(dir, name), []byte(ts.Secrets[name]), 0o600); err != nil {
-				return fmt.Errorf("activate: write secret %s/%s: %w", tool, name, err)
-			}
+			content[name] = []byte(ts.Secrets[name])
 		}
 		if len(ts.Environment) > 0 {
 			env, err := environmentFile(ts.Environment)
 			if err != nil {
-				return fmt.Errorf("activate: tool %s: %w", tool, err)
+				return nil, fmt.Errorf("activate: tool %s: %w", tool, err)
 			}
 			// The offline Compose file points env_file at this path.
-			if err := writeFile(filepath.Join(dir, "environment"), env, 0o600); err != nil {
-				return fmt.Errorf("activate: write the environment of %s: %w", tool, err)
+			content["environment"] = env
+		}
+		if len(content) > 0 {
+			files[tool] = content
+		}
+	}
+	bk := &secretsBackup{}
+	for _, tool := range schema.Keys(files) {
+		if err := a.backupSecrets(tool); err != nil {
+			return nil, err
+		}
+		bk.tools = append(bk.tools, tool)
+		dir := a.secretsDir(tool)
+		if err := writeSecretDir(dir); err != nil {
+			return nil, err
+		}
+		for _, name := range schema.Keys(files[tool]) {
+			if err := writeFile(filepath.Join(dir, name), files[tool][name], 0o600); err != nil {
+				return nil, fmt.Errorf("activate: write secret %s/%s: %w", tool, name, err)
 			}
 		}
 	}
 	a.logf("installed secrets for %s", t.id)
+	return bk, nil
+}
+
+// backupSecrets copies one tool's current secret files aside. An empty copy
+// means the tool had no secrets before this activation.
+func (a *Activator) backupSecrets(tool string) error {
+	prev := a.previousSecretsDir(tool)
+	if err := os.RemoveAll(prev); err != nil {
+		return fmt.Errorf("activate: clear the previous secrets of %s: %w", tool, err)
+	}
+	if err := os.MkdirAll(prev, 0o700); err != nil {
+		return fmt.Errorf("activate: keep the previous secrets of %s: %w", tool, err)
+	}
+	dir := a.secretsDir(tool)
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("activate: read the secrets of %s: %w", tool, err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !safeName(entry.Name()) {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			return fmt.Errorf("activate: keep the secret %s/%s: %w", tool, entry.Name(), err)
+		}
+		if err := writeFile(filepath.Join(prev, entry.Name()), data, 0o600); err != nil {
+			return fmt.Errorf("activate: keep the secret %s/%s: %w", tool, entry.Name(), err)
+		}
+	}
 	return nil
+}
+
+// restoreSecrets puts the values an activation replaced back in place before
+// the previous generation is re-activated. It never fails the revert: a
+// restore problem is logged, because bringing the services back matters more.
+func (a *Activator) restoreSecrets(bk *secretsBackup) {
+	if bk == nil {
+		return
+	}
+	for _, tool := range bk.tools {
+		if err := a.restoreToolSecrets(tool); err != nil {
+			a.logf("restoring the secrets of %s failed: %v", tool, err)
+		}
+	}
+}
+
+func (a *Activator) restoreToolSecrets(tool string) error {
+	prev := a.previousSecretsDir(tool)
+	entries, err := os.ReadDir(prev)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	dir := a.secretsDir(tool)
+	kept := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		kept[entry.Name()] = true
+		data, err := os.ReadFile(filepath.Join(prev, entry.Name()))
+		if err != nil {
+			return err
+		}
+		if err := writeSecretDir(dir); err != nil {
+			return err
+		}
+		if err := writeFile(filepath.Join(dir, entry.Name()), data, 0o600); err != nil {
+			return err
+		}
+	}
+	// Drop the files this activation added; the tool did not have them before.
+	if current, err := os.ReadDir(dir); err == nil {
+		for _, entry := range current {
+			if entry.IsDir() || kept[entry.Name()] {
+				continue
+			}
+			if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil {
+				return err
+			}
+		}
+	}
+	if len(entries) == 0 {
+		if err := os.RemoveAll(dir); err != nil {
+			return err
+		}
+	}
+	return os.RemoveAll(prev)
+}
+
+// discardSecrets drops the copies once the new values are live.
+func (a *Activator) discardSecrets(bk *secretsBackup) {
+	if bk == nil {
+		return
+	}
+	for _, tool := range bk.tools {
+		if err := os.RemoveAll(a.previousSecretsDir(tool)); err != nil {
+			a.logf("dropping the previous secrets of %s failed: %v", tool, err)
+		}
+	}
 }
 
 // environmentFile renders VAR=value lines, sorted so the file is stable. A
@@ -822,6 +970,12 @@ func (a *Activator) generationsDir() string { return filepath.Join(a.root(), "ge
 func (a *Activator) currentLink() string    { return filepath.Join(a.root(), "current") }
 func (a *Activator) secretsDir(tool string) string {
 	return filepath.Join(a.root(), "secrets", tool)
+}
+
+// previousSecretsDir holds one tool's secrets as they were before the current
+// activation, until that activation is confirmed or reverted.
+func (a *Activator) previousSecretsDir(tool string) string {
+	return filepath.Join(a.root(), "secrets", tool+".previous")
 }
 func (a *Activator) statePath() string { return filepath.Join(a.root(), "state.json") }
 func (a *Activator) pendingPath() string {
