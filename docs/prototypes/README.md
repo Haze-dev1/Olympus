@@ -1,6 +1,6 @@
 # Prototypes
 
-Draft files that show what the formats will look like before the core exists. They are not loaded by anything yet, and paths, ports and image names in them are not checked against each tool's docs.
+Draft files that show what the formats will look like before the core exists. They are not loaded by anything yet, and paths, ports and image names in them are not checked against each tool's docs. The checked recipes for Hermes, Codex and OpenCode live in [`recipes/`](../../recipes/).
 
 | File | Shows |
 | --- | --- |

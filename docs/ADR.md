@@ -39,6 +39,11 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0031](#0031-bind-activation-confirmation-and-saved-plans-to-one-request) | Bind activation confirmation and saved plans to one request | Accepted |
 | [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs) | Fingerprint secrets with a server key and restore partial installs | Accepted |
 | [0033](#0033-record-image-tag-overrides-in-the-image-lock) | Record image tag overrides in the image lock | Accepted |
+| [0035](#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile) | Build tools without an official image from a recipe-supplied Dockerfile | Accepted |
+| [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service) | Deliver writable managed config with a Compose init service | Accepted |
+| [0037](#0037-encode-mcp-secrets-as-tool-native-environment-references) | Encode MCP secrets as tool-native environment references | Accepted |
+| [0038](#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes) | Mount shared skills read-only where supported, and copy them where the tool writes | Accepted |
+| [0039](#0039-configure-hermes-channels-as-environment-variables) | Configure Hermes channels as environment variables | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -980,6 +985,148 @@ The lock format is additive and strict JSON validation remains intact. Digest re
 - Silently use the old digest: ignores user intent.
 - Resolve and rewrite during apply: makes a saved plan less reproducible and changes the lock during deployment.
 - Bump the lock version: unnecessary for an optional field with a defined default.
+
+## 0035. Build tools without an official image from a recipe-supplied Dockerfile
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+
+### Context
+
+Codex ships no official container image, only an installer, an npm package and release binaries. Olympus still needs one service with a pinned image, and the lock resolves registry digests without Docker on the developer's machine. A recipe cannot name an image that does not exist, and the activator pulls the image it deploys.
+
+### Decision
+
+The recipe `image` stays a registry-resolvable base image (`node:22-bookworm-slim` for Codex), so `update` pins its digest in the lock. A new optional `build` block names a Dockerfile in the recipe folder (`src`) and a path inside a volume (`dst`). The evaluator copies the Dockerfile into the generation like any other managed file, gives the service the content-addressed local tag `olympus/<tool>:sha256-<12 hex>` derived from the Dockerfile bytes and the pinned base reference, and emits Compose `build` with the context and Dockerfile derived from the generated bind mount plus `BASE_IMAGE` set to the pinned reference. A changed Dockerfile or base digest changes the tool hash and the generation identity.
+
+The ingredient is pinned by content, not by a registry digest: the Dockerfile is hashed into the tool hash, and the one moving part left is the installer version inside it (`CODEX_VERSION`, currently `latest` and marked unverified). The activator pulls images and does not run `docker compose build`, so built recipes are build-only until activation adds a build step.
+
+### Consequences
+
+- No new registry, no Docker on the CLI machine, and the base image is pinned by digest (A7).
+- The server must have network access and build the image; first activation is slower.
+- The Codex npm version is not pinned by an upstream digest; it is a recipe argument and must be reviewed when bumped.
+- `docker compose build` is required on the server before `up`; the current activator does not do it, so Codex cannot be deployed yet. This is recorded as a limit, not hidden.
+
+### Alternatives considered
+
+- **Fetch a release tarball during the build:** needs network at build time and upstream checksums that are not documented for every release; the Dockerfile already needs network for npm, so it adds no guarantee.
+- **Vendor the binary in this repo:** large binary in git, licence and update burden, and architecture-specific copies.
+- **Use an unofficial third-party image:** trusts an unverified publisher for an agent that holds credentials.
+- **Require an official image:** Codex has none; the tool would be unsupported.
+
+## 0036. Deliver writable managed config with a Compose init service
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+
+### Context
+
+Hermes, Codex and OpenCode all rewrite parts of their own config at runtime. A read-only bind of the rendered file makes the tool fail or silently lose changes. The activator owns deployment and was out of scope for this round, so the mechanism must work with Compose alone.
+
+### Decision
+
+A recipe lists managed files the tool writes under `writable`. The evaluator removes those files' read-only bind mounts from the tool service and creates a one-shot `<tool>-init` service with the tool's image, user and named volumes. The init service mounts each rendered file read-only under `/olympus-init/<n>` and runs `/bin/sh -c "mkdir -p '<dir>' && cp -a '<staging>' '<dst>'"`. The tool service depends on it with `condition: service_completed_successfully`. The copy source is taken from the bind mount the evaluator produced, so it follows the content-addressed `store/<tool hash>/files/...` layout without hardcoding it. `supports.skills.mode: copy` uses the same service.
+
+Init paths pass `ShellSafe` before they reach the script; the source is generated by Olympus, and the destination is a confined recipe path.
+
+### Consequences
+
+- Config delivery needs no activator change and works with one Compose project.
+- Every apply restores the rendered file, so edits a tool made to it are overwritten. The stack file is the source of truth.
+- The image must contain `/bin/sh` and `cp`; this is checked for the Debian and Node bases and still unverified for the OpenCode image.
+- One extra short-lived container runs per tool start.
+- Skills removed from the stack file stay behind in a copied volume.
+
+### Alternatives considered
+
+- **Write the file in the activator:** correct long-term, but out of scope this round and duplicates the evaluator's knowledge.
+- **Mount the file read-write:** writes go into the content-addressed store, which is shared across generations and must stay immutable.
+- **Bake config into a built image:** config depends on the stack, so every stack would need its own image.
+- **Replace the tool command with a wrapper:** changes the tool's entrypoint, hides its real command, and breaks parity with upstream images.
+
+## 0037. Encode MCP secrets as tool-native environment references
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+
+### Context
+
+A stack defines each MCP server once, but the three tools spell secrets differently. Hermes expands `${VAR}`; OpenCode expands `{env:VAR}`; Codex has no interpolation and only accepts an environment variable name. A secret value must never be written into a config file (A1), and Compose delivers secrets as environment variables through a generated environment file.
+
+### Decision
+
+`supports.mcps.style` declares the tool's syntax. The evaluator rewrites each stack `${NAME}` to the environment variable of the recipe secret that provides it, then translates the generic server into the tool's shape:
+
+- Hermes: `command`/`args`/`env` with `${VAR}`, or `url`/`headers`.
+- OpenCode: `{type: local, command: [...], environment: {VAR: "{env:VAR}"}}`, or `{type: remote, url, headers}` with `{env:VAR}`.
+- Codex: `command`/`args`/`env_vars` (names) and literal `env`, or `url` with `bearer_token_env_var` / `env_http_headers`.
+
+Codex shapes that cannot be expressed as a variable name fail closed. The actual values reach the tool only through `/var/lib/olympus/secrets/<tool>/environment`.
+
+### Consequences
+
+- No wrapper scripts and no secret values in generations, plan output or logs.
+- A recipe must declare a secret for every environment variable its MCP servers reference; the build names the tool when one is missing.
+- Codex only supports the shapes its config documents; other cases are rejected rather than approximated.
+- The stack stays tool-neutral (ADR 0012).
+
+### Alternatives considered
+
+- **A wrapper that reads `/run/secrets` and substitutes:** new runtime code, per-tool edge cases, and the tool still sees a secret in its process environment.
+- **Template the secret value into the config:** violates A1 and makes the generation depend on a secret.
+- **Per-tool syntax in the stack file:** breaks define-once and leaks tool knowledge into every stack.
+
+## 0038. Mount shared skills read-only where supported, and copy them where the tool writes
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+
+### Context
+
+Skills are defined once and shared by every tool that accepts them. Codex and OpenCode only read their skills directories. Hermes treats its primary skills directory as agent-writable, so a read-only bind would break skill creation and editing.
+
+### Decision
+
+`supports.skills.mode` chooses per recipe. `mount` leaves the generated skill files as read-only store binds (Codex at `/root/.agents/skills`, OpenCode at `/root/.config/opencode/skills`). `copy` routes them through the init service from ADR 0036 into the volume (Hermes at `/opt/data/skills`).
+
+### Consequences
+
+- Mounted skills cannot drift or be edited by the tool; copied skills can be edited by the agent but are restored from the stack on apply.
+- Copied skills add files to the init script, and deleted skills are not removed from the volume.
+- Each recipe states which mode it needs; a new tool does not require core changes.
+
+### Alternatives considered
+
+- **Always copy:** write-protection is lost for read-only tools and every tool pays for an init container.
+- **Always mount:** Hermes may fail when it tries to write its skills directory.
+- **Merge skill files into the config:** skills are directories with scripts and assets, not a config key.
+
+## 0039. Configure Hermes channels as environment variables
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+
+### Context
+
+Hermes configures Telegram and Discord through environment variables (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS`), not through `config.yaml`. The previous recipe format could only describe a config-file key, so channel rendering failed explicitly. Chat channels must require a non-empty allow-list (A10), and the bot token is a secret.
+
+### Decision
+
+`supports.channels.<name>.env` maps the stack channel's `token` and `allow` fields to environment variable names. The evaluator requires a non-empty `allow` list, finds the recipe secret whose target is the token variable, requires the stack to provide it with the same source variable, and joins the allow-list into the allow variable in the service environment. The token itself is delivered only through the generated environment file. The offline-slice error is removed for supported channels; unsupported channels still fail.
+
+### Consequences
+
+- Telegram works without writing a `.env` file into the volume, and the allow-list is visible in Compose as user IDs (not secrets).
+- A channel token must be a declared secret, so a channel cannot be enabled without secret delivery.
+- Discord can be added by a recipe that names the `DISCORD_*` variables; no schema change.
+- Channels that need config keys rather than environment variables need a new form.
+
+### Alternatives considered
+
+- **Write tokens into `/opt/data/.env`:** bypasses the secret-delivery path and puts values in a writable volume.
+- **Generic map of arbitrary environment variables in the stack:** hides the token/allow semantics and the allow-list requirement.
+- **Keep channels unsupported in this slice:** fails the M4 acceptance bar without a technical reason.
 
 ## Template
 

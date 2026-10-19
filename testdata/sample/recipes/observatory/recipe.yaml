@@ -18,6 +18,7 @@ supports:
   mcps:
     file: /opt/observatory/config.yaml
     format: yaml
+    style: hermes
     key: mcp_servers
 templates:
   - src: config.yaml.tmpl

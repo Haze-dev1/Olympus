@@ -170,36 +170,42 @@ name: hermes
 kind: harness                     # harness | coding-agent | app
 image: nousresearch/hermes-agent:latest
 resources: { min_ram: 4GB }
-user: "1000:1000"                 # container user; owns its secret files
 volumes:
   data: /opt/data                 # named volume olympus_hermes_data
-ports: [8642]                     # bound to 127.0.0.1
-health:
-  http: { port: 8642, path: /health }
-  timeout: 120s
 env:
   HERMES_HOME: /opt/data
+health:
+  command: [hermes, --version]
+  timeout: 60s
 secrets:
-  model_key: { env: ANTHROPIC_API_KEY }        # delivered as an environment variable
+  model-key:      { env: ANTHROPIC_API_KEY }
+  telegram-token: { env: TELEGRAM_BOT_TOKEN }
+  github-token:   { env: GITHUB_TOKEN }
 supports:
-  mcps:     { file: /opt/data/config.yaml, format: yaml, key: mcp_servers }
-  skills:   { dir: /opt/data/skills }
+  mcps:     { file: /opt/data/config.yaml, format: yaml, style: hermes, key: mcp_servers }
+  skills:   { dir: /opt/data/skills, mode: copy }
   channels:
-    telegram: { file: /opt/data/config.yaml, format: yaml, key: channels.telegram }
+    telegram:
+      env: { token: TELEGRAM_BOT_TOKEN, allow: TELEGRAM_ALLOWED_USERS }
+writable: [/opt/data/config.yaml]
 templates:
-  - src: SOUL.md.tmpl
-    dst: /opt/data/SOUL.md
+  - src: config.yaml.tmpl
+    dst: /opt/data/config.yaml
 hooks:
   post_install: ["hermes", "setup", "--non-interactive"]
 ```
 
-The Hermes values above are illustrative and unverified; the real recipe is written against Hermes's documentation (PRD section 9.2).
+The Hermes recipe above is the shipped `recipes/hermes` shape. The concrete image tag, the configuration environment variables and the image's default command are still marked unverified in that folder's README; paths and ports are checked against Hermes's own documentation (PRD section 9.2).
 
 Rules:
 
-- `image` has a default tag; the lock pins its digest.
-- Every `supports.*.file` and template `dst` must be inside one of the recipe's `volumes` paths (rule A3, section 9.2).
+- `image` has a default tag; the lock pins its digest. With `build`, `image` is the registry-resolvable base and the lock pins the base digest.
+- Every `supports.*.file`, template `dst`, `writable` path and `build.dst` must be inside one of the recipe's `volumes` paths (rule A3, section 9.2).
 - `hooks.post_install` is an argument list, never a shell string, and runs inside the tool's container (rule A8).
+- `command` replaces the image command as an argument list; it is never a shell string.
+- `supports.mcps.style` selects the tool's secret syntax; `supports.skills.mode` selects a read-only mount or a copy into the volume ([ADR 0037](ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references), [0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
+- `writable` files are copied into the tool volume by a one-shot init service ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
+- `build` names a Dockerfile in the recipe folder and a path inside a volume; Compose builds the image on the server ([ADR 0035](ADR.md#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile)).
 - Recipes have no version field: the whole catalog is versioned by its git revision.
 
 ### 5.3 Lock file (`stack.lock`)
@@ -273,8 +279,10 @@ It reads no secret values, no server state, no clock and no randomness, and sort
 For each tool, the output is a set of files plus one Compose service.
 
 - **Managed config files.** For each `supports.*.file`: start from the template output for that file if the recipe has one, else an empty document; decode it; set the managed key (`mcp_servers`, `channels.telegram`, …) to the data built from the stack file; encode with the deterministic encoder for its format. The core owns the managed key entirely; everything else in the file comes from the recipe.
-- **Secrets inside managed files.** A value such as `${GH_TOKEN}` inside an MCP entry is never written into the file. It is replaced with a reference the tool resolves at runtime: an environment variable placeholder in the tool's own syntax where the tool supports one, otherwise the MCP server is started through a small wrapper that reads `/run/secrets/<name>`. Which mechanism each tool supports is recorded in its recipe (**open** per tool).
-- **Skills.** Each listed skill folder is copied into the tool's output under `supports.skills.dir`. (**Open:** copy per tool, or one shared read-only mount.)
+- **Secrets inside managed files.** A value such as `${GH_TOKEN}` inside an MCP entry is never written into the file. It is replaced with a reference the tool resolves at runtime: an environment variable placeholder in the tool's own syntax (`${VAR}` for Hermes, `{env:VAR}` for OpenCode) or, for Codex, the environment variable's name in `env_vars` / `bearer_token_env_var` / `env_http_headers`. Compose delivers the values through `/var/lib/olympus/secrets/<tool>/environment`. No wrapper scripts are generated ([ADR 0037](ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references)).
+- **Skills.** Each listed skill folder is rendered under `supports.skills.dir`. With `mode: mount` the files stay read-only binds; with `mode: copy` a one-shot init service copies them into the tool's volume ([ADR 0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
+- **Writable managed files.** Paths listed in `writable` lose their read-only bind. A `<tool>-init` service mounts the rendered file under `/olympus-init/<n>` and copies it into the volume; the tool uses `depends_on: service_completed_successfully` ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
+- **Built images.** With `build`, the Dockerfile becomes a generation file at `build.dst`, the service image becomes `olympus/<tool>:sha256-<12 hex>` over the Dockerfile bytes and pinned base, and Compose gets `build.context`, `build.dockerfile` and `BASE_IMAGE` from the generated bind source ([ADR 0035](ADR.md#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile)).
 - **Plain templates.** `text/template` with the tool's entry, resolved MCP servers and skills as input, with `missingkey=error`. Secrets are not available to templates.
 - **Compose service.** Built as a Go struct and encoded (section 7.3).
 
@@ -301,11 +309,11 @@ The M1 CLI implements `check`, `build` and `update` with catalog and lock resolu
 
 Published stack and recipe schemas are embedded. The core evaluates the schema vocabulary they use, with additional semantic checks for references and confinement. YAML aliases, anchors, tags, multiple documents and duplicate keys are rejected. String values that resemble YAML boolean or leading-zero numeric scalars must be quoted. Input documents and recipe sources are bounded to 4 MiB, and YAML data nesting to 64 levels. YAML integers retain integer types through validation and typed decoding. JSON normalization uses number-preserving decoding and concrete integer conversion before YAML/TOML/JSON encoding, including managed config seeds and int64 values above 2^53.
 
-The local generation contains `compose.yaml`, `manifest.json` and `tools/<tool>/files/<container path>`. Compose uses relative read-only file binds and named data volumes. Catalog builds record the full locked catalog revision in manifest inputs and the locked image digests in Compose and manifest tools. Explicit local recipe overrides retain the hash of canonical recipe data and template source bytes. There is no tool-hash label because including a tool hash in the service being hashed would be circular. This is an offline artifact contract; server store assembly and hash labels belong to activation.
+The local generation contains `compose.yaml`, `manifest.json` and `store/<tool hash>/files/<container path>` ([ADR 0030](ADR.md#0030-address-rendered-files-by-tool-hash-across-generations)). Compose binds those files read-only from their `/var/lib/olympus/store/...` server path and uses named data volumes. Catalog builds record the full locked catalog revision in manifest inputs and the locked image digests in Compose and manifest tools. Explicit local recipe overrides retain the hash of canonical recipe data and template source bytes. There is no tool-hash label because including a tool hash in the service being hashed would be circular. This is an offline artifact contract; server store assembly and hash labels belong to activation.
 
-All ports remain bound to localhost. Public port requests and channel rendering fail explicitly in this slice. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity. Health checks are also persisted in each manifest tool for the activator; builds execute neither hooks nor checks. Skills, when requested and supported, are copied from confined local folders.
+All ports remain bound to localhost. Public port requests still fail explicitly in this slice. Channels are rendered for recipes that declare them as environment variables; every channel requires a non-empty allow-list. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity. Health checks are also persisted in each manifest tool for the activator; builds execute neither hooks nor checks. Skills, when requested and supported, are rendered from confined local folders and either bind-mounted or copied by the init service.
 
-Only the fictional test recipe's MCP secret convention is exercised. Each MCP variable must map to an explicitly supplied recipe secret with an `env` target. Its config references that environment variable name. Compose points to `/var/lib/olympus/secrets/<tool>/environment`; no environment file or secret value is built. Real-tool secret syntax and delivery remain open under section 16. There are no wrapper scripts.
+Every MCP variable must map to an explicitly supplied recipe secret with an `env` target. The evaluator rewrites it to that environment variable and encodes the server in the tool's declared syntax; no secret value is built. Compose points to `/var/lib/olympus/secrets/<tool>/environment`. The shipped Hermes, Codex and OpenCode recipes exercise the YAML, TOML and JSON shapes, and the three formats are checked by the golden build. Codex built images need `docker compose build`, which the current activator does not run; built recipes are therefore build-only until activation adds it.
 
 The build directory is tool-owned only when it contains a valid version-1 Olympus manifest whose generation ID matches its canonical contents. A complete new generation is written to a fresh sibling directory and atomically exchanged with prior owned output. The prior directory is then removed, eliminating stale files. An existing directory without a valid manifest, including an empty directory or a symlinked manifest, is refused. Staging and publication failures leave prior output intact. Native exchange and exclusive initial publication use Linux `renameat2` or macOS `renameatx_np`, on amd64/arm64. Other platforms and unsupported filesystems fail explicitly without a non-atomic fallback. This updates the original preservation policy in [ADR 0022](ADR.md#0022-atomically-replace-owned-local-build-directories). See [ADR 0020](ADR.md#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) and [0021](ADR.md#0021-keep-the-first-generation-contract-offline).
 
@@ -354,14 +362,15 @@ The implemented `plan` slice only verifies SSH and root/passwordless sudo, then 
 
 One project named `olympus`, one service per tool:
 
-- `image:` the locked digest reference.
+- `image:` the locked digest reference, or the content-addressed local tag `olympus/<tool>:sha256-…` when the recipe has a `build` block.
+- `build:` for built recipes, `context` and `dockerfile` from the generated Dockerfile bind source and `BASE_IMAGE` set to the pinned base reference ([ADR 0035](ADR.md#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile)).
 - `ports:` `127.0.0.1:<port>:<port>` for each recipe port; `0.0.0.0` only for ports listed in `ports.public` (rule A4).
 - `volumes:` the recipe's named volumes as `olympus_<tool>_<name>`; rendered files bind-mounted read-only from `store/<tool hash>/files/…`.
 - `secrets:` file-based Compose secrets from `secrets/<tool>/`, mounted at `/run/secrets/<name>`; or `env_file` for secrets the recipe delivers as environment variables.
-- `restart: unless-stopped`; `labels:` tool name and tool hash.
+- `restart: unless-stopped`; `labels:` tool name. For built and copied files, a one-shot `<tool>-init` service runs first and the tool depends on `service_completed_successfully` ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
 - One project network; tools reach each other by service name. No host networking.
 
-**Open:** some tools rewrite their own config file at runtime and fail on a read-only mount. Such recipes will mark files `writable: true`; the activator then copies them into the tool's volume instead of bind-mounting them.
+A file a tool rewrites at runtime cannot be a read-only bind. Recipes list it under `writable`; the evaluator removes the bind, and the init service copies the rendered file into the tool's named volume before the tool starts. The stack file remains the source of truth, so tool edits are overwritten on the next apply. This replaces the former open question in [section 16](#16-open-technical-questions).
 
 ## 8. Activation
 
@@ -602,9 +611,10 @@ Before the first release, check that `olym` is not already taken in Homebrew and
 
 ## 16. Open technical questions
 
-- [ ] Per tool: how secrets inside MCP entries are delivered (environment placeholder or wrapper reading `/run/secrets`).
-- [ ] Skills: copy into each tool, or one shared read-only mount.
-- [ ] Tools that rewrite their own config files: confirm the `writable: true` copy approach.
+- [x] Per tool: how secrets inside MCP entries are delivered: environment references in each tool's syntax, declared by `supports.mcps.style` ([ADR 0037](ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references)).
+- [x] Skills: a shared read-only mount for Codex and OpenCode, a copy into the volume for Hermes, selected by `supports.skills.mode` ([ADR 0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
+- [x] Tools that rewrite their own config files: a Compose one-shot init service copies the rendered file into the volume ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
+- [ ] Activation must build or otherwise obtain the image for a recipe with a `build` block; the current activator only pulls.
 - [x] Integration test servers: a local QEMU VM from the Ubuntu cloud image ([ADR 0025](ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)), plus one VPS run before release.
 - [ ] The final URL scheme for the catalog input and whether `git` is ever required locally.
 - [ ] CLI framework: `cobra` or the standard library.

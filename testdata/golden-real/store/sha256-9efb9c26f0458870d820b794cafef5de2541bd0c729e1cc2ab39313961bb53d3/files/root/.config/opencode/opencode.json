@@ -1,0 +1,14 @@
+{
+  "mcp": {
+    "github": {
+      "command": [
+        "npx",
+        "@modelcontextprotocol/server-github"
+      ],
+      "environment": {
+        "GITHUB_TOKEN": "{env:GITHUB_TOKEN}"
+      },
+      "type": "local"
+    }
+  }
+}

@@ -1,0 +1,150 @@
+name: olympus
+services:
+  codex:
+    build:
+      args:
+        BASE_IMAGE: node:22-bookworm-slim@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      context: /var/lib/olympus/store/sha256-39590452620ef1880bcf0b73205d1e38677b1b7ba41b848147c848d37ed939e2/files/root/.olympus-build
+      dockerfile: Dockerfile
+    command:
+    - sleep
+    - infinity
+    depends_on:
+      codex-init:
+        condition: service_completed_successfully
+    env_file:
+    - /var/lib/olympus/secrets/codex/environment
+    environment:
+      CODEX_HOME: /root/.codex
+    image: olympus/codex:sha256-0a5b3506fa4c
+    labels:
+      org.olympus.tool: codex
+    restart: unless-stopped
+    volumes:
+    - source: codex_home
+      target: /root
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-39590452620ef1880bcf0b73205d1e38677b1b7ba41b848147c848d37ed939e2/files/root/.olympus-build/Dockerfile
+      target: /root/.olympus-build/Dockerfile
+      type: bind
+  codex-init:
+    entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      mkdir -p '/root/.codex' && cp -a '/olympus-init/0' '/root/.codex/config.toml'
+    image: olympus/codex:sha256-0a5b3506fa4c
+    labels:
+      org.olympus.role: init
+      org.olympus.tool: codex
+    restart: "no"
+    volumes:
+    - source: codex_home
+      target: /root
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-39590452620ef1880bcf0b73205d1e38677b1b7ba41b848147c848d37ed939e2/files/root/.codex/config.toml
+      target: /olympus-init/0
+      type: bind
+  hermes:
+    depends_on:
+      hermes-init:
+        condition: service_completed_successfully
+    env_file:
+    - /var/lib/olympus/secrets/hermes/environment
+    environment:
+      HERMES_HOME: /opt/data
+      TELEGRAM_ALLOWED_USERS: "@alice,@bob"
+    image: nousresearch/hermes-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    labels:
+      org.olympus.tool: hermes
+    restart: unless-stopped
+    volumes:
+    - source: hermes_data
+      target: /opt/data
+      type: volume
+  hermes-init:
+    entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      mkdir -p '/opt/data' && cp -a '/olympus-init/0' '/opt/data/config.yaml'
+      mkdir -p '/opt/data/skills/deploy-checklist' && cp -a '/olympus-init/1' '/opt/data/skills/deploy-checklist/SKILL.md'
+    image: nousresearch/hermes-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    labels:
+      org.olympus.role: init
+      org.olympus.tool: hermes
+    restart: "no"
+    volumes:
+    - source: hermes_data
+      target: /opt/data
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-4192ceb6ef18e5b0cf5e24a430667f9cc95a2b52c1bb7437285e26539b8b01c5/files/opt/data/config.yaml
+      target: /olympus-init/0
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-4192ceb6ef18e5b0cf5e24a430667f9cc95a2b52c1bb7437285e26539b8b01c5/files/opt/data/skills/deploy-checklist/SKILL.md
+      target: /olympus-init/1
+      type: bind
+  opencode:
+    command:
+    - serve
+    - --hostname
+    - 0.0.0.0
+    - --port
+    - "4096"
+    depends_on:
+      opencode-init:
+        condition: service_completed_successfully
+    env_file:
+    - /var/lib/olympus/secrets/opencode/environment
+    image: ghcr.io/anomalyco/opencode@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    labels:
+      org.olympus.tool: opencode
+    ports:
+    - 127.0.0.1:4096:4096
+    restart: unless-stopped
+    volumes:
+    - source: opencode_config
+      target: /root/.config/opencode
+      type: volume
+    - source: opencode_data
+      target: /root/.local/share/opencode
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-9efb9c26f0458870d820b794cafef5de2541bd0c729e1cc2ab39313961bb53d3/files/root/.config/opencode/skills/deploy-checklist/SKILL.md
+      target: /root/.config/opencode/skills/deploy-checklist/SKILL.md
+      type: bind
+  opencode-init:
+    entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      mkdir -p '/root/.config/opencode' && cp -a '/olympus-init/0' '/root/.config/opencode/opencode.json'
+    image: ghcr.io/anomalyco/opencode@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    labels:
+      org.olympus.role: init
+      org.olympus.tool: opencode
+    restart: "no"
+    volumes:
+    - source: opencode_config
+      target: /root/.config/opencode
+      type: volume
+    - source: opencode_data
+      target: /root/.local/share/opencode
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-9efb9c26f0458870d820b794cafef5de2541bd0c729e1cc2ab39313961bb53d3/files/root/.config/opencode/opencode.json
+      target: /olympus-init/0
+      type: bind
+volumes:
+  codex_home:
+    name: olympus_codex_home
+  hermes_data:
+    name: olympus_hermes_data
+  opencode_config:
+    name: olympus_opencode_config
+  opencode_data:
+    name: olympus_opencode_data

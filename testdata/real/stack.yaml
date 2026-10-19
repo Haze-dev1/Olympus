@@ -1,0 +1,42 @@
+inputs:
+  recipes: github:Haze-dev1/Olympus/recipes
+
+server:
+  host: offline.example.test
+
+mcps:
+  github:
+    command: npx
+    args: ["@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ${GH_TOKEN}
+
+skills:
+  - ./skills/deploy-checklist
+
+agents:
+  hermes:
+    recipe: hermes
+    mcps: [github]
+    skills: all
+    secrets:
+      model-key: ${ANTHROPIC_API_KEY}
+      telegram-token: ${TELEGRAM_BOT_TOKEN}
+      github-token: ${GH_TOKEN}
+    channels:
+      telegram:
+        token: ${TELEGRAM_BOT_TOKEN}
+        allow: ["@alice", "@bob"]
+  codex:
+    recipe: codex
+    mcps: [github]
+    secrets:
+      api-key: ${CODEX_API_KEY}
+      github-token: ${GH_TOKEN}
+  opencode:
+    recipe: opencode
+    mcps: [github]
+    skills: all
+    secrets:
+      model-key: ${ANTHROPIC_API_KEY}
+      github-token: ${GH_TOKEN}

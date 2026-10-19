@@ -22,14 +22,26 @@ import (
 const Version = "0.1.0-dev"
 
 type Service struct {
-	Image       string            `json:"image"`
-	User        string            `json:"user,omitempty"`
-	Restart     string            `json:"restart"`
-	Ports       []string          `json:"ports,omitempty"`
-	Volumes     []Mount           `json:"volumes,omitempty"`
-	Environment map[string]string `json:"environment,omitempty"`
-	EnvFile     []string          `json:"env_file,omitempty"`
-	Labels      map[string]string `json:"labels"`
+	Image       string             `json:"image"`
+	User        string             `json:"user,omitempty"`
+	Restart     string             `json:"restart"`
+	Command     []string           `json:"command,omitempty"`
+	Entrypoint  []string           `json:"entrypoint,omitempty"`
+	Ports       []string           `json:"ports,omitempty"`
+	Volumes     []Mount            `json:"volumes,omitempty"`
+	Environment map[string]string  `json:"environment,omitempty"`
+	EnvFile     []string           `json:"env_file,omitempty"`
+	Build       *ServiceBuild      `json:"build,omitempty"`
+	DependsOn   map[string]Depends `json:"depends_on,omitempty"`
+	Labels      map[string]string  `json:"labels"`
+}
+type ServiceBuild struct {
+	Context    string            `json:"context"`
+	Dockerfile string            `json:"dockerfile"`
+	Args       map[string]string `json:"args,omitempty"`
+}
+type Depends struct {
+	Condition string `json:"condition"`
 }
 type Mount struct {
 	Type     string `json:"type"`
@@ -75,6 +87,14 @@ func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 				d.Add("/templates", "cannot read confined template source")
 			} else {
 				in.Templates[t.Recipe][tpl.Src] = b
+			}
+		}
+		if r.Build != nil {
+			b, e := recipe.ReadFile(r.Dir, r.Build.Src)
+			if e != nil {
+				d.Add("/build/src", "cannot read confined build source")
+			} else {
+				in.Templates[t.Recipe][r.Build.Src] = b
 			}
 		}
 		errors = append(errors, d.Errors...)
@@ -143,7 +163,11 @@ func Build(in Inputs) (*generation.Generation, error) {
 		if r == nil {
 			return nil, fmt.Errorf("%s: recipe was not loaded", name)
 		}
-		service := Service{Image: r.Image, User: r.User, Restart: "unless-stopped", Environment: r.Env, Labels: map[string]string{"org.olympus.tool": name}}
+		environment := map[string]string{}
+		for k, v := range r.Env {
+			environment[k] = v
+		}
+		service := Service{Image: r.Image, User: r.User, Restart: "unless-stopped", Command: r.Command, Environment: environment, Labels: map[string]string{"org.olympus.tool": name}}
 		if in.Images != nil {
 			pinned, ok := in.Images[name]
 			if !ok {
@@ -157,6 +181,7 @@ func Build(in Inputs) (*generation.Generation, error) {
 			}
 			service.Image = image
 		}
+		baseRef := service.Image
 
 		for _, port := range r.Ports {
 			service.Ports = append(service.Ports, fmt.Sprintf("127.0.0.1:%d:%d", port, port))
@@ -223,11 +248,15 @@ func Build(in Inputs) (*generation.Generation, error) {
 			if err != nil {
 				return nil, err
 			}
-			var obj any
+			var obj map[string]any
 			if err = json.Unmarshal(b, &obj); err != nil {
 				return nil, err
 			}
-			mcps[mcpName] = obj
+			translated, err := translateMCP(obj, r.Supports.MCPs.Style)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", name, err)
+			}
+			mcps[mcpName] = translated
 		}
 		files := map[string][]byte{}
 		// Templates receive only non-secret settings and translated MCP references.
@@ -255,6 +284,19 @@ func Build(in Inputs) (*generation.Generation, error) {
 			}
 			files[tpl.Dst] = buf.Bytes()
 		}
+		var buildDst, buildBase string
+		if r.Build != nil {
+			source, ok := in.Templates[entry.Recipe][r.Build.Src]
+			if !ok {
+				return nil, fmt.Errorf("%s: missing build source", name)
+			}
+			if !r.Confined(r.Build.Dst) || files[r.Build.Dst] != nil {
+				return nil, fmt.Errorf("%s: unsafe or colliding build destination", name)
+			}
+			files[r.Build.Dst] = source
+			service.Image = builtImage(name, source, baseRef)
+			buildDst, buildBase = r.Build.Dst, baseRef
+		}
 		managed := map[string]map[string]any{}
 		formats := map[string]string{}
 		set := func(m recipe.Managed, value any) error {
@@ -273,6 +315,9 @@ func Build(in Inputs) (*generation.Generation, error) {
 					doc, e = encode.Unmarshal(m.Format, seed)
 					if e != nil {
 						return fmt.Errorf("%s: invalid structured template", name)
+					}
+					if doc == nil {
+						doc = map[string]any{}
 					}
 				}
 				managed[m.File] = doc
@@ -295,10 +340,28 @@ func Build(in Inputs) (*generation.Generation, error) {
 			if !ok {
 				return nil, fmt.Errorf("%s: channel not supported by recipe", name)
 			}
-			// Per-tool channel secret delivery remains outside this slice.
-			_ = support
-			return nil, fmt.Errorf("%s: channel rendering is outside the offline slice", name)
+			tokenEnv := support.Env["token"]
+			secretName := ""
+			for _, sn := range schema.Keys(r.Secrets) {
+				if r.Secrets[sn].Env == tokenEnv {
+					secretName = sn
+				}
+			}
+			if secretName == "" {
+				return nil, fmt.Errorf("%s: channel token environment variable is not a declared secret", name)
+			}
+			provided, ok := entry.Secrets[secretName]
+			if !ok {
+				return nil, fmt.Errorf("%s: channel token secret %q is not provided by the stack", name, secretName)
+			}
+			if schema.Variables(provided)[0] != schema.Variables(c.Token)[0] {
+				return nil, fmt.Errorf("%s: channel token does not match secret %q", name, secretName)
+			}
+			if allowEnv := support.Env["allow"]; allowEnv != "" {
+				service.Environment[allowEnv] = strings.Join(c.Allow, ",")
+			}
 		}
+		var skillCopies []string
 		selected := in.Stack.Skills
 		if a, ok := entry.Skills.([]any); ok {
 			selected = nil
@@ -322,6 +385,12 @@ func Build(in Inputs) (*generation.Generation, error) {
 						return nil, fmt.Errorf("%s: unsafe or colliding skill destination", name)
 					}
 					files[target] = skillFiles[rel]
+					if r.Supports.Skills.Mode == "copy" {
+						if !recipe.ShellSafe(target) {
+							return nil, fmt.Errorf("%s: skill destination is not shell-safe", name)
+						}
+						skillCopies = append(skillCopies, target)
+					}
 				}
 			}
 		}
@@ -353,6 +422,62 @@ func Build(in Inputs) (*generation.Generation, error) {
 			g.Files[rel] = files[p]
 			service.Volumes = append(service.Volumes, Mount{Type: "bind", Source: "/var/lib/olympus/" + rel, Target: p, ReadOnly: true})
 		}
+		// Compose build derives its context from the bind mount just created for
+		// the Dockerfile, so it follows the store layout without depending on it.
+		if buildDst != "" {
+			context, dockerfile := "", ""
+			for _, m := range service.Volumes {
+				if m.Target == buildDst {
+					context, dockerfile = path.Dir(m.Source), path.Base(m.Source)
+				}
+			}
+			if context == "" {
+				return nil, fmt.Errorf("%s: build file was not mounted", name)
+			}
+			service.Build = &ServiceBuild{Context: context, Dockerfile: dockerfile, Args: map[string]string{"BASE_IMAGE": buildBase}}
+		}
+		// Writable managed files and copied skills are delivered by a one-shot
+		// init service: Compose cannot copy, so the init container mounts the
+		// rendered file read-only and copies it into the tool volume first.
+		copies := append([]string{}, r.Writable...)
+		copies = append(copies, skillCopies...)
+		if len(copies) > 0 {
+			initName := name + "-init"
+			if _, exists := compose.Services[initName]; exists {
+				return nil, fmt.Errorf("%s: init service name collides", name)
+			}
+			init := Service{
+				Image:   service.Image,
+				User:    r.User,
+				Restart: "no",
+				Labels:  map[string]string{"org.olympus.tool": name, "org.olympus.role": "init"},
+			}
+			for _, m := range service.Volumes {
+				if m.Type == "volume" {
+					init.Volumes = append(init.Volumes, m)
+				}
+			}
+			var script strings.Builder
+			for i, dst := range copies {
+				source := ""
+				for j := 0; j < len(service.Volumes); j++ {
+					if m := service.Volumes[j]; m.Type == "bind" && m.Target == dst {
+						source = m.Source
+						service.Volumes = append(service.Volumes[:j], service.Volumes[j+1:]...)
+						break
+					}
+				}
+				if source == "" {
+					return nil, fmt.Errorf("%s: writable path is not a generated file", name)
+				}
+				staging := fmt.Sprintf("/olympus-init/%d", i)
+				init.Volumes = append(init.Volumes, Mount{Type: "bind", Source: source, Target: staging, ReadOnly: true})
+				fmt.Fprintf(&script, "mkdir -p '%s' && cp -a '%s' '%s'\n", path.Dir(dst), staging, dst)
+			}
+			init.Entrypoint = []string{"/bin/sh", "-c", script.String()}
+			compose.Services[initName] = init
+			service.DependsOn = map[string]Depends{initName: {Condition: "service_completed_successfully"}}
+		}
 		g.Manifest.Tools[name] = tool
 		compose.Services[name] = service
 	}
@@ -379,6 +504,142 @@ func runtimeReferences(values map[string]string, names map[string]string) (map[s
 		out[key] = strings.NewReplacer(replacements...).Replace(values[key])
 	}
 	return out, nil
+}
+
+// translateMCP rewrites the generic stack MCP entry into the tool's own config
+// shape. Secret values are never written: they become the tool's runtime
+// reference syntax (Hermes ${VAR}, OpenCode {env:VAR}) or an environment
+// variable name (Codex).
+func translateMCP(obj map[string]any, style string) (map[string]any, error) {
+	command, hasCommand := obj["command"]
+	url, hasURL := obj["url"]
+	switch style {
+	case "hermes":
+		out := map[string]any{}
+		for _, key := range []string{"command", "args", "env", "url", "headers"} {
+			if v, ok := obj[key]; ok {
+				out[key] = v
+			}
+		}
+		return out, nil
+	case "codex":
+		if hasURL {
+			out := map[string]any{"url": url}
+			headers, _ := obj["headers"].(map[string]any)
+			static := map[string]any{}
+			envHeaders := map[string]any{}
+			for _, k := range schema.Keys(headers) {
+				if name, ok := soleReference(headers[k]); ok {
+					envHeaders[k] = name
+				} else if s, ok := headers[k].(string); ok {
+					static[k] = s
+				} else {
+					return nil, fmt.Errorf("MCP header %s is not a string", k)
+				}
+			}
+			if len(static) > 0 {
+				out["http_headers"] = static
+			}
+			if name, ok := envHeaders["Authorization"]; ok && len(envHeaders) == 1 && len(static) == 0 {
+				out["bearer_token_env_var"] = name
+			} else if len(envHeaders) > 0 {
+				out["env_http_headers"] = envHeaders
+			}
+			return out, nil
+		}
+		if !hasCommand {
+			return nil, fmt.Errorf("MCP has neither command nor url")
+		}
+		out := map[string]any{"command": command}
+		if args, ok := obj["args"]; ok {
+			out["args"] = args
+		}
+		literal := map[string]any{}
+		names := []any{}
+		env, _ := obj["env"].(map[string]any)
+		for _, k := range schema.Keys(env) {
+			if name, ok := soleReference(env[k]); ok {
+				names = append(names, name)
+			} else if s, ok := env[k].(string); ok {
+				literal[k] = s
+			} else {
+				return nil, fmt.Errorf("MCP environment value %s is not a string", k)
+			}
+		}
+		if len(names) > 0 {
+			out["env_vars"] = names
+		}
+		if len(literal) > 0 {
+			out["env"] = literal
+		}
+		return out, nil
+	case "opencode":
+		if hasURL {
+			out := map[string]any{"type": "remote", "url": url}
+			headers, _ := obj["headers"].(map[string]any)
+			if len(headers) > 0 {
+				h := map[string]any{}
+				for _, k := range schema.Keys(headers) {
+					if name, ok := soleReference(headers[k]); ok {
+						h[k] = "{env:" + name + "}"
+					} else if s, ok := headers[k].(string); ok {
+						h[k] = s
+					} else {
+						return nil, fmt.Errorf("MCP header %s is not a string", k)
+					}
+				}
+				out["headers"] = h
+			}
+			return out, nil
+		}
+		if !hasCommand {
+			return nil, fmt.Errorf("MCP has neither command nor url")
+		}
+		list := []any{command}
+		if args, ok := obj["args"].([]any); ok {
+			list = append(list, args...)
+		}
+		out := map[string]any{"type": "local", "command": list}
+		env, _ := obj["env"].(map[string]any)
+		if len(env) > 0 {
+			e := map[string]any{}
+			for _, k := range schema.Keys(env) {
+				if name, ok := soleReference(env[k]); ok {
+					e[k] = "{env:" + name + "}"
+				} else if s, ok := env[k].(string); ok {
+					e[k] = s
+				} else {
+					return nil, fmt.Errorf("MCP environment value %s is not a string", k)
+				}
+			}
+			out["environment"] = e
+		}
+		return out, nil
+	}
+	return nil, fmt.Errorf("unknown MCP style %q", style)
+}
+
+// soleReference accepts exactly ${VAR} or "Bearer ${VAR}" and returns VAR.
+func soleReference(v any) (string, bool) {
+	s, ok := v.(string)
+	if !ok {
+		return "", false
+	}
+	vars := schema.Variables(s)
+	if len(vars) != 1 {
+		return "", false
+	}
+	if s != "${"+vars[0]+"}" && s != "Bearer ${"+vars[0]+"}" {
+		return "", false
+	}
+	return vars[0], true
+}
+
+// builtImage names a locally built image by its Dockerfile bytes and base
+// reference, so a changed base digest changes the tool and generation hashes.
+func builtImage(name string, source []byte, base string) string {
+	full := generation.Hash(bytes.Join([][]byte{source, []byte(base)}, []byte{0}))
+	return "olympus/" + name + ":sha256-" + full[len("sha256-"):len("sha256-")+12]
 }
 
 func setKey(doc map[string]any, key string, value any) error {
