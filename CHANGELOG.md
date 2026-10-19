@@ -1,0 +1,11 @@
+# Changelog
+
+## Development
+
+- Added the design-phase docs: product doc, design doc with architecture diagram, ADRs 0001–0012 in `docs/ADR.md`, user flows, stack file and recipe specs, apply edge cases, v1 plan, feature tracker, prototypes and landscape research.
+- Added agent instructions (`AGENTS.md`, `CLAUDE.md`) and project skills in `.agents/skills/`: `ponytail`, `review-app-security` and `apply-security-fixes` (adapted with an AITerraform scope reference and rules A1–A12), and `aitf-test` (replaces the LRN QA skill).
+- Decided the implementation model: Go (ADR 0013), local evaluation into generations with server-side activation and rollback (ADR 0014, supersedes 0011), one Docker Compose project as the runtime (ADR 0015), and the recipe set pinned as a flake-style input (ADR 0016, amends 0005 and 0008). Updated the design doc, product doc, specs, user flows, edge cases, glossary, v1 plan, tracker, AGENTS.md rule A11 and the aitf-test and security skills to match.
+- Added ADR 0017 (server-side activation that rolls back unless the CLI confirms, from deploy-rs; amends 0014) and ADR 0018 (structured config built as data, published JSON Schemas, a cap on kept generations, from Helm; amends 0005). Added security rule A12 for the activator binary, Helm and deploy-rs notes in `docs/Sources/landscape.md`, and matching updates to the design doc, specs, edge cases, product doc, glossary, user flows, v1 plan, tracker and aitf-test skill.
+- Added standalone `docs/PRD.md` (replaces `docs/product.md`) and `docs/TRD.md` (architecture, file formats, build and hashing, server layout, activation and rollback protocol, secrets, security rules, commands and exit codes, failure handling, testing, release). Aligned the stack-file spec with the TRD (JSON lock file, content-addressed generations) and updated links.
+- Renamed the project from AITerraform to Olympus (ADR 0019): command `olym`, server paths `/var/lib/olympus/`, Compose project `olympus`, test skill `olympus-test`. Added planned distribution through an own Homebrew tap and the AUR to the PRD and TRD.
+- Added `references/`: shallow clones of 11 reference repos (Terraform, OpenTofu, Nix, deploy-rs, Colmena, Helm, Docker Compose, Kamal, ClawHost, aideploy, Hermes Agent), listed in `references/repos.txt` and restored with `references/clone.sh`. The whole folder is git-ignored.
