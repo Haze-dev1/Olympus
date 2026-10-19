@@ -1,6 +1,6 @@
 # Spec: stack file (`stack.yaml`)
 
-- **Status:** Draft, not implemented
+- **Status:** Draft v1 format; offline subset implemented
 - **Date:** 2026-10-19
 - **Decisions:** [ADR 0004](../ADR.md#0004-use-yaml-for-the-stack-file), [0016](../ADR.md#0016-pin-the-recipe-set-as-a-flake-style-input), [0009](../ADR.md#0009-keep-secrets-in-a-git-ignored-env-referenced-by-name), [0012](../ADR.md#0012-define-mcp-servers-and-skills-once-and-translate-them-per-tool)
 
@@ -94,6 +94,10 @@ Either a local command (stdio) or a remote URL (HTTP), not both.
 | `secrets` | no | Values for the secrets the recipe declares |
 | `channels` | no | Channel settings, for recipes that declare channel support |
 | `ports.public` | no | Ports to open publicly. Off by default ([ADR 0010](../ADR.md#0010-expose-nothing-publicly-by-default)). |
+
+## Current offline commands
+
+`olym check -f stack.yaml` validates this file and requires each referenced name to exist in `.env` beside it. It does not resolve values or use process environment fallback. `olym build` additionally loads recipes from `-recipes recipes`, with no fetching, digest resolution or lock file. See [TRD section 6.5](../TRD.md#65-current-offline-slice) for the exact implemented boundary.
 
 ## Variables
 

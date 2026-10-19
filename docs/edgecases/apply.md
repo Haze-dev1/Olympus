@@ -11,8 +11,27 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | YAML type trap (`no`, `on`, `08` read as boolean or number) | Validation error naming the field and the expected type |
 | Agent lists an MCP server not defined under `mcps:` | Fail; name the agent and the missing server |
 | Recipe name not found in `recipes/` | Fail; suggest the closest recipe name |
-| Recipe lacks support for MCP servers, skills or a channel the agent asks for | Warn in `plan`, continue without that feature |
+| Recipe lacks support for MCP servers or skills the agent asks for | Warn and continue without that feature |
+| Recipe lacks support for a channel the agent asks for | Fail, as specified by TRD section 6.1; supported channel rendering remains outside the first offline slice |
 | `stack.yaml` pins a version different from `stack.lock` | The stack file wins; `plan` shows the change and `apply` rewrites the lock |
+
+## Offline input and generation safety
+
+| Case | Intended behaviour |
+| --- | --- |
+| Unknown stack or recipe key | Fail with file, line and column |
+| Duplicate tool name across agents and apps, or invalid tool-name syntax | Fail before building |
+| Variable in a key or a field that is not secret-capable | Fail without echoing the input value |
+| Template or managed destination escapes a recipe volume, including a prefix lookalike | Fail in recipe validation and recheck during evaluation |
+| Source template or skill is a symlink, traverses `..`, or names a sensitive source file | Fail without reading the target |
+| YAML aliases, anchors, tags, duplicate keys or extra documents | Reject; do not expand aliases or construct objects |
+| MCP secret reference has no supplied recipe secret with an environment target | Fail in the test-recipe convention; real-tool delivery remains open |
+| Two tool/volume pairs would have the same hyphen-concatenated name | Use an unambiguous underscore separator; keep the volumes distinct |
+| Build directory has a valid Olympus manifest and changed inputs | Stage a complete sibling generation, atomically replace the tool-owned directory, and remove stale files |
+| Build directory exists without a valid Olympus manifest, even if empty | Refuse and preserve it |
+| Staging fails while replacing owned output | Keep prior output intact and clean up staging |
+| Integer config value or int64 above 2^53 in a managed seed | Preserve its exact integer value through YAML, TOML and JSON rendering |
+| Identical generation is built into its existing directory | Succeed with byte-identical files and hashes |
 
 ## Server
 

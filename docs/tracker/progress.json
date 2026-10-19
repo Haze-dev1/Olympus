@@ -1,11 +1,11 @@
 {
   "updated": "2026-10-19",
-  "phase": "design",
+  "phase": "implementation",
   "milestones": [
     {
       "id": "M1",
       "name": "Core on one server (Go; generations; Compose)",
-      "status": "not_started",
+      "status": "in_progress",
       "features": [
         "core-plan-apply",
         "lock-file"
@@ -47,7 +47,7 @@
   ],
   "features": {
     "core-plan-apply": {
-      "status": "not_started",
+      "status": "in_progress",
       "file": "features/core-plan-apply.md"
     },
     "lock-file": {
@@ -81,6 +81,9 @@
     "ADR 0015 Compose runtime",
     "ADR 0016 recipe input",
     "ADR 0017 server-side activation, confirm-or-rollback",
-    "ADR 0018 structured config, JSON Schemas"
+    "ADR 0018 structured config, JSON Schemas",
+    "ADR 0020 approved YAML/TOML dependencies",
+    "ADR 0021 offline generation contract",
+    "ADR 0022 atomic replacement of owned build output"
   ]
 }
