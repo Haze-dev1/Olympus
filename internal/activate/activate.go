@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -126,6 +127,7 @@ func (h Health) validate() error {
 
 // State is state.json: the activation the server is waiting on.
 type State struct {
+	Request  string    `json:"request,omitempty"`
 	Version  int       `json:"version"`
 	ID       string    `json:"id"`
 	Status   string    `json:"status"`
@@ -173,15 +175,18 @@ func (e *RollbackFailedError) Unwrap() []error { return []error{e.Activation, e.
 // Activator performs one activation, rollback or collection at a time under
 // Root. Zero values fall back to the defaults; Runner and Health are required.
 type Activator struct {
-	Root           string
-	Runner         Runner
-	Checker        HealthChecker
-	Health         HealthSource
-	Clock          Clock
-	Log            io.Writer // optional second log sink, for example stdout
-	ConfirmTimeout time.Duration
-	PollInterval   time.Duration
-	RetryInterval  time.Duration
+	Request         string
+	Payload         string  // optional unique basename under root; never a secret value
+	ExpectedCurrent *string // optional compare under activation lock
+	Root            string
+	Runner          Runner
+	Checker         HealthChecker
+	Health          HealthSource
+	Clock           Clock
+	Log             io.Writer // optional second log sink, for example stdout
+	ConfirmTimeout  time.Duration
+	PollInterval    time.Duration
+	RetryInterval   time.Duration
 
 	mu sync.Mutex
 	lg *logFile
@@ -219,6 +224,19 @@ func (a *Activator) Activate(ctx context.Context, id string) error {
 	}
 	defer endLog()
 
+	if a.ExpectedCurrent != nil {
+		cur, _, ok, e := a.current()
+		if e != nil {
+			return e
+		}
+		current := ""
+		if ok {
+			current = cur.id
+		}
+		if current != *a.ExpectedCurrent {
+			return errors.New("activate: server current changed; run olym plan")
+		}
+	}
 	t, err := a.load(id)
 	if err != nil {
 		return err
@@ -229,7 +247,11 @@ func (a *Activator) Activate(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := a.start(ctx, t); err != nil {
+	var changed []string
+	if bk != nil {
+		changed = bk.changed
+	}
+	if err := a.startWithSecrets(ctx, t, changed); err != nil {
 		return a.revertOrDown(ctx, t, err, bk)
 	}
 	// A confirmation left behind by an earlier activation is never reused.
@@ -238,9 +260,9 @@ func (a *Activator) Activate(ctx context.Context, id string) error {
 	}
 	nonce, err := newNonce()
 	if err != nil {
-		return err
+		return a.revertOrDown(ctx, t, err, bk)
 	}
-	state := State{Version: 1, ID: t.id, Status: StatusAwaiting, Nonce: nonce, Deadline: a.clock().Now().Add(a.confirmTimeout())}
+	state := State{Request: a.Request, Version: 1, ID: t.id, Status: StatusAwaiting, Nonce: nonce, Deadline: a.clock().Now().Add(a.confirmTimeout())}
 	if err := a.writeState(state); err != nil {
 		return a.revertOrDown(ctx, t, err, bk)
 	}
@@ -271,6 +293,9 @@ func (a *Activator) Confirm(id, nonce string) error {
 	}
 	if state.Status != StatusAwaiting {
 		return fmt.Errorf("activate: no activation is waiting for confirmation; %s is %s", state.ID, state.Status)
+	}
+	if !a.clock().Now().Before(state.Deadline) {
+		return errors.New("activate: confirmation deadline expired; server is rolling back")
 	}
 	if state.ID != id || nonce == "" || state.Nonce != nonce {
 		return fmt.Errorf("activate: confirmation does not match the waiting activation %s; the server has already rolled back or this confirmation is stale", state.ID)
@@ -326,9 +351,9 @@ func (a *Activator) Rollback(ctx context.Context) error {
 	}
 	nonce, err := newNonce()
 	if err != nil {
-		return err
+		return a.revertOrDown(ctx, prev, err, nil)
 	}
-	state := State{Version: 1, ID: prev.id, Status: StatusAwaiting, Nonce: nonce, Deadline: a.clock().Now().Add(a.confirmTimeout())}
+	state := State{Request: a.Request, Version: 1, ID: prev.id, Status: StatusAwaiting, Nonce: nonce, Deadline: a.clock().Now().Add(a.confirmTimeout())}
 	if err := a.writeState(state); err != nil {
 		return a.revertOrDown(ctx, prev, err, nil)
 	}
@@ -347,13 +372,30 @@ func (a *Activator) Rollback(ctx context.Context) error {
 
 // PayloadPath is where the CLI writes the secrets payload (TRD 8.4). The
 // activator deletes it as soon as it has read it.
-func (a *Activator) PayloadPath() string { return filepath.Join(a.root(), "secrets.incoming") }
+func (a *Activator) PayloadPath() string {
+	if a.Payload != "" && regexp.MustCompile(`^secrets-[0-9a-f]{32}\.incoming$`).MatchString(a.Payload) {
+		return filepath.Join(a.root(), a.Payload)
+	}
+	return filepath.Join(a.root(), "secrets.incoming")
+}
 
 // start pulls, brings the generation up and health-checks it.
 func (a *Activator) start(ctx context.Context, t target) error {
+	return a.startWithSecrets(ctx, t, nil)
+}
+func (a *Activator) startWithSecrets(ctx context.Context, t target, changed []string) error {
 	file := t.composeFile()
 	if err := a.Runner.Pull(ctx, file); err != nil {
 		return fmt.Errorf("pull images for %s: %w", t.id, err)
+	}
+	if len(changed) > 0 {
+		if r, ok := a.Runner.(interface {
+			Recreate(context.Context, string, []string) error
+		}); ok {
+			if err := r.Recreate(ctx, file, changed); err != nil {
+				return err
+			}
+		}
 	}
 	if err := a.Runner.Up(ctx, file); err != nil {
 		return fmt.Errorf("start %s: %w", t.id, err)
@@ -378,7 +420,11 @@ func (a *Activator) revertDown(ctx context.Context, failed target, cause error) 
 // current points at, or takes the project down when the failed generation was
 // the first one. It reports RolledBackError only when that worked.
 func (a *Activator) revertOrDown(ctx context.Context, failed target, cause error, bk *secretsBackup) error {
-	a.restoreSecrets(bk)
+	restoreErr := a.restoreSecrets(bk)
+	if restoreErr != nil {
+		a.finish(failed.id, StatusRollbackFailed)
+		return &RollbackFailedError{Activation: cause, Rollback: restoreErr}
+	}
 	prev, _, ok, err := a.current()
 	if err != nil {
 		a.logf("reading current failed: %v", err)
@@ -648,7 +694,8 @@ func (a *Activator) pointCurrent(n int) error {
 // secretsBackup is the secrets an activation replaced. They live under
 // secrets/<tool>.previous until the generation is confirmed.
 type secretsBackup struct {
-	tools []string
+	tools   []string
+	changed []string
 }
 
 // installSecrets writes the secrets the generation's tools declare. The
@@ -656,7 +703,16 @@ type secretsBackup struct {
 // activation that needed it (A1, A5). The current values are copied aside
 // first, so a revert can re-activate the previous generation with its own
 // secrets rather than the new ones.
-func (a *Activator) installSecrets(t target) (*secretsBackup, error) {
+func (a *Activator) installSecrets(t target) (_ *secretsBackup, result error) {
+	var backup *secretsBackup
+	// Roll back every completed replacement, including errors before Compose starts.
+	defer func() {
+		if result != nil {
+			if e := a.restoreSecrets(backup); e != nil {
+				result = &RollbackFailedError{Activation: result, Rollback: e}
+			}
+		}
+	}()
 	path := a.PayloadPath()
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -679,6 +735,11 @@ func (a *Activator) installSecrets(t target) (*secretsBackup, error) {
 	}
 	// Validate the whole payload before replacing a single file.
 	files := make(map[string]map[string][]byte, len(p.Tools))
+	key, err := a.serverKey()
+	if err != nil {
+		return nil, err
+	}
+	changed := []string{}
 	for _, tool := range schema.Keys(p.Tools) {
 		declaredTool, ok := t.manifest.Tools[tool]
 		if !ok {
@@ -691,7 +752,7 @@ func (a *Activator) installSecrets(t target) (*secretsBackup, error) {
 		ts := p.Tools[tool]
 		content := make(map[string][]byte, len(ts.Secrets)+1)
 		for _, name := range schema.Keys(ts.Secrets) {
-			if !declared[name] || !safeName(name) {
+			if !declared[name] || !safeName(name) || name == "environment" || name == "fingerprints.json" {
 				return nil, fmt.Errorf("activate: tool %q does not declare the secret %q", tool, name)
 			}
 			content[name] = []byte(ts.Secrets[name])
@@ -704,17 +765,31 @@ func (a *Activator) installSecrets(t target) (*secretsBackup, error) {
 			// The offline Compose file points env_file at this path.
 			content["environment"] = env
 		}
-		if len(content) > 0 {
-			files[tool] = content
+		fp := Fingerprints(key, ts.Secrets, ts.Environment)
+		old, err := readFingerprints(filepath.Join(a.secretsDir(tool), "fingerprints.json"))
+		if err != nil {
+			return nil, err
 		}
+		if !reflect.DeepEqual(old, fp) {
+			changed = append(changed, tool)
+		}
+		content["fingerprints.json"], err = json.Marshal(fp)
+		if err != nil {
+			return nil, err
+		}
+		files[tool] = content
 	}
-	bk := &secretsBackup{}
+	bk := &secretsBackup{changed: changed}
+	backup = bk
 	for _, tool := range schema.Keys(files) {
 		if err := a.backupSecrets(tool); err != nil {
 			return nil, err
 		}
 		bk.tools = append(bk.tools, tool)
 		dir := a.secretsDir(tool)
+		if err := os.RemoveAll(dir); err != nil {
+			return nil, err
+		}
 		if err := writeSecretDir(dir); err != nil {
 			return nil, err
 		}
@@ -762,17 +837,19 @@ func (a *Activator) backupSecrets(tool string) error {
 }
 
 // restoreSecrets puts the values an activation replaced back in place before
-// the previous generation is re-activated. It never fails the revert: a
-// restore problem is logged, because bringing the services back matters more.
-func (a *Activator) restoreSecrets(bk *secretsBackup) {
+// the previous generation is re-activated. A restoration failure is reported
+// as rollback_failed rather than claiming the previous state was restored.
+func (a *Activator) restoreSecrets(bk *secretsBackup) error {
 	if bk == nil {
-		return
+		return nil
 	}
+	var result error
 	for _, tool := range bk.tools {
 		if err := a.restoreToolSecrets(tool); err != nil {
-			a.logf("restoring the secrets of %s failed: %v", tool, err)
+			result = errors.Join(result, fmt.Errorf("restore secrets for %s failed", tool))
 		}
 	}
+	return result
 }
 
 func (a *Activator) restoreToolSecrets(tool string) error {
@@ -841,7 +918,11 @@ func environmentFile(env map[string]string) ([]byte, error) {
 		if strings.ContainsAny(env[name], "\r\n\x00") {
 			return nil, fmt.Errorf("the value of %s spans lines", name)
 		}
-		fmt.Fprintf(&b, "%s=%s\n", name, env[name])
+		value := env[name]
+		if !regexp.MustCompile(`^[A-Za-z0-9_./:+-]*$`).MatchString(value) {
+			value = "\"" + strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "$", "\\$").Replace(value) + "\""
+		}
+		fmt.Fprintf(&b, "%s=%s\n", name, value)
 	}
 	return b.Bytes(), nil
 }
@@ -863,7 +944,7 @@ type toolSecret struct {
 
 // finish records the end of an activation in state.json.
 func (a *Activator) finish(id, status string) {
-	if err := a.writeState(State{Version: 1, ID: id, Status: status}); err != nil {
+	if err := a.writeState(State{Request: a.Request, Version: 1, ID: id, Status: status}); err != nil {
 		a.logf("recording status %s failed: %v", status, err)
 	}
 }

@@ -73,6 +73,9 @@ func Dial(cfg Config) (*Client, error) {
 	if _, _, err := net.SplitHostPort(addr); err != nil {
 		addr = net.JoinHostPort(addr, "22")
 	}
+	if len(cfg.HostKeyAlgorithms) == 0 {
+		cfg.HostKeyAlgorithms = knownAlgorithms(addr, cfg.KnownHosts)
+	}
 	conn, err := ssh.Dial("tcp", addr, &ssh.ClientConfig{
 		HostKeyAlgorithms: cfg.HostKeyAlgorithms,
 		User:              cfg.User,
@@ -290,4 +293,43 @@ func closeIf(c net.Conn) {
 	if c != nil {
 		c.Close()
 	}
+}
+
+// Prefer algorithms for keys already trusted for this host. Otherwise a server
+// offering multiple keys can negotiate an unknown RSA key despite a pinned
+// Ed25519 key. Verification still runs normally, including changed-key refusal.
+func knownAlgorithms(addr, file string) []string {
+	file, err := knownHostsPath(file)
+	if err != nil {
+		return nil
+	}
+	check, err := knownhosts.New(file)
+	if err != nil {
+		return nil
+	}
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return nil
+	}
+	remote, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		return nil
+	}
+	algorithms := []string{}
+	for len(b) > 0 {
+		marker, _, key, _, rest, e := ssh.ParseKnownHosts(b)
+		if e != nil {
+			break
+		}
+		b = rest
+		if marker != "" || check(addr, remote, key) != nil {
+			continue
+		}
+		if key.Type() == ssh.KeyAlgoRSA {
+			algorithms = append(algorithms, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256)
+		} else {
+			algorithms = append(algorithms, key.Type())
+		}
+	}
+	return algorithms
 }
