@@ -9,11 +9,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -82,6 +84,8 @@ type Fetcher struct {
 	Client   *http.Client
 	CacheDir string // root for extracted trees; empty means DefaultCacheDir
 	BaseURL  string // tarball host; empty means https://codeload.github.com
+	APIURL   string // empty means https://api.github.com
+	Token    string // GitHub credential; never persisted or included in errors
 }
 
 // Fetch downloads the tarball for rev, extracts its source path, computes the
@@ -155,11 +159,76 @@ func DefaultCacheDir() (string, error) {
 	return filepath.Join(dir, "olympus", "inputs"), nil
 }
 
-func (f Fetcher) client() *http.Client {
-	if f.Client != nil {
-		return f.Client
+// request keeps credentials on the configured GitHub origins, including redirects.
+func (f Fetcher) request(ctx context.Context, endpoint string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, errors.New("catalog: invalid GitHub endpoint")
 	}
-	return http.DefaultClient
+	allowed := func(u *url.URL) bool {
+		for _, base := range []string{f.apiURL(), f.baseURL()} {
+			origin, e := url.Parse(base)
+			if e == nil && u.Scheme == origin.Scheme && u.Host == origin.Host {
+				return true
+			}
+		}
+		return false
+	}
+	if f.Token != "" && allowed(req.URL) {
+		req.Header.Set("Authorization", "Bearer "+f.Token)
+	}
+	client := *http.DefaultClient
+	if f.Client != nil {
+		client = *f.Client
+	}
+	previous := client.CheckRedirect
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		req.Header.Del("Authorization")
+		if len(via) >= 10 {
+			return errors.New("too many redirects")
+		}
+		if previous != nil {
+			if err := previous(req, via); err != nil {
+				return err
+			}
+		}
+		req.Header.Del("Authorization")
+		if f.Token != "" && allowed(req.URL) {
+			req.Header.Set("Authorization", "Bearer "+f.Token)
+		}
+		return nil
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, errors.New("catalog: GitHub request failed")
+	}
+	return resp, nil
+}
+
+func (f Fetcher) apiURL() string {
+	if f.APIURL != "" {
+		return strings.TrimSuffix(f.APIURL, "/")
+	}
+	return "https://api.github.com"
+}
+
+// Latest resolves HEAD, GitHub's default-branch commit, to a full revision.
+func (f Fetcher) Latest(ctx context.Context, src Source) (string, error) {
+	resp, err := f.request(ctx, f.apiURL()+"/repos/"+src.Owner+"/"+src.Repo+"/commits/HEAD")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("catalog: commit lookup returned HTTP %d", resp.StatusCode)
+	}
+	var commit struct {
+		SHA string `json:"sha"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&commit) != nil || !revPattern.MatchString(commit.SHA) {
+		return "", errors.New("catalog: invalid default-branch commit response")
+	}
+	return commit.SHA, nil
 }
 
 func (f Fetcher) baseURL() string {
@@ -171,17 +240,13 @@ func (f Fetcher) baseURL() string {
 
 func (f Fetcher) download(ctx context.Context, src Source, rev, dst string) error {
 	endpoint := f.baseURL() + "/" + src.Owner + "/" + src.Repo + "/tar.gz/" + rev
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	resp, err := f.request(ctx, endpoint)
 	if err != nil {
-		return fmt.Errorf("catalog: build request: %w", err)
-	}
-	resp, err := f.client().Do(req)
-	if err != nil {
-		return fmt.Errorf("catalog: fetch %s: %w", endpoint, err)
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("catalog: fetch %s: server returned %s", endpoint, resp.Status)
+		return fmt.Errorf("catalog: tarball download returned HTTP %d", resp.StatusCode)
 	}
 
 	gz, err := gzip.NewReader(io.LimitReader(resp.Body, maxTarball))

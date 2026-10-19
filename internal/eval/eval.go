@@ -46,6 +46,8 @@ type Compose struct {
 // Inputs are collected before evaluation. Keeping file IO outside Build makes
 // the evaluator pure and lets tests supply exactly the same bytes twice.
 type Inputs struct {
+	Revision  string
+	Images    map[string]string
 	Stack     *stack.Stack
 	Recipes   map[string]*recipe.Recipe
 	Templates map[string]map[string][]byte
@@ -132,6 +134,9 @@ func Build(in Inputs) (*generation.Generation, error) {
 		return nil, err
 	}
 	g.Manifest.Inputs["recipes"] = generation.Hash(b)
+	if in.Revision != "" {
+		g.Manifest.Inputs["recipes"] = in.Revision
+	}
 	for _, name := range schema.Keys(in.Stack.Tools()) {
 		entry := in.Stack.Tools()[name]
 		r := in.Recipes[entry.Recipe]
@@ -139,18 +144,20 @@ func Build(in Inputs) (*generation.Generation, error) {
 			return nil, fmt.Errorf("%s: recipe was not loaded", name)
 		}
 		service := Service{Image: r.Image, User: r.User, Restart: "unless-stopped", Environment: r.Env, Labels: map[string]string{"org.olympus.tool": name}}
-		if entry.ImageTag != "" {
-			base := r.Image
-			if strings.Contains(base, "@") {
-				return nil, fmt.Errorf("%s: cannot override tag of digest image", name)
+		if in.Images != nil {
+			pinned, ok := in.Images[name]
+			if !ok {
+				return nil, fmt.Errorf("lock lacks tool %s; run olym update", name)
 			}
-			slash := strings.LastIndex(base, "/")
-			colon := strings.LastIndex(base, ":")
-			if colon > slash {
-				base = base[:colon]
+			service.Image = pinned
+		} else {
+			image, err := Image(r.Image, entry.ImageTag)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", name, err)
 			}
-			service.Image = base + ":" + entry.ImageTag
+			service.Image = image
 		}
+
 		for _, port := range r.Ports {
 			service.Ports = append(service.Ports, fmt.Sprintf("127.0.0.1:%d:%d", port, port))
 		}
@@ -390,4 +397,18 @@ func setKey(doc map[string]any, key string, value any) error {
 	}
 	doc[parts[len(parts)-1]] = value
 	return nil
+}
+
+// Image applies the stack's optional tag override before lock resolution.
+func Image(base, tag string) (string, error) {
+	if tag == "" {
+		return base, nil
+	}
+	if strings.Contains(base, "@") {
+		return "", fmt.Errorf("cannot override tag of digest image")
+	}
+	if colon := strings.LastIndex(base, ":"); colon > strings.LastIndex(base, "/") {
+		base = base[:colon]
+	}
+	return base + ":" + tag, nil
 }
