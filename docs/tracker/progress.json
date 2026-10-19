@@ -1,0 +1,86 @@
+{
+  "updated": "2026-10-19",
+  "phase": "design",
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "Core on one server (Go; generations; Compose)",
+      "status": "not_started",
+      "features": [
+        "core-plan-apply",
+        "lock-file"
+      ]
+    },
+    {
+      "id": "M2",
+      "name": "Recipe format",
+      "status": "not_started",
+      "features": [
+        "recipe-format",
+        "first-recipes"
+      ]
+    },
+    {
+      "id": "M3",
+      "name": "Shared MCP servers and skills",
+      "status": "not_started",
+      "features": [
+        "shared-mcps-skills"
+      ]
+    },
+    {
+      "id": "M4",
+      "name": "Chat channels",
+      "status": "not_started",
+      "features": [
+        "channels"
+      ]
+    },
+    {
+      "id": "M5",
+      "name": "Recipe catalog",
+      "status": "not_started",
+      "features": [
+        "recipe-catalog"
+      ]
+    }
+  ],
+  "features": {
+    "core-plan-apply": {
+      "status": "not_started",
+      "file": "features/core-plan-apply.md"
+    },
+    "lock-file": {
+      "status": "not_started",
+      "file": "features/lock-file.md"
+    },
+    "recipe-format": {
+      "status": "not_started",
+      "file": "features/recipe-format.md"
+    },
+    "first-recipes": {
+      "status": "not_started",
+      "file": "features/first-recipes.md"
+    },
+    "shared-mcps-skills": {
+      "status": "not_started",
+      "file": "features/shared-mcps-skills.md"
+    },
+    "channels": {
+      "status": "not_started",
+      "file": "features/channels.md"
+    },
+    "recipe-catalog": {
+      "status": "not_started",
+      "file": "features/recipe-catalog.md"
+    }
+  },
+  "decisions": [
+    "ADR 0013 Go",
+    "ADR 0014 generations",
+    "ADR 0015 Compose runtime",
+    "ADR 0016 recipe input",
+    "ADR 0017 server-side activation, confirm-or-rollback",
+    "ADR 0018 structured config, JSON Schemas"
+  ]
+}

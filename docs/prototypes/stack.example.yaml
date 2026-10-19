@@ -1,0 +1,39 @@
+# Draft prototype of a stack file. See docs/specs/stack-file.md.
+inputs:
+  recipes: github:haze/olympus/recipes
+
+server:
+  host: 1.2.3.4
+  user: root
+  ssh_key: ~/.ssh/id_ed25519
+
+mcps:
+  github:
+    command: npx
+    args: ["@modelcontextprotocol/server-github"]
+    env: { GITHUB_TOKEN: ${GH_TOKEN} }
+
+skills:
+  - ./skills/deploy-checklist
+
+agents:
+  hermes:
+    recipe: hermes
+    mcps: [github]
+    skills: all
+    secrets: { model_key: ${ANTHROPIC_KEY} }
+    channels:
+      telegram: { token: ${TG_TOKEN}, allow: ["@haze"] }
+  codex:
+    recipe: codex
+    mcps: [github]
+    secrets: { login_token: ${CODEX_TOKEN} }
+  opencode:
+    recipe: opencode
+    mcps: [github]
+    skills: all
+    secrets: { model_key: ${ANTHROPIC_KEY} }
+
+apps:
+  open-spaces:
+    recipe: open-spaces
