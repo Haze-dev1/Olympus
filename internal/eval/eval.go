@@ -332,6 +332,12 @@ func Build(in Inputs) (*generation.Generation, error) {
 			}
 		}
 		tool := generation.Tool{Image: service.Image, Files: map[string]string{}, Secrets: secretNames}
+		if r.Health.HTTP != nil || len(r.Health.Command) > 0 {
+			tool.Health = &generation.Health{Command: r.Health.Command, Timeout: r.Health.Timeout}
+			if r.Health.HTTP != nil {
+				tool.Health.HTTP = &generation.HTTPCheck{Port: r.Health.HTTP.Port, Path: r.Health.HTTP.Path}
+			}
+		}
 		for _, p := range schema.Keys(files) {
 			if !r.Confined(p) {
 				return nil, fmt.Errorf("%s: unsafe generated path", name)

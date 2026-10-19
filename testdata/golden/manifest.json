@@ -1,5 +1,5 @@
 {
-  "id": "sha256-a296240f8da32f85411f6fa34a8c4d9094aed7b4e3c7a9fa50c1ddfa318473d7",
+  "id": "sha256-fb4ad6d902f209603b3c52d37646a916069af29ce99ea21685404dda837165d7",
   "inputs": {
     "recipes": "sha256-a5db5ba8705f1ed3954af8e708823b5990867a36edf80896711e71863a7000e8"
   },
@@ -11,6 +11,13 @@
         "/opt/observatory/config.yaml": "sha256-7ae84f2a5e9fe38ca7d81024283a336b3ac5aa4fcc4fb299c90ce001a01e5fe8"
       },
       "hash": "sha256-fe28983d6dbc11dd12fe778c28fb0c1839ba470bf8990fdbc949d9cd1f004948",
+      "health": {
+        "http": {
+          "path": "/health",
+          "port": 8642
+        },
+        "timeout": "30s"
+      },
       "image": "ghcr.io/example/observatory:1.2.0",
       "secrets": [
         "github-token"

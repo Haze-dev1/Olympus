@@ -32,7 +32,8 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0024](#0024-resolve-image-digests-with-the-standard-library) | Resolve image digests with the standard library | Accepted |
 | [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted |
 | [0026](#0026-wire-github-catalogs-and-preserve-local-development-overrides) | Wire GitHub catalogs and preserve local development overrides | Accepted |
-| [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted |
+| [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted, amended by 0028 |
+| [0028](#0028-store-health-checks-in-the-generation-manifest) | Store health checks in the generation manifest | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -772,7 +773,7 @@ Read optional `GITHUB_TOKEN` only at the CLI boundary and use it only on GitHub 
 
 ## 0027. Activate a generation from the store by manifest id
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0028](#0028-store-health-checks-in-the-generation-manifest)
 - **Date:** 2026-10-20
 
 ### Context
@@ -811,6 +812,33 @@ Compose is always `docker compose -p olympus -f <generation>/compose.yaml ...`, 
 - **A database or one state directory per activation:** more moving parts than one `state.json` and one confirmation file.
 
 Follow-up: add an optional `health` field to `generation.Tool`, filled from `recipe.Health` in `internal/eval`, so `manifest.json` becomes the `HealthSource` and server-side rollback is self-contained. That change amends this decision.
+
+## 0028. Store health checks in the generation manifest
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+- **Amends:** [0027](#0027-activate-a-generation-from-the-store-by-manifest-id)
+
+### Context
+
+The activator has no recipes. Rollback needs the previous generation's readiness checks, so a caller-supplied map cannot be the durable source of health data.
+
+### Decision
+
+Each manifest tool may carry `health`, copied from its validated recipe: `http: {port, path}` or an argument-list `command`, and optional `timeout` as a Go duration string. Missing health remains valid for older version-1 manifests. Health changes affect the generation identity. Tool hashes retain their existing file-and-Compose definition.
+
+`activate.ManifestHealthSource` adapts a generation-id manifest loader to `HealthSource`, validates identity/version and readiness checks, and converts timeout strings to activator durations. Loading both the requested and previous manifest makes rollback health self-contained without adding a generation-to-activator import cycle. Wiring that loader into server commands belongs to their implementation.
+
+### Consequences
+
+Generation builds remain pure and secret-free. Version 1 is additive, so old generations have no declared checks. The new field changes golden generation identities. The adapter rejects invalid durations/checks rather than silently ignoring them.
+
+### Alternatives considered
+
+- Fetch recipes on the server: adds network and catalog state to rollback.
+- Put health only in Compose: requires container-local HTTP tooling.
+- Import activator types into generation: creates an import cycle.
+- Persist numeric nanoseconds: harder to inspect than recipe duration strings.
 
 ## Template
 
