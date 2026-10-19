@@ -31,6 +31,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0023](#0023-hash-the-extracted-catalog-tree-in-a-canonical-form) | Hash the extracted catalog tree in a canonical form | Accepted |
 | [0024](#0024-resolve-image-digests-with-the-standard-library) | Resolve image digests with the standard library | Accepted |
 | [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted |
+| [0026](#0026-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -736,6 +737,48 @@ We will test against one disposable local VM, started by `lab/lab.sh`. It runs t
 - **The owner's Ubuntu 24.04 desktop ISO:** no download, but needs an installer run and produces a desktop system unlike a VPS.
 - **A paid VPS for every test:** most realistic, but costs money, is slower to reset and needs network access for every run. Kept for the pre-release check.
 - **libvirt or Incus:** convenient management, but they add system services, network bridges and group membership on the host.
+
+## 0026. Activate a generation from the store by manifest id
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+
+### Context
+
+ADR 0017 puts activation on the server: the CLI uploads the generation and starts `olym activate <n>` detached from SSH. TRD 7.1 describes the layout in shorthand (`store/gen-<generation hash>/`, `generations/1 -> ../store/gen-<hash>`, `current -> generations/2`), but it does not say what the activator receives, what it validates, how a confirmation is tied to one activation, or where a rollback gets its health checks. The manifest (TRD 5.4) carries per-tool hashes, image references, file hashes and secret names only; it has no health data, and the server has no recipes.
+
+### Decision
+
+We will activate by manifest id. `internal/activate` takes an id that must match `^sha256-[0-9a-f]{64}$`, reads `store/gen-<id>/manifest.json`, requires manifest version 1 and `manifest.id == id`, requires `compose.yaml` beside it, and validates every tool name with the stack name rule. Nothing in the manifest or the secrets payload may name a path outside the store, the generation or the tool's secrets directory.
+
+The activator realises TRD 7.1 literally: `store/gen-<id>` holds the uploaded generation, `generations/<n>` is a relative symlink to `../store/gen-<id>`, and `current` is a relative symlink to `generations/<n>`. A confirmed activation numbers the generation `max+1`; rollback re-points `current` at an existing lower number instead of creating one.
+
+One exclusive `flock` on `<root>/lock` covers activate, rollback and gc. `lock.json` records pid, user, command and start time, so a second caller fails fast (exit code 4) naming the holder; the kernel drops the lock when the process exits, so it never goes stale.
+
+A confirmation is tied to one activation by a random 256-bit nonce in `state.json`. `Confirm` writes `<root>/confirm` only when the id and nonce match the waiting activation, and the activator deletes any confirmation file before it publishes the nonce, so a stale file can never confirm a later run.
+
+Per-tool health checks come from a `HealthSource` interface keyed by generation id, defined in this package: an HTTP GET to `127.0.0.1:<port><path>` expecting 2xx, or a command run with `docker compose exec` in the tool's container. The manifest cannot supply them yet.
+
+Compose is always `docker compose -p olympus -f <generation>/compose.yaml ...`, built from an argument list, so only the `olympus` project changes (A11) and no shell parses a path (A2).
+
+### Consequences
+
+- The generation is the only input: the activator needs no recipes, no stack lock and no network access of its own.
+- A malformed or mismatched id fails before anything is created, and the store and secrets directories are the trust boundary for every uploaded value.
+- Health data is a caller responsibility until the manifest carries it, so `olym rollback` on the server has nothing to pass yet. Automatic rollback re-runs the previous generation's Compose services and its health checks only when the caller supplied them. The follow-up below closes this.
+- Rollback cannot restore the previous generation's secret values: the payload is deleted once installed (A1) and no fingerprints exist yet. If an apply changes secrets and then fails, the new values stay on disk until the next successful apply. This is a TRD 8.3/8.4 gap.
+- Relative symlinks keep the root movable and make `generations/<n>` readable on its own.
+- The nonce costs one file and one field, and it is what makes a late `olym confirm` harmless instead of dangerous.
+
+### Alternatives considered
+
+- **Pass the whole manifest on the command line:** puts a generation's content, including secret names, into process arguments and lets a second caller's view diverge from the store.
+- **A long-running activation daemon:** rejected in ADR 0017.
+- **Health checks from the Compose file's `healthcheck:`:** Docker runs those inside the container and needs curl or a shell in the image; TRD 8.5 checks from the host for that reason.
+- **Trust `lock.json` instead of `flock`:** a stale file would block every later run until someone deleted it.
+- **A database or one state directory per activation:** more moving parts than one `state.json` and one confirmation file.
+
+Follow-up: add an optional `health` field to `generation.Tool`, filled from `recipe.Health` in `internal/eval`, so `manifest.json` becomes the `HealthSource` and server-side rollback is self-contained. That change amends this decision.
 
 ## Template
 
