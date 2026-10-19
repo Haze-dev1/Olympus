@@ -4,7 +4,7 @@
 # It never writes to ~/.ssh, ~/.cache or any system configuration.
 #
 #   lab/lab.sh up       download the image once, then boot the VM and wait for SSH
-#   lab/lab.sh down     stop the VM (its disk is kept)
+#   lab/lab.sh down     shut the VM down cleanly (its disk is kept)
 #   lab/lab.sh reset    stop the VM, discard its disk and boot a fresh one
 #   lab/lab.sh ssh ...  run ssh against the VM with the lab key (extra args are passed through)
 #   lab/lab.sh status   say whether the VM is running and reachable
@@ -65,7 +65,10 @@ users:
     ssh_authorized_keys:
       - $(cat "$LAB/id_ed25519.pub")
 EOF
-	printf 'instance-id: olympus-lab-%s\nlocal-hostname: olympus-lab\n' "$(date +%s)" >"$LAB/seed/meta-data"
+	# The instance ID must stay the same for the life of a disk: a new ID makes
+	# cloud-init treat the VM as a new machine and regenerate its SSH host keys.
+	[ -f "$LAB/instance-id" ] || echo "olympus-lab-$(date +%s)" >"$LAB/instance-id"
+	printf 'instance-id: %s\nlocal-hostname: olympus-lab\n' "$(cat "$LAB/instance-id")" >"$LAB/seed/meta-data"
 	: >"$LAB/seed/vendor-data"
 }
 
@@ -74,13 +77,13 @@ up() {
 	running && { echo "lab: already running"; return; }
 	mkdir -p "$LAB" && chmod 700 "$LAB"
 	fetch_image
-	write_seed
 	fresh=0
 	if [ ! -f "$LAB/disk.qcow2" ]; then
 		qemu-img create -q -f qcow2 -F qcow2 -b "$IMAGE" "$LAB/disk.qcow2" "$DISK_SIZE"
-		rm -f "$LAB/known_hosts"
+		rm -f "$LAB/known_hosts" "$LAB/instance-id"
 		fresh=1
 	fi
+	write_seed
 	# cloud-init reads its seed over HTTP from the host's loopback (10.0.2.2 inside
 	# the VM). The server runs only until the VM is reachable.
 	python3 -m http.server "$SEED_PORT" --bind 127.0.0.1 --directory "$LAB/seed" >"$LAB/seed.log" 2>&1 &
@@ -94,11 +97,14 @@ up() {
 		-device virtio-net-pci,netdev=net0 \
 		-smbios type=1,serial="ds=nocloud;s=http://10.0.2.2:$SEED_PORT/" \
 		-display none -serial file:"$LAB/console.log" \
+		-monitor unix:"$LAB/monitor.sock",server,nowait \
 		-daemonize -pidfile "$LAB/qemu.pid"
 	echo -n "lab: waiting for SSH on 127.0.0.1:$SSH_PORT"
 	for _ in $(seq 1 90); do
 		if ssh "${ssh_opts[@]}" "$VM_USER@127.0.0.1" true 2>/dev/null; then
 			[ "$fresh" = 1 ] && ssh "${ssh_opts[@]}" "$VM_USER@127.0.0.1" cloud-init status --wait >/dev/null 2>&1 || true
+			# Flush first-boot writes such as SSH host keys, so a later power-off cannot lose them.
+			ssh "${ssh_opts[@]}" "$VM_USER@127.0.0.1" sync 2>/dev/null || true
 			echo " ready"
 			return
 		fi
@@ -109,18 +115,33 @@ up() {
 	die "VM did not answer on SSH within 3 minutes; see $LAB/console.log"
 }
 
+# down presses the VM's power button (ACPI) through the QEMU monitor so Ubuntu
+# shuts down cleanly, waits up to a minute, then stops QEMU as a last resort.
+# Killing QEMU directly is like pulling the plug and can corrupt the disk.
 down() {
 	running || { echo "lab: not running"; rm -f "$LAB/qemu.pid"; return; }
-	kill "$(cat "$LAB/qemu.pid")"
-	for _ in $(seq 1 15); do running || break; sleep 1; done
-	running && kill -9 "$(cat "$LAB/qemu.pid")"
-	rm -f "$LAB/qemu.pid"
+	if [ "${1:-}" != fast ] && [ -S "$LAB/monitor.sock" ]; then
+		python3 - "$LAB/monitor.sock" <<'PY' || true
+import socket, sys
+s = socket.socket(socket.AF_UNIX)
+s.connect(sys.argv[1])
+s.sendall(b"system_powerdown\n")
+s.close()
+PY
+		for _ in $(seq 1 60); do running || break; sleep 1; done
+	fi
+	if running; then
+		kill "$(cat "$LAB/qemu.pid")"
+		for _ in $(seq 1 15); do running || break; sleep 1; done
+		running && kill -9 "$(cat "$LAB/qemu.pid")"
+	fi
+	rm -f "$LAB/qemu.pid" "$LAB/monitor.sock"
 	echo "lab: stopped"
 }
 
 reset() {
-	down
-	rm -f "$LAB/disk.qcow2" "$LAB/known_hosts"
+	down fast # the disk is discarded next, so a clean shutdown is not needed
+	rm -f "$LAB/disk.qcow2" "$LAB/known_hosts" "$LAB/instance-id"
 	up
 }
 
