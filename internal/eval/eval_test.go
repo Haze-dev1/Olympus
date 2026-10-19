@@ -287,3 +287,20 @@ func TestVolumeNamesCannotCollideAcrossTools(t *testing.T) {
 		t.Fatal("volume identity collided across tools")
 	}
 }
+
+func TestTOMLSeedRetainsInteger(t *testing.T) {
+	in := sample(t)
+	r := in.Recipes["observatory"]
+	r.Supports.MCPs.Format = "toml"
+	r.Supports.MCPs.File = "/opt/observatory/config.toml"
+	r.Templates[0].Dst = r.Supports.MCPs.File
+	in.Templates["observatory"][r.Templates[0].Src] = []byte("port = 8642\nlarge = 9007199254740993\n")
+	g, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := g.Files["tools/research/files/opt/observatory/config.toml"]
+	if !bytes.Contains(output, []byte("port = 8642\n")) || !bytes.Contains(output, []byte("large = 9007199254740993\n")) {
+		t.Fatalf("seed integers changed: %s", output)
+	}
+}

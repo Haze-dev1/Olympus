@@ -149,12 +149,11 @@ func (d *Document) read(n ast.Node, path string, depth int) any {
 	case *ast.BoolNode:
 		return n.Value
 	case *ast.IntegerNode:
-		b, _ := json.Marshal(n.Value)
-		var v float64
-		if json.Unmarshal(b, &v) != nil {
-			d.Add(path, "integer out of range")
+		if value, ok := n.Value.(uint64); ok && value <= math.MaxInt64 {
+			return int64(value)
 		}
-		return v
+		return n.Value
+
 	case *ast.FloatNode:
 		return n.Value
 	case *ast.NullNode:
@@ -187,8 +186,12 @@ func (d *Document) validate(v any, r map[string]any, path string) {
 	case "string":
 		_, valid = v.(string)
 	case "integer":
-		f, ok := v.(float64)
-		valid = ok && math.Trunc(f) == f
+		switch v := v.(type) {
+		case int64, uint64:
+			valid = true
+		case float64:
+			valid = math.Trunc(v) == v
+		}
 	}
 	if !valid {
 		d.Add(path, "expected "+typ)
@@ -263,6 +266,20 @@ func (d *Document) validate(v any, r map[string]any, path string) {
 			for _, name := range Variables(v) {
 				d.References[name] = append(d.References[name], path)
 			}
+		}
+	case int64:
+		if min, ok := r["minimum"].(float64); ok && v < int64(min) {
+			d.Add(path, "integer below minimum")
+		}
+		if max, ok := r["maximum"].(float64); ok && v > int64(max) {
+			d.Add(path, "integer above maximum")
+		}
+	case uint64:
+		if min, ok := r["minimum"].(float64); ok && min > 0 && v < uint64(min) {
+			d.Add(path, "integer below minimum")
+		}
+		if max, ok := r["maximum"].(float64); ok && v > uint64(max) {
+			d.Add(path, "integer above maximum")
 		}
 	case float64:
 		if min, ok := r["minimum"].(float64); ok && v < min {

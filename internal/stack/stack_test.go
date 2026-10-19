@@ -104,3 +104,14 @@ func TestEnvNamesOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestLargeIntegerValidationAndDecode(t *testing.T) {
+	body := "server: {host: offline.test, port: 8642, keep: 9007199254740993}\nagents: {demo: {recipe: observatory}}\n"
+	s, d := Parse("stack.yaml", []byte(body))
+	if len(d.Errors) > 0 {
+		t.Fatal(d.Errors)
+	}
+	if s.Server.Port != 8642 || int64(s.Server.Keep) != 9007199254740993 {
+		t.Fatalf("typed integers changed: %#v", s.Server)
+	}
+}

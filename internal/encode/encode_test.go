@@ -2,6 +2,7 @@ package encode
 
 import (
 	"bytes"
+	"math"
 	"testing"
 )
 
@@ -38,5 +39,39 @@ func TestUnsafeStructuredSeedsRejected(t *testing.T) {
 	}
 	if _, e := Unmarshal("json", []byte(`{} {"extra":true}`)); e == nil {
 		t.Fatal("trailing JSON document accepted")
+	}
+}
+
+func TestIntegerRoundTrips(t *testing.T) {
+	const large int64 = 9007199254740993
+	for _, format := range []string{"yaml", "toml", "json"} {
+		t.Run(format, func(t *testing.T) {
+			input := map[string]any{"port": int64(8642), "large": large, "max": int64(math.MaxInt64), "min": int64(math.MinInt64), "nested": []any{map[string]any{"large": large}}}
+			b, err := Marshal(format, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(b, []byte("9007199254740993")) || bytes.Contains(b, []byte("8642.0")) {
+				t.Fatalf("integer changed: %s", b)
+			}
+			parsed, err := Unmarshal(format, b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if parsed["port"] != int64(8642) || parsed["large"] != large || parsed["max"] != int64(math.MaxInt64) || parsed["min"] != int64(math.MinInt64) {
+				t.Fatalf("integers not preserved: %#v", parsed)
+			}
+			nested := parsed["nested"].([]any)[0].(map[string]any)
+			if nested["large"] != large {
+				t.Fatalf("nested integer lost precision: %#v", nested)
+			}
+			again, err := Marshal(format, parsed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(b, again) {
+				t.Fatalf("round trip changed output:\n%s\n%s", b, again)
+			}
+		})
 	}
 }
