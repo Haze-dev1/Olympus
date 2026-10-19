@@ -15,7 +15,10 @@ import (
 )
 
 type Secret struct{ Env string }
-type Managed struct{ File, Format, Key string }
+type Managed struct{ File, Format, Style, Key string }
+type Skills struct{ Dir, Mode string }
+type Channel struct{ Env map[string]string }
+type Build struct{ Src, Dst string }
 type Template struct{ Src, Dst string }
 type Recipe struct {
 	Name, Kind, Image, User string
@@ -24,12 +27,15 @@ type Recipe struct {
 	}
 	Volumes  map[string]string
 	Ports    []int
+	Command  []string
+	Writable []string
+	Build    *Build
 	Env      map[string]string
 	Secrets  map[string]Secret
 	Supports struct {
 		MCPs     *Managed
-		Skills   *struct{ Dir string }
-		Channels map[string]Managed
+		Skills   *Skills
+		Channels map[string]Channel
 	}
 	Templates []Template
 	Hooks     struct {
@@ -120,27 +126,41 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 		}
 		destinations[t.Dst] = true
 	}
-	managed := map[string]*Managed{"/supports/mcps": r.Supports.MCPs}
-	for k, v := range r.Supports.Channels {
-		m := v
-		managed[schema.Child("/supports/channels", k)] = &m
-	}
-	for _, p := range schema.Keys(managed) {
-		m := managed[p]
-		if m == nil {
-			continue
-		}
+	if m := r.Supports.MCPs; m != nil {
 		if !r.Confined(m.File) {
-			d.Add(p+"/file", "managed file must be inside a tool volume")
+			d.Add("/supports/mcps/file", "managed file must be inside a tool volume")
 		}
 		for _, part := range strings.Split(m.Key, ".") {
 			if part == "" {
-				d.Add(p+"/key", "managed key must contain nonempty dot-separated components")
+				d.Add("/supports/mcps/key", "managed key must contain nonempty dot-separated components")
 			}
 		}
 	}
-	if r.Supports.Skills != nil && !r.Confined(r.Supports.Skills.Dir) {
-		d.Add("/supports/skills/dir", "skills directory must be inside a tool volume")
+	if b := r.Build; b != nil {
+		if !SafeRelative(b.Src) {
+			d.Add("/build/src", "build source must be a confined relative path")
+		}
+		if !r.Confined(b.Dst) {
+			d.Add("/build/dst", "build destination must be inside a tool volume")
+		}
+	}
+	for i, p := range r.Writable {
+		if !r.Confined(p) || !ShellSafe(p) {
+			d.Add(fmt.Sprintf("/writable/%d", i), "writable path must be inside a tool volume")
+		}
+	}
+	for k, c := range r.Supports.Channels {
+		if c.Env["token"] == "" {
+			d.Add(schema.Child("/supports/channels", k)+"/env", "channel requires a token environment variable")
+		}
+	}
+	if r.Supports.Skills != nil {
+		if !r.Confined(r.Supports.Skills.Dir) {
+			d.Add("/supports/skills/dir", "skills directory must be inside a tool volume")
+		}
+		if r.Supports.Skills.Mode != "copy" && r.Supports.Skills.Mode != "mount" {
+			d.Add("/supports/skills/mode", "skills mode must be copy or mount")
+		}
 	}
 	if r.Health.Timeout != "" {
 		t, e := time.ParseDuration(r.Health.Timeout)
@@ -175,6 +195,13 @@ func CleanAbsolute(p string) bool {
 func SafeRelative(p string) bool {
 	return p != "" && filepath.Clean(p) != "." && !filepath.IsAbs(p) && !strings.Contains(p, "\\") && !hasDotDot(p)
 }
+
+// ShellSafe reports whether a container path is safe to interpolate into a
+// single-quoted shell command without escaping (A2/A8).
+func ShellSafe(p string) bool { return shellSafeRe.MatchString(p) }
+
+var shellSafeRe = regexp.MustCompile(`^/[A-Za-z0-9._@+-]+(/[A-Za-z0-9._@+-]+)*$`)
+
 func hasDotDot(p string) bool {
 	for _, c := range strings.Split(p, "/") {
 		if c == ".." {

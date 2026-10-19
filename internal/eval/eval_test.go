@@ -243,7 +243,7 @@ func TestConfinedSkillsAndUnsupportedWarning(t *testing.T) {
 	if e != nil || len(g.Warnings) != 1 {
 		t.Fatalf("missing unsupported skills warning: %v %v", g, e)
 	}
-	loaded.Recipes["observatory"].Supports.Skills = &struct{ Dir string }{Dir: "/opt/observatory/skills"}
+	loaded.Recipes["observatory"].Supports.Skills = &recipe.Skills{Dir: "/opt/observatory/skills", Mode: "mount"}
 	g, e = Build(loaded)
 	if e != nil {
 		t.Fatal(e)

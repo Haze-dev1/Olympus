@@ -35,6 +35,40 @@
       "type": "string",
       "minLength": 1
     },
+    "command": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "writable": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "build": {
+      "type": "object",
+      "properties": {
+        "src": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dst": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "src",
+        "dst"
+      ],
+      "additionalProperties": false
+    },
     "volumes": {
       "type": "object",
       "additionalProperties": {
@@ -131,6 +165,14 @@
                 "json"
               ]
             },
+            "style": {
+              "type": "string",
+              "enum": [
+                "hermes",
+                "codex",
+                "opencode"
+              ]
+            },
             "key": {
               "type": "string",
               "minLength": 1
@@ -139,6 +181,7 @@
           "required": [
             "file",
             "format",
+            "style",
             "key"
           ],
           "additionalProperties": false
@@ -149,10 +192,18 @@
             "dir": {
               "type": "string",
               "minLength": 1
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "copy",
+                "mount"
+              ]
             }
           },
           "required": [
-            "dir"
+            "dir",
+            "mode"
           ],
           "additionalProperties": false
         },
@@ -161,27 +212,17 @@
           "additionalProperties": {
             "type": "object",
             "properties": {
-              "file": {
-                "type": "string",
-                "minLength": 1
-              },
-              "format": {
-                "type": "string",
-                "enum": [
-                  "yaml",
-                  "toml",
-                  "json"
-                ]
-              },
-              "key": {
-                "type": "string",
-                "minLength": 1
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                }
               }
             },
             "required": [
-              "file",
-              "format",
-              "key"
+              "env"
             ],
             "additionalProperties": false
           }

@@ -17,7 +17,7 @@ func TestRecipeValidation(t *testing.T) {
 		{"hook string", base + "hooks: {post_install: 'sh -c evil'}\n", "expected array"},
 		{"hook args", base + "hooks: {post_install: [demo, setup]}\n", ""},
 		{"traversal", base + "templates: [{src: hi.tmpl, dst: /opt/demo/../outside}]\n", "inside a tool volume"},
-		{"outside", base + "supports: {mcps: {file: /etc/config.yaml, format: yaml, key: servers}}\n", "inside a tool volume"},
+		{"outside", base + "supports: {mcps: {file: /etc/config.yaml, format: yaml, style: hermes, key: servers}}\n", "inside a tool volume"},
 		{"prefix", base + "templates: [{src: hi.tmpl, dst: /opt/demo-other/config}]\n", "inside a tool volume"},
 		{"source traversal", base + "templates: [{src: ../hi.tmpl, dst: /opt/demo/hi}]\n", "confined relative"},
 		{"volume root", strings.Replace(base, "/opt/demo", "/", 1), "invalid volume"},
