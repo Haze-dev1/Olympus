@@ -120,8 +120,8 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 		fmt.Fprintln(out, "Cancelled.")
 		return 1
 	}
-	for _, t := range g.Manifest.Tools {
-		if !strings.Contains(t.Image, "@sha256:") {
+	for name := range g.Manifest.Tools {
+		if !strings.Contains(in.Images[name], "@sha256:") {
 			return fail(errors.New("apply requires digest-pinned images; run olym check or olym update"))
 		}
 	}

@@ -232,6 +232,12 @@ func TestParseSource(t *testing.T) {
 		{"github:Haze-dev1/Olympus", Source{Owner: "Haze-dev1", Repo: "Olympus"}, false},
 		{"https://github.com/haze/olympus", Source{}, true},
 		{"github:haze", Source{}, true},
+		{"github:haze/olympus/recipes?ref=development", Source{Owner: "haze", Repo: "olympus", Path: "recipes", Ref: "development"}, false},
+		{"github:haze/olympus?ref=feat%2Ftest", Source{Owner: "haze", Repo: "olympus", Ref: "feat/test"}, false},
+		{"github:haze/olympus?ref=", Source{}, true},
+		{"github:haze/olympus?ref=one&ref=two", Source{}, true},
+		{"github:haze/olympus?token=x", Source{}, true},
+		{"github:haze/olympus?ref=..%2Fbad", Source{}, true},
 		{"github:haze/olympus/../secrets", Source{}, true},
 		{"github:haze/olympus//recipes", Source{}, true},
 		{"github:../olympus", Source{}, true},
@@ -308,5 +314,19 @@ func TestLatestAndCredentialConfinement(t *testing.T) {
 	github.Close()
 	if _, err := f.Latest(context.Background(), src); err == nil || strings.Contains(err.Error(), credential) {
 		t.Fatal("transport error leaked credential")
+	}
+}
+
+func TestLatestEscapesRef(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.EscapedPath(); got != "/repos/owner/repo/commits/feat%2Freal-stack" {
+			t.Errorf("lookup path %s", got)
+		}
+		w.Write([]byte(`{"sha":"` + testRev + `"}`))
+	}))
+	defer server.Close()
+	rev, err := (Fetcher{APIURL: server.URL}).Latest(context.Background(), Source{Owner: "owner", Repo: "repo", Ref: "feat/real-stack"})
+	if err != nil || rev != testRev {
+		t.Fatalf("lookup: %s %v", rev, err)
 	}
 }

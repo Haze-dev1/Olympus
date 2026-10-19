@@ -4,11 +4,15 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
-# UNVERIFIED: no Codex npm version is documented, so the package version is not
-# pinned yet. Pin CODEX_VERSION once a version is checked; the generation tag
-# already changes when this file or the base digest changes.
-ARG CODEX_VERSION=latest
-RUN npm install -g "@openai/codex@${CODEX_VERSION}" \
- && npm cache clean --force
+# Exact npm release verified against registry.npmjs.org, 2026-10-20.
+ARG CODEX_VERSION=0.116.0
+# BuildKit uses this for image/config timestamps. Normalize installed file
+# timestamps too, so a clean rebuild does not depend on the build clock.
+ARG SOURCE_DATE_EPOCH=0
+RUN npm install -g --prefix /opt/codex --cache /tmp/codex-npm-cache "@openai/codex@${CODEX_VERSION}" \
+ && rm -rf /tmp/codex-npm-cache \
+ && find /opt/codex -exec touch -h -d @0 {} + \
+ && touch -d @0 /opt /tmp
+ENV PATH="/opt/codex/bin:${PATH}"
 
 WORKDIR /root

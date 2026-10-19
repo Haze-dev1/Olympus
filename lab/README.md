@@ -43,3 +43,26 @@ Tests that use the lab must pass the key and `known_hosts` path to Olympus expli
 ## Limits
 
 The lab is close to a VPS but not identical. Before a release, run the release criteria once on a real VPS for: firewall and port-exposure checks from outside, a change that blocks SSH, and arm64.
+
+## Real recipe lifecycle
+
+Use the canonical lab checkout when sharing port 2222 between worktrees. The
+real-stack test requires 6144 MiB and the private catalog's GitHub credential in
+`GITHUB_TOKEN`. Do not put that credential in the stack or the test dotenv.
+
+```bash
+~/Projects/Olympus/lab/lab.sh down
+OLYMPUS_LAB_MEMORY=6144 ~/Projects/Olympus/lab/lab.sh reset
+set -a
+source <(~/Projects/Olympus/lab/lab.sh env)
+set +a
+OLYMPUS_LAB=1 go test -tags=lab ./internal/cli -run '^TestLabRealStack$' -v -count=1 -timeout=50m
+```
+
+The test runs the real CLI and catalog update, then explicitly selects a frozen
+copy of worktree recipes to exercise unmerged changes with locked registry/base
+digests. It creates only sentinel provider/MCP values, a local stdio MCP fixture,
+one skill and no channel. It checks all tools' health and config formats, copies
+and mounts, no-op and selective container IDs, rollback and delete-data teardown.
+It never attempts provider inference or chat login. If it fails before teardown,
+inspect the sanitized activation log and reset the VM before a clean rerun.

@@ -349,3 +349,12 @@ All links read on **2026-10-19**.
 | OpenCode | [opencode.ai/docs/gitlab](https://opencode.ai/docs/gitlab/) | headless provisioning of auth JSON |
 | OpenCode | [opencode.ai/docs/troubleshooting](https://opencode.ai/docs/troubleshooting/) | data directory paths |
 | OpenCode | [github.com/anomalyco/opencode](https://github.com/anomalyco/opencode) — `LICENSE` | licence, repository move |
+
+## Runtime follow-up, 2026-10-20
+
+The real-stack lab lifecycle now exercises all three shipped recipes. See the
+recipe READMEs and [first-recipes](../tracker/features/first-recipes.md) for the
+runtime evidence and remaining limits. Codex npm release
+[0.116.0](https://registry.npmjs.org/@openai/codex/0.116.0) was verified on the
+registry and replaced the unverified latest install. This follow-up supersedes
+the earlier build-only limitation, without claiming provider or chat login.

@@ -4,7 +4,7 @@ services:
     build:
       args:
         BASE_IMAGE: node:22-bookworm-slim@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-      context: /var/lib/olympus/store/sha256-39590452620ef1880bcf0b73205d1e38677b1b7ba41b848147c848d37ed939e2/files/root/.olympus-build
+      context: /var/lib/olympus/store/sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db/files/root/.olympus-build
       dockerfile: Dockerfile
     command:
     - sleep
@@ -16,7 +16,7 @@ services:
     - /var/lib/olympus/secrets/codex/environment
     environment:
       CODEX_HOME: /root/.codex
-    image: olympus/codex:sha256-0a5b3506fa4c
+    image: olympus/codex:sha256-3d123fc04a15
     labels:
       org.olympus.tool: codex
     restart: unless-stopped
@@ -25,16 +25,21 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-39590452620ef1880bcf0b73205d1e38677b1b7ba41b848147c848d37ed939e2/files/root/.olympus-build/Dockerfile
+      source: /var/lib/olympus/store/sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db/files/root/.olympus-build/Dockerfile
       target: /root/.olympus-build/Dockerfile
       type: bind
   codex-init:
+    build:
+      args:
+        BASE_IMAGE: node:22-bookworm-slim@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      context: /var/lib/olympus/store/sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db/files/root/.olympus-build
+      dockerfile: Dockerfile
     entrypoint:
     - /bin/sh
     - -c
     - |
       mkdir -p '/root/.codex' && cp -a '/olympus-init/0' '/root/.codex/config.toml'
-    image: olympus/codex:sha256-0a5b3506fa4c
+    image: olympus/codex:sha256-3d123fc04a15
     labels:
       org.olympus.role: init
       org.olympus.tool: codex
@@ -44,10 +49,13 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-39590452620ef1880bcf0b73205d1e38677b1b7ba41b848147c848d37ed939e2/files/root/.codex/config.toml
+      source: /var/lib/olympus/store/sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db/files/root/.codex/config.toml
       target: /olympus-init/0
       type: bind
   hermes:
+    command:
+    - gateway
+    - run
     depends_on:
       hermes-init:
         condition: service_completed_successfully
@@ -81,11 +89,11 @@ services:
       target: /opt/data
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-4192ceb6ef18e5b0cf5e24a430667f9cc95a2b52c1bb7437285e26539b8b01c5/files/opt/data/config.yaml
+      source: /var/lib/olympus/store/sha256-2bd8c9fb544a0176653e4998434b0b644a6a2b74f43024e85de3fb9b1032d3ac/files/opt/data/config.yaml
       target: /olympus-init/0
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-4192ceb6ef18e5b0cf5e24a430667f9cc95a2b52c1bb7437285e26539b8b01c5/files/opt/data/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-2bd8c9fb544a0176653e4998434b0b644a6a2b74f43024e85de3fb9b1032d3ac/files/opt/data/skills/deploy-checklist/SKILL.md
       target: /olympus-init/1
       type: bind
   opencode:

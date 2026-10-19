@@ -52,7 +52,7 @@ func TestCatalogCommands(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer "+token {
 			t.Error("missing GitHub credential")
 		}
-		if r.URL.Path == "/repos/owner/repo/commits/HEAD" {
+		if r.URL.Path == "/repos/owner/repo/commits/development" {
 			fmt.Fprintf(w, `{"sha":%q}`, rev)
 			return
 		}
@@ -64,7 +64,7 @@ func TestCatalogCommands(t *testing.T) {
 	defer github.Close()
 	dir := t.TempDir()
 	file := filepath.Join(dir, "stack.yaml")
-	body := []byte("inputs: {recipes: github:owner/repo/recipes}\nserver: {host: offline.test}\nagents: {assistant: {recipe: demo}}\n")
+	body := []byte("inputs: {recipes: github:owner/repo/recipes?ref=development}\nserver: {host: offline.test}\nagents: {assistant: {recipe: demo}}\n")
 	if err := os.WriteFile(file, body, 0600); err != nil {
 		t.Fatal(err)
 	}

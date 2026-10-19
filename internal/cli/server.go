@@ -47,6 +47,12 @@ func (c quietCompose) Pull(ctx context.Context, p string) error {
 	}
 	return nil
 }
+func (c quietCompose) Build(ctx context.Context, p string) error {
+	if c.Compose.Build(ctx, p) != nil {
+		return errors.New("compose build failed")
+	}
+	return nil
+}
 func (c quietCompose) Up(ctx context.Context, p string) error {
 	if c.Compose.Up(ctx, p) != nil {
 		return errors.New("compose up failed")

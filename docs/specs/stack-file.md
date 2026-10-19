@@ -60,7 +60,7 @@ At least one of `agents` or `apps` must be present.
 
 | Key | Meaning |
 | --- | --- |
-| `recipes` | GitHub source of the recipe set: `github:<owner>/<repo>[/<path>]`. Defaults to `github:Haze-dev1/Olympus/recipes`. Other GitHub catalogs are supported ([ADR 0026](../ADR.md#0026-wire-github-catalogs-and-preserve-local-development-overrides)). The revision is pinned in `stack.lock`, not here. |
+| `recipes` | GitHub source of the recipe set: `github:<owner>/<repo>[/<path>][?ref=<URL-encoded ref>]`. Defaults to `github:Haze-dev1/Olympus/recipes`. Other GitHub catalogs are supported ([ADR 0026](../ADR.md#0026-wire-github-catalogs-and-preserve-local-development-overrides)). A ref selects a branch, tag or revision to resolve, for example `github:Haze-dev1/Olympus/recipes?ref=development`. Omission uses the default branch. The full resolved commit is pinned in `stack.lock`; exactly one nonempty `ref` query parameter is accepted ([ADR 0040](../ADR.md#0040-resolve-optional-catalog-refs-to-locked-commits)). |
 
 ## `server`
 
@@ -97,7 +97,7 @@ Either a local command (stdio) or a remote URL (HTTP), not both.
 
 ## Current offline commands
 
-`olym check -f stack.yaml` validates the stack, recipes and rendering, requiring each referenced secret name in the adjacent `.env` without resolving values. It creates a missing adjacent `stack.lock` from the newest default-branch commit and image index digests. `olym update` refreshes that lock without rendering output or checking runtime secret names. `olym build` requires an existing lock. Both `check` and `build` verify the catalog hash, use locked digests and reject missing tool entries. Change the catalog URL through `update`, rather than silently reusing an unrelated lock.
+`olym check -f stack.yaml` validates the stack, recipes and rendering, requiring each referenced secret name in the adjacent `.env` without resolving values. It creates a missing adjacent `stack.lock` from the newest selected-ref or default-branch commit and image index digests. `olym update` refreshes that lock without rendering output or checking runtime secret names. `olym build` requires an existing lock. Both `check` and `build` verify the catalog hash, use locked digests and reject missing tool entries. Change the catalog URL through `update`, rather than silently reusing an unrelated lock.
 
 `GITHUB_TOKEN` from the process environment authenticates only GitHub commit lookups and tarball downloads. It is never stored or printed and is never forwarded to registries or other redirect origins. Public catalogs work without it.
 

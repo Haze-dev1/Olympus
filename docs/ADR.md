@@ -45,6 +45,9 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0038](#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes) | Mount shared skills read-only where supported, and copy them where the tool writes | Accepted |
 | [0039](#0039-configure-hermes-channels-as-environment-variables) | Configure Hermes channels as environment variables | Accepted |
 
+| [0040](#0040-resolve-optional-catalog-refs-to-locked-commits) | Resolve optional catalog refs to locked commits | Accepted |
+| [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted |
+
 ## 0001. Record architecture decisions as ADRs in this repo
 
 - **Status:** Accepted
@@ -1127,6 +1130,87 @@ Hermes configures Telegram and Discord through environment variables (`TELEGRAM_
 - **Write tokens into `/opt/data/.env`:** bypasses the secret-delivery path and puts values in a writable volume.
 - **Generic map of arbitrary environment variables in the stack:** hides the token/allow semantics and the allow-list requirement.
 - **Keep channels unsupported in this slice:** fails the M4 acceptance bar without a technical reason.
+
+## 0040. Resolve optional catalog refs to locked commits
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+- **Amends:** [0026](#0026-wire-github-catalogs-and-preserve-local-development-overrides)
+
+### Context
+
+The repository default branch is main; the current recipes live on development.
+A catalog needs an explicit branch without weakening immutable lock resolution.
+
+### Decision
+
+Accept one optional `?ref=<URL-encoded branch, tag or revision>` on a GitHub
+catalog source. Resolve it with GitHub's commits endpoint, then fetch only the
+returned full commit. Without a ref, continue resolving HEAD. Keep the complete
+source URL, full commit and tree hash in the existing version-1 lock. Reject
+empty, repeated or unknown query parameters and invalid refs. A changed source
+requires update. ADR 0026 credential handling is unchanged: GITHUB_TOKEN only
+on GitHub origins, never in locks, registry requests or HTTP diagnostics.
+
+### Consequences
+
+`github:Haze-dev1/Olympus/recipes?ref=development` works with the private catalog.
+A branch can move while an existing lock continues to select the old commit.
+No local git executable or new dependency is needed.
+
+### Alternatives considered
+
+- Change the repository default branch: a repository policy change is unnecessary.
+- Resolve branches during apply: would invalidate reproducibility and saved plans.
+- Put refs in a new lock field: redundant with the source URL and resolved commit.
+
+## 0041. Prepare content-addressed built images before starting services
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+- **Amends:** [0035](#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile), [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service)
+
+### Context
+
+Pulling a Codex local tag fails, including when its init service refers to the
+same image. Starting services must wait until their built image exists.
+
+### Decision
+
+The tool and its init service carry the same build declaration. Activation pulls
+with `--ignore-buildable`, then builds each missing local image once from its
+content-addressed context. Existing images are reused by their content tag.
+Only then may up run, with `--no-build --pull never`. Rollback uses the same
+preparation path and retains built images. Compose output and errors are reduced
+to operation names at the production boundary, including build and recreation.
+Apply validates locked registry/base digests, allowing a built tool's local tag.
+
+Codex installs exact npm release 0.116.0 on a digest-pinned base, so builds are
+reproducible in their inputs: the same generation always names the same
+Dockerfile, base digest and package version. Builds are not byte-identical: a
+clean rebuild produced a different image ID despite SOURCE_DATE_EPOCH and
+normalized install timestamps, because layer contents still carry build-time
+metadata. On one server, the content tag guarantees the same generation reuses
+the same image, which is what activation and rollback rely on. Recipes must pin
+package installs. No credentials are supplied to image builds.
+
+### Consequences
+
+The server needs network on first build; subsequent activations and rollback
+reuse the same local image. Deleting local images requires rebuilding. Arbitrary
+third-party Dockerfiles remain trusted executable inputs and must themselves pin
+all dependencies. There is no automatic Docker image pruning in GC.
+Two servers built from the same generation run the same pinned inputs but may
+hold different image IDs; byte-identical builds (for example BuildKit
+timestamp rewriting and an npm lockfile with integrity hashes) are a follow-up.
+
+### Alternatives considered
+
+- Ignore all pull failures: hides unavailable registry images.
+- Pull every local tag: fails for images that only exist on the server.
+- Rebuild on every activation: unnecessary work and risks image churn on rollback.
+- Publish to a new registry: adds credentials and infrastructure.
+
 
 ## Template
 
