@@ -1,0 +1,19 @@
+# Draft prototype of a recipe. See docs/specs/recipe.md.
+# Paths and ports are unverified; check them against Hermes's docs before use.
+name: hermes
+kind: harness
+image: nousresearch/hermes-agent:latest   # default tag; stack.lock pins the digest
+resources: { min_ram: 4GB }
+volumes:
+  data: /opt/data
+ports: [8642]
+health: { port: 8642, path: /health }
+secrets: [model_key]
+supports:
+  mcps:     { file: /opt/data/config.yaml, format: yaml, key: mcp_servers }
+  skills:   { dir: /opt/data/skills }
+  channels: [telegram, discord]
+templates:
+  - config.yaml.tmpl -> /opt/data/config.yaml
+hooks:
+  post_install: hermes setup --non-interactive
