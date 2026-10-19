@@ -1,6 +1,6 @@
 # Remote SSH layer
 
-- **Status:** In progress (package and tests complete; not yet wired into commands)
+- **Status:** Done for M1, integrated CLI lab acceptance verified
 - **Milestone:** M1
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -48,3 +48,9 @@ Not in this slice: uploads (TRD 3.3 names them; deferred until plan/apply needs 
 
 - Merged `development` (offline core, catalog and lock) into this branch. `go mod tidy` raised the `go` directive from 1.25.0 to 1.26.0, because `golang.org/x/crypto v0.58.0` and `golang.org/x/sys v0.49.0` require Go 1.26. `AGENTS.md`, `README.md` and the `olympus-test` skill now say Go 1.26 or newer. No ADR: the version floor follows from the dependency approved for this slice.
 - `go mod verify`, `go vet ./...`, `go test ./...` (all packages) and `gofmt -l .` passed on the merged tree.
+
+## M1 command wiring, 2026-10-20
+
+All server commands share stack settings, known_hosts flag/environment/default precedence and the terminal-only unknown-host prompt. Key negotiation prefers algorithms already pinned for that host without bypassing the host-key callback, resolving the prior lab multi-key handshake gap. The full CLI lab uses this shared setup for initial/confirmation connections and sudo bootstrap. No new dependency or separate ADR: this completes the existing SSH contract; protocol changes are in ADR 0031.
+
+Final integration evidence: the source-complete `TestLabM1` passed on a reset Ubuntu VM in 77.902 s on 2026-10-20. Build, vet, full unit suite and gofmt passed. The M1 integration section supersedes earlier slice deferrals; retained release limits are in [core-plan-apply.md](core-plan-apply.md). No external vulnerability or secret scanner was run.

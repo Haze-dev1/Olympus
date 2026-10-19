@@ -41,13 +41,16 @@ type Connection interface {
 // Client owns one deployment connection. Reconnect must open a fresh SSH
 // connection using the same verified host-key policy.
 type Client struct {
-	Conn         Connection
-	Reconnect    func() (Connection, error)
-	Version      string
-	PollInterval time.Duration
-	sudo         bool
-	binary       string
-	checksum     string
+	Conn            Connection
+	Reconnect       func() (Connection, error)
+	Version         string
+	PollInterval    time.Duration
+	sudo            bool
+	binary          string
+	checksum        string
+	payload         string
+	ExpectedCurrent *string
+	ConfirmTimeout  string
 }
 
 // Dial uses remote's host-key verification for both initial and confirm SSH.
@@ -66,7 +69,12 @@ func (c *Client) run(ctx context.Context, args []string, in io.Reader) ([]byte, 
 	out, _, err := c.Conn.Run(ctx, args, in)
 	// Never expose remote output or input through an error, especially for secrets.
 	if err != nil {
-		return nil, fmt.Errorf("deploy: %s failed", args[0])
+		code := 1
+		var exit interface{ ExitStatus() int }
+		if errors.As(err, &exit) {
+			code = exit.ExitStatus()
+		}
+		return nil, &CommandError{Operation: args[0], Code: code}
 	}
 	return out, nil
 }
@@ -81,16 +89,10 @@ func (c *Client) PrepareServer(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	b, err = c.run(ctx, []string{"id", "-u"}, nil)
-	if err != nil {
-		return err
+	if err = c.UseServer(ctx); err != nil {
+		return errors.New("deploy: passwordless sudo required: sudo -n true")
 	}
-	c.sudo = strings.TrimSpace(string(b)) != "0"
-	if c.sudo {
-		if _, err = c.run(ctx, []string{"true"}, nil); err != nil {
-			return errors.New("deploy: passwordless sudo required: sudo -n true")
-		}
-	}
+
 	_, dockerErr := c.run(ctx, []string{"docker", "info"}, nil)
 	_, composeErr := c.run(ctx, []string{"docker", "compose", "version"}, nil)
 	if dockerErr != nil || composeErr != nil {
@@ -328,24 +330,35 @@ func (c *Client) SendSecrets(ctx context.Context, m generation.Manifest, tools m
 	if err != nil {
 		return errors.New("deploy: cannot encode secrets")
 	}
-	_, err = c.run(ctx, []string{"install", "-m", "0600", "/dev/stdin", (&activate.Activator{}).PayloadPath()}, bytes.NewReader(data))
+	suffix, err := randomName()
+	if err != nil {
+		return err
+	}
+	c.payload = "secrets-" + suffix + ".incoming"
+	_, err = c.run(ctx, []string{"install", "-m", "0600", "/dev/stdin", root + "/" + c.payload}, bytes.NewReader(data))
 	return err
 }
 
 // Activate starts a detached transient service and confirms over a fresh SSH
 // connection. The returned code follows TRD 10.1, including lock contention.
 func (c *Client) Activate(ctx context.Context, id string) (int, error) {
-	if !idRE.MatchString(id) || c.binary == "" || c.Reconnect == nil {
+	if !idRE.MatchString(id) {
+		return 1, errors.New("deploy: invalid generation id")
+	}
+	return c.transition(ctx, "activate", id)
+}
+
+func (c *Client) Rollback(ctx context.Context) (int, error) { return c.transition(ctx, "rollback", "") }
+
+func (c *Client) transition(ctx context.Context, command, id string) (int, error) {
+	if c.binary == "" || c.Reconnect == nil {
 		return 1, errors.New("deploy: activator upload and reconnect are required")
 	}
-	out, err := c.run(ctx, []string{"sha256sum", "--", c.binary}, nil)
-	if err != nil || len(strings.Fields(string(out))) == 0 || strings.Fields(string(out))[0] != c.checksum {
-		return 1, errors.New("deploy: activator checksum mismatch")
+	if err := c.verifyActivator(ctx); err != nil {
+		return 1, err
 	}
-	out, err = c.run(ctx, []string{c.binary, "version"}, nil)
-	if err != nil || strings.TrimSpace(string(out)) != c.Version {
-		return 1, errors.New("deploy: activator version mismatch")
-	}
+	var out []byte
+	var err error
 	// An earlier activation of this same id may still have an awaiting state.
 	// Never confirm a nonce that existed before this service was launched.
 	var previous activate.State
@@ -356,8 +369,21 @@ func (c *Client) Activate(ctx context.Context, id string) (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	unit := "olympus-activate-" + suffix
-	if _, err = c.run(ctx, []string{"systemd-run", "--quiet", "--unit", unit, "--property=Type=exec", "--property=RemainAfterExit=yes", "--property=StandardOutput=null", "--property=StandardError=null", c.binary, "activate", id}, nil); err != nil {
+	unit := "olympus-" + command + "-" + suffix
+	args := []string{"systemd-run", "--quiet", "--unit", unit, "--property=Type=exec", "--property=RemainAfterExit=yes", "--property=StandardOutput=null", "--property=StandardError=null", c.binary, command, "--server", "-request", suffix}
+	if c.ConfirmTimeout != "" {
+		args = append(args, "-confirm-timeout", c.ConfirmTimeout)
+	}
+	if command == "activate" {
+		if c.payload != "" {
+			args = append(args, "-payload", c.payload)
+		}
+		if c.ExpectedCurrent != nil {
+			args = append(args, "-expected-current", *c.ExpectedCurrent)
+		}
+		args = append(args, id)
+	}
+	if _, err = c.run(ctx, args, nil); err != nil {
 		return 1, err
 	}
 	confirmed := false
@@ -399,13 +425,13 @@ func (c *Client) Activate(ctx context.Context, id string) (int, error) {
 		if !confirmed {
 			stateBytes, e := c.run(ctx, []string{"cat", root + "/state.json"}, nil)
 			var state activate.State
-			if e == nil && json.Unmarshal(stateBytes, &state) == nil && state.Version == 1 && state.ID == id && state.Status == activate.StatusAwaiting && state.Nonce != "" && state.Nonce != previous.Nonce {
+			if e == nil && json.Unmarshal(stateBytes, &state) == nil && state.Version == 1 && (id == "" || state.ID == id) && state.Request == suffix && state.Status == activate.StatusAwaiting && state.Nonce != "" && state.Nonce != previous.Nonce {
 				confirmed = true // Attempt once; failure leaves the server to roll back.
 				fresh, e := c.Reconnect()
 				if e != nil {
 					continue
 				}
-				args := []string{c.binary, "confirm", id, state.Nonce}
+				args := []string{c.binary, "confirm", state.ID, state.Nonce}
 				if c.sudo {
 					args = remote.Sudo(args)
 				}
@@ -423,4 +449,31 @@ func (c *Client) Activate(ctx context.Context, id string) (int, error) {
 		case <-time.After(interval):
 		}
 	}
+}
+
+func (c *Client) verifyActivator(ctx context.Context) error {
+	out, err := c.run(ctx, []string{"sha256sum", "--", c.binary}, nil)
+	if err != nil || len(strings.Fields(string(out))) == 0 || strings.Fields(string(out))[0] != c.checksum {
+		return errors.New("deploy: activator checksum mismatch")
+	}
+	out, err = c.run(ctx, []string{c.binary, "version"}, nil)
+	if err != nil || strings.TrimSpace(string(out)) != c.Version {
+		return errors.New("deploy: activator version mismatch")
+	}
+	return nil
+}
+
+// CommandError retains only an exit status, never potentially secret stderr.
+type CommandError struct {
+	Operation string
+	Code      int
+}
+
+func (e *CommandError) Error() string { return "deploy: " + e.Operation + " failed" }
+func ExitCode(err error) int {
+	var e *CommandError
+	if errors.As(err, &e) && (e.Code == 3 || e.Code == 4 || e.Code == 5) {
+		return e.Code
+	}
+	return 1
 }

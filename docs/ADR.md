@@ -36,6 +36,9 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0028](#0028-store-health-checks-in-the-generation-manifest) | Store health checks in the generation manifest | Accepted |
 | [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result) | Verify deployment uploads and retain the activation result | Accepted |
 | [0030](#0030-address-rendered-files-by-tool-hash-across-generations) | Address rendered files by tool hash across generations | Accepted |
+| [0031](#0031-bind-activation-confirmation-and-saved-plans-to-one-request) | Bind activation confirmation and saved plans to one request | Accepted |
+| [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs) | Fingerprint secrets with a server key and restore partial installs | Accepted |
+| [0033](#0033-record-image-tag-overrides-in-the-image-lock) | Record image tag overrides in the image lock | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -775,7 +778,7 @@ Read optional `GITHUB_TOKEN` only at the CLI boundary and use it only on GitHub 
 
 ## 0027. Activate a generation from the store by manifest id
 
-- **Status:** Accepted, amended by [0028](#0028-store-health-checks-in-the-generation-manifest)
+- **Status:** Accepted, amended by [0028](#0028-store-health-checks-in-the-generation-manifest) and [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs)
 - **Date:** 2026-10-20
 
 ### Context
@@ -844,7 +847,7 @@ Generation builds remain pure and secret-free. Version 1 is additive, so old gen
 
 ## 0029. Verify deployment uploads and retain the activation result
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0030](#0030-address-rendered-files-by-tool-hash-across-generations) and [0031](#0031-bind-activation-confirmation-and-saved-plans-to-one-request)
 - **Date:** 2026-10-20
 - **Amends:** [0017](#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms)
 
@@ -901,6 +904,82 @@ An unchanged tool has identical bind sources across generations. Uploads reuse v
 - Rewrite Compose during upload: makes deployment differ from the evaluated build.
 - Keep generation-relative mounts: recreates unrelated tools.
 - Hash the final absolute bind source: creates a circular hash dependency.
+
+## 0031. Bind activation confirmation and saved plans to one request
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+
+### Context
+
+The CLI now exposes apply, rollback and cleanup commands, and may run concurrently with another operator. A fixed secret payload file and an awaiting nonce alone do not identify which operation owns the pending activation.
+
+### Decision
+
+Saved plans are version-1 JSON containing the desired generation id, current server id, SSH user/address and per-tool HMAC fingerprints. Apply rebuilds and rereads the server, refusing any mismatch before preparation. It rechecks the expected current id under the server activation lock. Confirmation remains mandatory even with `--yes`, which skips only the local y/N question.
+
+Each deployment gets a random request id and its own `secrets-<random>.incoming` file under the server root. Detached activate and rollback record the request id in state, so only that operation's new nonce can be confirmed. The CLI reconnects over verified SSH for confirmation. Both paths retain systemd completion results and preserve exit codes 0, 1, 3, 4 and 5. Server commands use an explicit internal `--server` dispatch. Destroy asks before acting, keeps data by default and scopes deletion to the Olympus project and root.
+
+### Consequences
+
+Concurrent losers cannot overwrite the winning run's payload or confirm it. An interrupted client can leave an unused root-only incoming payload or retained transient unit; destroy with delete-data removes server files. Saved plans detect stale inputs but do not reserve the server lock while awaiting local approval. Applying a stale current fails closed at activation.
+
+### Alternatives considered
+
+- One shared payload: allows a contender to replace another run's secrets.
+- Confirm any awaiting nonce: can accidentally approve another operation.
+- Hold an SSH-owned lock for activation: disconnect would release the protection.
+
+## 0032. Fingerprint secrets with a server key and restore partial installs
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+
+### Context
+
+Pure generation hashes exclude secret values. The CLI must detect rotations without storing plain hashes, and an installation error must not leave earlier tools holding the new secrets.
+
+### Decision
+
+Use a 32-byte CSPRNG server key at `key`, mode 0600, and HMAC-SHA256 per named secret and environment target, domain-separated by kind and name. Persist fingerprints alongside each tool's root-only secrets, outside generations. Plan reads the key and fingerprints over verified privileged SSH and computes comparisons locally; only HMACs enter a saved plan. Before the first activation there is no server key, so the saved plan omits secret fingerprints and the first apply reads the then-current values; no unkeyed or publicly keyed hash is written. Reads do not create a key; the activator creates it during secret installation.
+
+The CLI reads only the adjacent .env at its command boundary, without process-environment fallback or interpolation, and sends each tool only its declared recipe secrets and environment mapping. Unquoted, single-quoted literal and Go-compatible double-quoted values are accepted; duplicate needed names and multiline/NUL values fail without echoing their content. The server environment file escapes Compose interpolation, quotes and backslashes. The Docker parser contract was checked against https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/ and https://github.com/compose-spec/compose-go/blob/main/dotenv/parser.go.
+
+Back up each tool before replacement and restore every completed replacement on installation I/O failure as well as activation failure. Fingerprints are included in the backup. A failed restoration reports exit 5 rather than a successful rollback. Pull first, then force-recreate only tools with changed fingerprints, bring up the generation and check health. Ordinary rollback retains the currently installed credentials; automatic rollback restores the values the failed transaction replaced. There is no durable historical secret archive.
+
+### Consequences
+
+No secret values enter evaluated artifacts, saved plans, argv or command diagnostics. The key is never printed or persisted locally. Root retains access to every tool's secrets by design. Current recipe secrets use environment delivery, so Docker reads root-owned 0600 environment files; container-user ownership for future file mounts remains a separate recipe contract. Missing or malformed server key metadata fails closed on an existing deployment.
+
+### Alternatives considered
+
+- Plain secret hashes: permit offline guessing and correlation across servers.
+- Include secrets in generation hashes: breaks purity and exposes fingerprints globally.
+- Ignore installation I/O failures: leaves a mixture of old and new credentials.
+- Archive every historical credential with generations: increases plaintext retention beyond rollback of the active transaction.
+
+## 0033. Record image tag overrides in the image lock
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+
+### Context
+
+A locked tool previously recorded only its digest, silently ignoring later image_tag changes in the stack.
+
+### Decision
+
+Add optional `image_tag` to each version-1 lock tool. Omission means no stack override. Update records the requested override alongside the resolved digest. Check, build, plan and apply reject an override that differs from the lock and say `run olym update`. Existing locks without overrides remain readable; an old lock combined with a nonempty override requires update.
+
+### Consequences
+
+The lock format is additive and strict JSON validation remains intact. Digest references continue to be the only deployed images. A tag change becomes an explicit reviewable lock update rather than an implicit registry lookup.
+
+### Alternatives considered
+
+- Silently use the old digest: ignores user intent.
+- Resolve and rewrite during apply: makes a saved plan less reproducible and changes the lock during deployment.
+- Bump the lock version: unnecessary for an optional field with a defined default.
 
 ## Template
 

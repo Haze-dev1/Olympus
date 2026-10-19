@@ -59,6 +59,7 @@ func (a *Activator) GC(ctx context.Context, keep int) (GCResult, error) {
 	// Everything the kept generations still need: their own store entry and
 	// every store path their Compose file points at.
 	referenced := make(map[string]bool)
+	binaries := map[string]bool{}
 	for _, n := range numbers {
 		if !kept[n] {
 			continue
@@ -74,6 +75,7 @@ func (a *Activator) GC(ctx context.Context, keep int) (GCResult, error) {
 		if err != nil {
 			return result, fmt.Errorf("activate: invalid kept generation, refusing to collect: %w", err)
 		}
+		binaries["olym-"+t.manifest.Olym] = true
 		for _, tool := range t.manifest.Tools {
 			if !idPattern.MatchString(tool.Hash) {
 				return result, fmt.Errorf("activate: invalid tool hash, refusing to collect")
@@ -124,6 +126,28 @@ func (a *Activator) GC(ctx context.Context, keep int) (GCResult, error) {
 		}
 		a.logf("deleted generations/%d", n)
 		result.Generations = append(result.Generations, n)
+	}
+	binDir := filepath.Join(a.root(), "bin")
+	bins, e := os.ReadDir(binDir)
+	if e != nil && !os.IsNotExist(e) {
+		return result, e
+	}
+	for _, entry := range bins {
+		if !strings.HasPrefix(entry.Name(), "olym-") || binaries[entry.Name()] || !entry.Type().IsRegular() {
+			continue
+		}
+		// Keep the CLI-selected binary even when no generation has been applied.
+		current, _ := os.Readlink(filepath.Join(binDir, "olym"))
+		if current == entry.Name() {
+			continue
+		}
+		p := filepath.Join(binDir, entry.Name())
+		size := dirSize(p)
+		if err := os.Remove(p); err != nil {
+			return result, err
+		}
+		result.Entries = append(result.Entries, "bin/"+entry.Name())
+		result.Freed += size
 	}
 	sort.Ints(result.Generations)
 	sort.Strings(result.Entries)

@@ -233,6 +233,7 @@ func TestActivateFreshConnectionAndExitCodes(t *testing.T) {
 			g := testGeneration(t)
 			poll := 0
 			freshCalls := 0
+			request := ""
 			fresh := &fakeConn{run: func(a []string, _ io.Reader) ([]byte, []byte, error) {
 				freshCalls++
 				if a[1] != "confirm" || a[2] != g.Manifest.ID || a[3] != "nonce" {
@@ -244,6 +245,12 @@ func TestActivateFreshConnectionAndExitCodes(t *testing.T) {
 				switch a[0] {
 				case "sha256sum":
 					return okOutput("digest  binary")
+				case "systemd-run":
+					for i, v := range a {
+						if v == "-request" {
+							request = a[i+1]
+						}
+					}
 				case "systemctl":
 					poll++
 					if poll == 1 {
@@ -254,7 +261,7 @@ func TestActivateFreshConnectionAndExitCodes(t *testing.T) {
 					if poll == 0 {
 						return nil, nil, errors.New("no state")
 					}
-					b, _ := json.Marshal(activate.State{Version: 1, ID: g.Manifest.ID, Status: activate.StatusAwaiting, Nonce: "nonce"})
+					b, _ := json.Marshal(activate.State{Request: request, Version: 1, ID: g.Manifest.ID, Status: activate.StatusAwaiting, Nonce: "nonce"})
 					return b, nil, nil
 				}
 				return okOutput("test")
@@ -364,5 +371,52 @@ func TestToolEntryReuseAndVerification(t *testing.T) {
 	}
 	if err := c.UploadGeneration(context.Background(), g); err == nil {
 		t.Fatal("reused corrupt tool entry")
+	}
+}
+
+func TestPrepareAfterUseServerKeepsSudo(t *testing.T) {
+	f := &fakeConn{run: func(a []string, _ io.Reader) ([]byte, []byte, error) {
+		sudo := a[0] == "sudo"
+		if sudo {
+			a = a[2:]
+		}
+		switch a[0] {
+		case "id":
+			if sudo {
+				return okOutput("0")
+			}
+			return okOutput("1000")
+		case "cat":
+			return okOutput("ID=ubuntu\nVERSION_ID=24.04")
+		}
+		if !sudo {
+			return nil, nil, errors.New("requires sudo")
+		}
+		return okOutput("")
+	}}
+	c := Client{Conn: f}
+	if err := c.UseServer(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.PrepareServer(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !c.sudo {
+		t.Fatal("lost sudo after repeated privilege detection")
+	}
+}
+
+type commandExit int
+
+func (e commandExit) ExitStatus() int { return int(e) }
+func (e commandExit) Error() string   { return "sensitive server diagnostic" }
+func TestRemoteExitStatusWithoutDiagnostics(t *testing.T) {
+	for _, code := range []int{1, 3, 4, 5} {
+		f := &fakeConn{run: func([]string, io.Reader) ([]byte, []byte, error) { return nil, nil, commandExit(code) }}
+		c := Client{Conn: f}
+		_, err := c.GC(context.Background(), 2)
+		if ExitCode(err) != code || strings.Contains(err.Error(), "sensitive") {
+			t.Fatalf("%d: %v", code, err)
+		}
 	}
 }

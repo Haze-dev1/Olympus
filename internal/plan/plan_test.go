@@ -149,3 +149,11 @@ func TestAbsentCurrentAndPermissionFailure(t *testing.T) {
 		t.Fatal("treated permission/command failure as empty")
 	}
 }
+
+func TestSecretChangeCountsToolOnce(t *testing.T) {
+	d := Diff{Changes: []Change{{Name: "changed", Kind: "~", Image: true}}, Unchanged: 2}
+	d.SecretChanges(map[string]bool{"changed": true, "same": true, "other": false})
+	if len(d.Changes) != 2 || d.Unchanged != 1 || !d.Changes[0].Secret || !d.Changes[1].Secret {
+		t.Fatal(d)
+	}
+}

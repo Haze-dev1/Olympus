@@ -16,3 +16,9 @@ Pin the recipe input's git revision and hash, and each tool's image digest, in `
 - 2026-10-19: the standalone `internal/lock` package reads, validates and writes the lock byte-identically, and resolves image tags to index digests; `internal/catalog` verifies the locked recipe input. See [catalog-lock.md](catalog-lock.md) for implementation and verification evidence.
 - 2026-10-20: wired `update`, first `check`, and locked `check`/`build`. The lock remains strict JSON with atomic replacement. Builds use full catalog revisions and image index digests; missing tools and tampered hashes fail. Local overrides skip catalog pins visibly while enforcing existing tool pins. See [catalog-lock.md](catalog-lock.md) for tests, failures, verification and limits.
 - ADR review: [0026](../../ADR.md#0026-wire-github-catalogs-and-preserve-local-development-overrides) records source expansion and local development behavior; no lock format change. No live GitHub or registry validation or full security scan was run.
+
+## Image override follow-up, 2026-10-20
+
+Optional version-1 tool image_tag records the exact stack override. Changed overrides fail before recipe/network use with `run olym update`; update rewrites the override with the resolved digest. ADR 0033 records the additive format. Unit regression and the pinned-image full CLI lab validate the affected paths. No dependencies added.
+
+Final M1 evidence: source-complete `TestLabM1` passed in 77.902 s on a reset Ubuntu VM, 2026-10-20. Build, vet, full unit suite and formatting passed; see [core-plan-apply.md](core-plan-apply.md) for failures, exact commands and release limits.

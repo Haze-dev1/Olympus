@@ -184,3 +184,8 @@ func (c Checker) client() *http.Client {
 
 // defaultClient bounds one attempt; the activator owns the overall timeout.
 var defaultClient = &http.Client{Timeout: 5 * time.Second}
+
+// Recreate selects only services whose secret fingerprints changed.
+func (c Compose) Recreate(ctx context.Context, file string, tools []string) error {
+	return c.run(ctx, c.args(file, append([]string{"up", "-d", "--no-deps", "--force-recreate"}, tools...)...))
+}

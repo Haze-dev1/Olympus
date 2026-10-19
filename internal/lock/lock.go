@@ -30,7 +30,8 @@ type Input struct {
 
 // Tool pins one tool's image by index digest.
 type Tool struct {
-	Image string `json:"image"`
+	Image    string `json:"image"`
+	ImageTag string `json:"image_tag,omitempty"`
 }
 
 var (

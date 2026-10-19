@@ -28,11 +28,30 @@ func selectKnownHosts(flag, env, home string) string {
 	return filepath.Join(home, ".ssh", "known_hosts")
 }
 
-func planGeneration(s *stack.Stack, g *generation.Generation, file, known string, detailed bool, out, stderr io.Writer) int {
+func readPlan(ctx context.Context, r plan.Reader, root bool, want generation.Manifest, file, server string, detailed bool, out, stderr io.Writer) int {
+	current, actual, err := plan.ReadCurrent(ctx, r, root)
+	if err != nil {
+		fmt.Fprintln(stderr, "plan:", err)
+		return 1
+	}
+	id := current.ID
+	if id == "" {
+		id = "empty"
+	}
+	fmt.Fprintf(out, "Plan: stack %q → %s (generation %s → new)\n\n", file, server, id)
+	diff := plan.Compare(want, current, actual)
+	diff.Print(out)
+	if detailed && len(diff.Changes) > 0 {
+		return 2
+	}
+	return 0
+}
+
+func connectionConfig(s *stack.Stack, known string, stderr io.Writer) (remote.Config, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintln(stderr, "cannot find home directory")
-		return 1
+		return remote.Config{}, err
 	}
 	key := s.Server.SSHKey
 	if strings.HasPrefix(key, "~/") {
@@ -54,37 +73,5 @@ func planGeneration(s *stack.Stack, g *generation.Generation, file, known string
 		answer, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		return err == nil && strings.EqualFold(strings.TrimSpace(answer), "y")
 	}
-	c, err := remote.Dial(remote.Config{Host: net.JoinHostPort(s.Server.Host, strconv.Itoa(port)), User: user, KeyFile: key, KnownHosts: selectKnownHosts(known, os.Getenv("OLYM_KNOWN_HOSTS"), home), Timeout: 15 * time.Second, Confirm: confirm})
-	if err != nil {
-		fmt.Fprintln(stderr, "plan: SSH connection failed:", err)
-		return 1
-	}
-	defer c.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	root, err := c.IsRoot(ctx)
-	if err != nil {
-		fmt.Fprintln(stderr, "plan: cannot determine remote uid")
-		return 1
-	}
-	return readPlan(ctx, c, root, g.Manifest, file, user+"@"+s.Server.Host, detailed, out, stderr)
-}
-
-func readPlan(ctx context.Context, r plan.Reader, root bool, want generation.Manifest, file, server string, detailed bool, out, stderr io.Writer) int {
-	current, actual, err := plan.ReadCurrent(ctx, r, root)
-	if err != nil {
-		fmt.Fprintln(stderr, "plan:", err)
-		return 1
-	}
-	id := current.ID
-	if id == "" {
-		id = "empty"
-	}
-	fmt.Fprintf(out, "Plan: stack %q → %s (generation %s → new)\n\n", file, server, id)
-	diff := plan.Compare(want, current, actual)
-	diff.Print(out)
-	if detailed && len(diff.Changes) > 0 {
-		return 2
-	}
-	return 0
+	return remote.Config{Host: net.JoinHostPort(s.Server.Host, strconv.Itoa(port)), User: user, KeyFile: key, KnownHosts: selectKnownHosts(known, os.Getenv("OLYM_KNOWN_HOSTS"), home), Timeout: 15 * time.Second, Confirm: confirm}, nil
 }
