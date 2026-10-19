@@ -25,6 +25,11 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0017](#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms) | Activate on the server, and roll back unless the CLI confirms | Accepted |
 | [0018](#0018-build-structured-config-as-data-and-publish-json-schemas) | Build structured config as data, and publish JSON Schemas | Accepted |
 | [0019](#0019-name-the-project-olympus-with-the-command-olym) | Name the project Olympus, with the command olym | Accepted |
+| [0020](#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) | Use goccy YAML and pelletier TOML for the offline core | Accepted |
+| [0021](#0021-keep-the-first-generation-contract-offline) | Keep the first generation contract offline | Accepted, output policy superseded by 0022 |
+| [0022](#0022-atomically-replace-owned-local-build-directories) | Atomically replace owned local build directories | Accepted |
+| [0023](#0023-hash-the-extracted-catalog-tree-in-a-canonical-form) | Hash the extracted catalog tree in a canonical form | Accepted |
+| [0024](#0024-resolve-image-digests-with-the-standard-library) | Resolve image digests with the standard library | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -362,7 +367,7 @@ We will write Olympus in Go and ship it as a single static binary, as Terraform 
 
 ## 0014. Evaluate the stack locally into a generation, then activate it on the server
 
-- **Status:** Accepted, amended by [0017](#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms) (activation runs on the server with confirm-or-rollback)
+- **Status:** Accepted, amended by [0017](#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms) (activation runs on the server with confirm-or-rollback) and [0021](#0021-keep-the-first-generation-contract-offline) (first offline artifact contract)
 - **Date:** 2026-10-19
 - **Supersedes:** [0011](#0011-make-apply-converge-to-the-desired-state-tracked-by-container-labels)
 
@@ -535,6 +540,173 @@ The project is **Olympus**. The command and binary are **`olym`** (`olym plan`, 
 - **Keep "AITerraform":** implies an affiliation with HashiCorp's Terraform and invites trademark trouble.
 - **`olympus` as the command:** clear, but long to type in every command.
 - **homebrew-core from the first release:** needs a track record the project does not have yet.
+
+## 0020. Use goccy YAML and pelletier TOML for the offline core
+
+- **Status:** Accepted, explicitly approved by the user
+- **Date:** 2026-10-19
+
+### Context
+
+Go has no standard YAML or TOML parser. Offline builds need YAML positions for safe diagnostics and deterministic encoders for YAML, TOML and JSON. Dependencies require explicit approval.
+
+### Decision
+
+Pin `github.com/goccy/go-yaml v1.19.2` for YAML syntax trees and encoding, and `github.com/pelletier/go-toml/v2 v2.4.3` for TOML decoding and encoding. Both were approved at these exact versions before installation. Keep JSON, flags, templates, hashing and tests in the standard library.
+
+Maintenance evidence checked on 2026-10-19: [goccy v1.19.2](https://github.com/goccy/go-yaml/releases/tag/v1.19.2) fixes an anchor-reference regression; [pelletier v2.4.3](https://github.com/pelletier/go-toml/releases/tag/v2.4.3), released 2026-07-05, includes correctness fixes and nesting limits. Both modules declare Go 1.21 and no dependencies. Olympus requires Go 1.25 for confined filesystem APIs.
+
+The published input schemas are embedded. A small validator evaluates only their current vocabulary, retaining YAML positions and adding semantic checks in `stack` and `recipe`. It is not a general JSON Schema implementation. New schema keywords require validator support and tests. YAML is decoded as inert data, then validated into typed inputs; aliases, anchors and tags are rejected. Diagnostics do not echo scalar input or parser snippets.
+
+### Consequences
+
+- Only two external modules are needed for this slice.
+- Encoded output and hash streams are deterministic and covered by golden tests.
+- Schema vocabulary support must evolve with the schemas. A complete schema implementation remains a later dependency decision.
+
+### Alternatives considered
+
+- **Hand-written YAML/TOML parsers:** substantially more code and edge cases than maintained libraries.
+- **A third JSON Schema library:** unnecessary for the vocabulary used in this slice and not approved.
+- **A CLI framework:** standard `flag` handles two commands.
+
+## 0021. Keep the first generation contract offline
+
+- **Status:** Accepted; output preservation policy superseded by [0022](#0022-atomically-replace-owned-local-build-directories)
+- **Date:** 2026-10-19
+- **Amends:** [0014](#0014-evaluate-the-stack-locally-into-a-generation-then-activate-it-on-the-server), for the first offline slice only
+
+### Context
+
+M1 steps 1–3 must run before catalog fetching, lock files, image resolution or activation exist. The user explicitly scoped this slice to local recipe input and a fictional test recipe. Runtime MCP secret delivery remains open per real tool in TRD section 16.
+
+### Decision
+
+Use local recipes and canonical recipe/template content identity instead of a pinned catalog revision. Emit `compose.yaml`, `manifest.json` and `tools/<tool>/files/<container path>` into `.olympus/build`, or `-o`. File binds are relative to this local directory. Service hashes include canonical service JSON and the TRD 6.3 file stream; generation hashes exclude `id`. Canonical JSON recursively sorts keys. Omit the derived hash label to avoid hashing a label containing itself.
+
+The CLI scans `.env` names without retaining or resolving values; only names enter evaluation. For the test recipe, explicitly supplied secrets map to recipe `env` targets, and MCP config references those target names. Compose references a future per-tool runtime environment file; this slice never creates it. No general MCP secret mechanism or wrapper scripts are introduced. Real-tool delivery stays open.
+
+Keep ports private, reject public requests and channel rendering, and never execute hooks or health checks. Allow identical output directories to be reused; preserve differing existing output and require a fresh directory. This avoids unrequested deletion and stale files. Server artifact assembly, digest enforcement and runtime secret materialization belong to later slices.
+
+### Consequences
+
+- Offline builds are deterministic and testable without credentials, Docker or a server.
+- The artifact contains tagged images and future secret-file references. It is not a deployable locked generation.
+- Changed builds need a fresh `-o` directory.
+- This does not settle per-tool runtime secret syntax or delivery.
+
+### Alternatives considered
+
+- **Implement catalog/lock/activation now:** outside the requested scope.
+- **Resolve secrets while rendering:** violates purity and risks leaking values into outputs and hashes.
+- **A general wrapper mechanism:** explicitly deferred by the user.
+- **Delete the existing output automatically:** risks deleting user files and requires separate confirmation under repository policy.
+
+## 0022. Atomically replace owned local build directories
+
+- **Status:** Accepted, requested in PR #5 review
+- **Date:** 2026-10-19
+- **Supersedes:** The existing-output preservation policy in [0021](#0021-keep-the-first-generation-contract-offline); all other offline boundaries remain unchanged
+
+### Context
+
+The original offline builder refused changed output at the default path, preventing ordinary build/edit/build use. The user authorized replacement and cleanup of tool-owned build output while requiring preservation of unrelated directories. Ordinary directory rename cannot atomically replace a non-empty destination.
+
+### Decision
+
+Recognize tool-owned output by a regular, non-symlink version-1 Olympus `manifest.json`, with a CLI version, input/tool maps and a generation ID matching canonical manifest contents. Refuse any existing directory without this marker. Stage all files and the manifest in a fresh sibling directory, verify that generation, then atomically exchange it with the owned build directory. Remove the exchanged old directory after publication. Failed staging leaves old output intact, and initial publication is exclusive so it cannot replace a directory created in the meantime.
+
+Use the operating system's native atomic operations through the Go standard library's syscall interface, adding no dependency. Linux amd64/arm64 uses `renameat2` with `RENAME_EXCHANGE` or `RENAME_NOREPLACE`. macOS amd64/arm64 uses `renameatx_np` with `RENAME_SWAP` or `RENAME_EXCL`. Sources: [Linux rename manual](https://man7.org/linux/man-pages/man2/rename.2.html), [XNU syscall definitions](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/syscalls.master), [XNU rename flags](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/stdio.h). Unsupported platforms or filesystem operations fail without a non-atomic fallback. Parent directory descriptors and confined filesystem APIs bound publication and cleanup to the selected local output parent.
+
+### Consequences
+
+- Rebuilding after edits works at the default output path and removes stale artifacts.
+- A valid manifest declares the entire build directory tool-owned, including extra files placed there. It is an ownership marker, not authentication against a malicious local user.
+- Staged content becomes visible as a complete directory. This promises atomic visibility, not power-loss durability or concurrent-build ordering.
+- Linux amd64 is runtime-tested in this run. Other supported targets are cross-compiled; native runtime verification remains outstanding.
+
+### Alternatives considered
+
+- **Require a fresh directory after each edit:** breaks the requested default rebuild workflow.
+- **Rename old output away, then rename new output into place:** leaves a window with no build directory.
+- **Delete prior output before writing:** risks data loss on failed builds and exposes incomplete output.
+- **Add a filesystem dependency:** unnecessary for the native operations needed here; dependency choices remain unchanged.
+
+## 0023. Hash the extracted catalog tree in a canonical form
+
+- **Status:** Accepted
+- **Date:** 2026-10-19
+
+### Context
+
+`stack.lock` pins the recipe catalog by commit and by a content hash ([0008](#0008-pin-exact-versions-in-stacklock), [0016](#0016-pin-the-recipe-set-as-a-flake-style-input)). The lock hash decides whether the cached tree is the one that revision produced, and it is the cache's directory name, so it must be reproducible by any Olympus version, on any machine, from the files alone. [TRD 6.4](TRD.md#64-lock-resolution) only said "sorted paths, file modes, contents", like a Nix NAR hash, which leaves the exact byte stream open.
+
+The alternatives each had a problem. Hashing the downloaded tarball depends on gzip headers, entry order and mtimes that GitHub does not guarantee. A git tree hash depends on git's object format and does not hash a subdirectory directly. A NAR is well specified but implements a general serialization (directories, symlinks, executable bits, device nodes) for a use that only has regular files.
+
+### Decision
+
+We will hash the **extracted catalog subdirectory** with SHA-256 over this byte stream:
+
+1. the domain string `olympus-catalog-v1` followed by a NUL byte;
+2. for every regular file, sorted by relative path with `/` separators:
+   - the relative path, NUL,
+   - the permission bits (`0`–`777`) in octal, NUL,
+   - the size in decimal, NUL,
+   - the file contents,
+   - NUL.
+
+The result is `sha256-<hex>`, which is both the lock's `hash` and the cache directory name under `~/.cache/olympus/inputs/`. Directories, empty directories, mtimes, ownership and setuid/setgid/sticky bits are excluded. Symlinks and other non-regular files are rejected before hashing, not hashed.
+
+### Consequences
+
+- The hash can be recomputed from an extracted tree with no git, network or Docker, and cache entries are verified on every use.
+- Content or permission changes change the hash; moving files, rewriting them in a different order, or changing mtimes does not.
+- The hash is not a commit hash and not a NAR hash. A change to the format needs a new domain string (`olympus-catalog-v2`) so old and new values can never collide.
+- Empty directories are not represented; recipes must not rely on them.
+- Setuid/setgid/sticky bits are not represented; extraction does not preserve them either.
+
+### Alternatives considered
+
+- **Tarball bytes:** GitHub can regenerate the archive with different compression and metadata, so the same revision would hash differently.
+- **Git tree hash:** exact for the repository, but extracting a subdirectory needs git object parsing, and the result would still not cover extracted modes as the cache sees them.
+- **Nix NAR serialization:** proven, but far more format than regular files and modes need, and we would own a NAR implementation for one hash.
+- **Contents only:** misses the executable bit, which recipe scripts need.
+- **A per-file manifest in the lock:** same guarantee with a larger file and more code.
+
+## 0024. Resolve image digests with the standard library
+
+- **Status:** Accepted
+- **Date:** 2026-10-19
+
+### Context
+
+The lock stores each tool image as a multi-architecture index digest ([TRD 5.3](TRD.md#53-lock-file-stacklock); security rule A7). Resolution happens by talking to the registry API, because the TRD excludes a local Docker daemon, and it must work for the official public images in v1. The TRD lists `github.com/google/go-containerregistry` as a candidate. That module is maintained (v0.22.1, 2026-09-04), but it brings a dependency tree for auth, transport, platforms and image manipulation that this narrow job does not need.
+
+### Decision
+
+We will resolve tags to index digests in `internal/lock` using `net/http` only:
+
+- `GET /v2/<repository>/manifests/<tag>` with an `Accept` header for the OCI index and Docker manifest list;
+- on `401`, follow an anonymous `Bearer` challenge once, then retry;
+- reject anything that is not an index/list with at least one manifest;
+- compute the SHA-256 of the response body and require the `Docker-Content-Digest` header, when present, to match;
+- return `name@sha256:<hex>`. A reference that is already pinned is validated and returned without a network call.
+
+v1 supports public registries with anonymous bearer auth only. Docker credential helpers, private registries, platform selection and fetching a platform manifest are out of scope; the digest is the index digest, as the lock requires.
+
+### Consequences
+
+- One less dependency and supply-chain surface in the binary; tests run against `httptest` with no network.
+- We own the registry protocol edge cases: redirects, token challenges, content types and digest checks. They are covered by unit tests, but a real registry is only exercised end to end when `olym update` is wired and tested live.
+- Private images fail with a clear registry error until a new ADR adds credentials.
+- If private registries or credential helpers become required, adding `go-containerregistry` is the upgrade path, and this decision is superseded rather than patched indefinitely.
+
+### Alternatives considered
+
+- **`github.com/google/go-containerregistry` v0.22.1:** maintained and complete, but a large dependency for one unauthenticated request; not added pending a real need for credentials or platform handling.
+- **Shell out to `crane`, `skopeo` or `docker`:** adds an external tool and a version to support, and Docker is explicitly not required.
+- **Keep the tag in the lock:** moves on every pull and breaks A7 and reproducible generations.
+- **Query the registry's web API or a third-party service:** undocumented, rate-limited, and trusts a third party for a security-relevant value.
 
 ## Template
 

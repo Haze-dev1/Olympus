@@ -43,3 +43,8 @@ Not in this slice: uploads (TRD 3.3 names them; deferred until plan/apply needs 
 - Not wired into `cmd/olym` or any command (out of scope for this slice).
 - Password-protected key files are not unlocked in-process; without an agent the parse error is returned, matching the server edge case.
 - Uploads and the activator's remote session handling are not covered.
+
+## Merge into development (2026-10-19)
+
+- Merged `development` (offline core, catalog and lock) into this branch. `go mod tidy` raised the `go` directive from 1.25.0 to 1.26.0, because `golang.org/x/crypto v0.58.0` and `golang.org/x/sys v0.49.0` require Go 1.26. `AGENTS.md`, `README.md` and the `olympus-test` skill now say Go 1.26 or newer. No ADR: the version floor follows from the dependency approved for this slice.
+- `go mod verify`, `go vet ./...`, `go test ./...` (all packages) and `gofmt -l .` passed on the merged tree.

@@ -1,10 +1,12 @@
 # Spec: recipe (`recipes/<tool>/recipe.yaml`)
 
-- **Status:** Draft, not implemented
+- **Status:** Draft v1 format; local loading and offline rendering implemented
 - **Date:** 2026-10-19
 - **Decisions:** [ADR 0005](../ADR.md#0005-describe-each-tool-with-a-declarative-yaml-recipe), [0006](../ADR.md#0006-keep-official-recipes-in-one-folder-in-this-repo), [0012](../ADR.md#0012-define-mcp-servers-and-skills-once-and-translate-them-per-tool)
 
 A recipe tells the core how to install, run and configure one tool. Recipes live in `recipes/` in this repo and are versioned together, by the git revision pinned in `stack.lock` ([ADR 0016](../ADR.md#0016-pin-the-recipe-set-as-a-flake-style-input)). The core turns each recipe into one Docker Compose service ([ADR 0015](../ADR.md#0015-use-one-docker-compose-project-as-the-runtime)). A draft example is in [prototypes/recipes/hermes/recipe.yaml](../prototypes/recipes/hermes/recipe.yaml); its paths and ports are not yet checked against Hermes's docs.
+
+The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-current-offline-slice). The fictional `testdata/sample/recipes/observatory` recipe verifies rendering only; it is not a supported production tool.
 
 ## Fields
 
