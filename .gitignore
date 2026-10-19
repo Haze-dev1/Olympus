@@ -1,0 +1,7 @@
+# Secrets referenced by stack files (ADR 0009)
+.env
+.env.*
+!.env.example
+
+# Reference repos (cloned for reading, see references/README.md)
+references/
