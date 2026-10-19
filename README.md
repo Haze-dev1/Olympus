@@ -10,7 +10,7 @@ Not released yet. Planned: `brew install <owner>/tap/olym` (Homebrew, own tap) a
 
 ## Status
 
-The first offline slice runs with Go 1.25 or newer:
+The first offline slice runs with Go 1.26 or newer:
 
 ```sh
 go build -o /tmp/olym ./cmd/olym/

@@ -9,7 +9,8 @@
       "features": [
         "core-plan-apply",
         "lock-file",
-        "catalog-lock"
+        "catalog-lock",
+        "remote-ssh"
       ]
     },
     {
@@ -58,6 +59,10 @@
     "catalog-lock": {
       "status": "in_progress",
       "file": "features/catalog-lock.md"
+    },
+    "remote-ssh": {
+      "status": "in_progress",
+      "file": "features/remote-ssh.md"
     },
     "recipe-format": {
       "status": "not_started",

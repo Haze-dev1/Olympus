@@ -45,7 +45,7 @@ Read-only questions and planning-only runs leave these files unchanged. User ins
 
 ## Validation before you commit
 
-Use Go 1.25 or newer. Build, vet and test:
+Use Go 1.26 or newer (`golang.org/x/crypto` requires it). Build, vet and test:
 
 - `go build -o /tmp/olym ./cmd/olym/`
 - `go vet ./...`

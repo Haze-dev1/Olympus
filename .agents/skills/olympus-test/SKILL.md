@@ -7,7 +7,7 @@ description: Run an Olympus QA pass when asked to test or verify Olympus. Covers
 
 One run proves a change (or the whole tool) on six fronts and ends in one report. Every front ends **green**, **red**, or **not run (reason)**. A pass applies only to what was exercised in this session; old evidence is reported separately.
 
-As of 2026-10-19, the offline core and the `internal/catalog` and `internal/lock` packages exist (not yet wired into the CLI). Use Go 1.25 or newer:
+As of 2026-10-19, the offline core and the `internal/catalog`, `internal/lock` and `internal/remote` packages exist (the last three not yet wired into the CLI). Use Go 1.26 or newer:
 
 - `go build -o /tmp/olym ./cmd/olym/`
 - `go vet ./...`
