@@ -448,6 +448,7 @@ func Build(in Inputs) (*generation.Generation, error) {
 			}
 			init := Service{
 				Image:   service.Image,
+				Build:   service.Build,
 				User:    r.User,
 				Restart: "no",
 				Labels:  map[string]string{"org.olympus.tool": name, "org.olympus.role": "init"},

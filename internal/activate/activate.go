@@ -66,6 +66,7 @@ type Clock interface {
 // argument lists, never shell strings (A2).
 type Runner interface {
 	Pull(ctx context.Context, composeFile string) error
+	Build(ctx context.Context, composeFile string) error
 	Up(ctx context.Context, composeFile string) error
 	Down(ctx context.Context, composeFile string) error
 	Exec(ctx context.Context, composeFile, tool string, args []string) error
@@ -387,6 +388,9 @@ func (a *Activator) startWithSecrets(ctx context.Context, t target, changed []st
 	file := t.composeFile()
 	if err := a.Runner.Pull(ctx, file); err != nil {
 		return fmt.Errorf("pull images for %s: %w", t.id, err)
+	}
+	if err := a.Runner.Build(ctx, file); err != nil {
+		return fmt.Errorf("build images for %s: %w", t.id, err)
 	}
 	if len(changed) > 0 {
 		if r, ok := a.Runner.(interface {

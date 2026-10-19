@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Haze-dev1/Olympus/internal/encode"
+	"github.com/Haze-dev1/Olympus/internal/schema"
 )
 
 // Compose is the production Runner: docker compose scoped to the "olympus"
@@ -22,12 +26,45 @@ type Compose struct {
 
 // Pull pulls the generation's images.
 func (c Compose) Pull(ctx context.Context, composeFile string) error {
-	return c.run(ctx, c.args(composeFile, "pull"))
+	return c.run(ctx, c.args(composeFile, "pull", "--ignore-buildable"))
+}
+
+// Build prepares missing content-addressed images. Keeping an existing image
+// preserves its identity across no-op activation and rollback, including offline.
+func (c Compose) Build(ctx context.Context, file string) error {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return errors.New("activate: cannot read Compose build configuration")
+	}
+	doc, err := encode.Unmarshal("yaml", data)
+	if err != nil {
+		return errors.New("activate: invalid Compose build configuration")
+	}
+	services, _ := doc["services"].(map[string]any)
+	seen := map[string]bool{}
+	for _, name := range schema.Keys(services) {
+		service, _ := services[name].(map[string]any)
+		if service["build"] == nil {
+			continue
+		}
+		image, _ := service["image"].(string)
+		if seen[image] {
+			continue
+		}
+		seen[image] = true
+		if exec.CommandContext(ctx, c.bin(), "image", "inspect", image).Run() == nil {
+			continue
+		}
+		if err := c.run(ctx, c.args(file, "build", "--build-arg", "SOURCE_DATE_EPOCH=0", name)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Up starts the generation's services, removing containers no longer declared.
 func (c Compose) Up(ctx context.Context, composeFile string) error {
-	return c.run(ctx, c.args(composeFile, "up", "-d", "--remove-orphans"))
+	return c.run(ctx, c.args(composeFile, "up", "-d", "--no-build", "--pull", "never", "--remove-orphans"))
 }
 
 // Down stops the project's containers. Volumes are left alone.

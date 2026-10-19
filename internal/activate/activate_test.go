@@ -80,9 +80,10 @@ func (r *fakeRunner) record(call string) error {
 	return r.fail[strings.Fields(call)[0]]
 }
 
-func (r *fakeRunner) Pull(_ context.Context, file string) error { return r.record("pull " + file) }
-func (r *fakeRunner) Up(_ context.Context, file string) error   { return r.record("up " + file) }
-func (r *fakeRunner) Down(_ context.Context, file string) error { return r.record("down " + file) }
+func (r *fakeRunner) Pull(_ context.Context, file string) error  { return r.record("pull " + file) }
+func (r *fakeRunner) Build(_ context.Context, file string) error { return r.record("build " + file) }
+func (r *fakeRunner) Up(_ context.Context, file string) error    { return r.record("up " + file) }
+func (r *fakeRunner) Down(_ context.Context, file string) error  { return r.record("down " + file) }
 
 func (r *fakeRunner) Exec(_ context.Context, file, tool string, args []string) error {
 	r.mu.Lock()
@@ -722,7 +723,7 @@ func TestComposeCommandsAreScopedAndListed(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		"compose -p olympus -f /srv/compose.yaml pull",
-		"compose -p olympus -f /srv/compose.yaml up -d --remove-orphans",
+		"compose -p olympus -f /srv/compose.yaml up -d --no-build --pull never --remove-orphans",
 		"compose -p olympus -f /srv/compose.yaml down",
 		"compose -p olympus -f /srv/compose.yaml exec -T observatory curl -fsS http://127.0.0.1:8080/healthz",
 	} {
@@ -996,5 +997,16 @@ func TestFingerprintsBindServerKeyNameAndValue(t *testing.T) {
 		if fmt.Sprint(fp) == fmt.Sprint(base) {
 			t.Fatal("fingerprint did not change")
 		}
+	}
+}
+
+func TestBuildFailureTakesFirstGenerationDown(t *testing.T) {
+	f := newFixture(t)
+	id := f.addGeneration(t, "build-failure", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.runner.fail["build"] = errors.New("build failed")
+	err := f.Activate(context.Background(), id)
+	var rolled *RolledBackError
+	if !errors.As(err, &rolled) || f.runner.count("up") != 0 || f.runner.count("down") != 1 {
+		t.Fatalf("build failure did not stop activation: %v %v", err, f.runner.calls())
 	}
 }
