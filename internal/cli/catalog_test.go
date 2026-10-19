@@ -177,3 +177,20 @@ func TestCatalogCommands(t *testing.T) {
 		t.Fatal("update/check wrote build output")
 	}
 }
+
+func TestImageTagChangeRequiresUpdate(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "stack.yaml")
+	body := []byte("server: {host: offline.test}\nagents: {demo: {recipe: observatory, image_tag: changed}}\n")
+	if err := os.WriteFile(file, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	pinned := &lock.File{Version: 1, Inputs: map[string]lock.Input{"recipes": {URL: "github:lab/recipes", Rev: strings.Repeat("a", 40), Hash: "sha256-" + strings.Repeat("a", 64)}}, Tools: map[string]lock.Tool{"demo": {Image: "busybox@sha256:" + strings.Repeat("a", 64), ImageTag: "previous"}}}
+	if err := lock.Write(filepath.Join(dir, "stack.lock"), pinned); err != nil {
+		t.Fatal(err)
+	}
+	var out, stderr bytes.Buffer
+	if code := Run([]string{"build", "-f", file, "-recipes", "../../testdata/sample/recipes"}, &out, &stderr); code != 1 || !strings.Contains(stderr.String(), "run olym update") {
+		t.Fatalf("%d %s", code, &stderr)
+	}
+}
