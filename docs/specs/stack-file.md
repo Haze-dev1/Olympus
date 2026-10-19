@@ -128,3 +128,5 @@ Written by Olympus only (`check` when missing, and `update`). JSON with sorted k
 ## Generations and server layout
 
 Defined in [TRD.md](../TRD.md) sections 5.4 (manifest), 7.1 (server layout) and 8 (activation). In short: rendered tool output lives in `/var/lib/olympus/store/<hash>/`, each generation is a numbered link to a content-addressed `store/gen-<hash>/` holding `compose.yaml` and `manifest.json`, `current` points at the active one, and secrets live in `secrets/<tool>/` outside every generation so hashes never depend on them.
+
+Local builds mirror rendered config entries at `store/<tool hash>/files/<container path without leading slash>`. Compose mounts their absolute `/var/lib/olympus/store/...` paths. Tool hashes cover files and service configuration before adding those mounts. Generation uploads contain only Compose and manifest files; each tool entry is separately verified and reused. See [ADR 0030](../ADR.md#0030-address-rendered-files-by-tool-hash-across-generations).

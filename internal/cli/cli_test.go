@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
+	"github.com/Haze-dev1/Olympus/internal/generation"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,10 +114,14 @@ func TestBuildReplacesDefaultOutputAfterStackChange(t *testing.T) {
 	if bytes.Equal(first, second) {
 		t.Fatal("changed stack did not replace generation")
 	}
-	if _, err = os.Stat(".olympus/build/tools/research"); !os.IsNotExist(err) {
+	var old, current generation.Manifest
+	if json.Unmarshal(first, &old) != nil || json.Unmarshal(second, &current) != nil {
+		t.Fatal("invalid manifests")
+	}
+	if _, err = os.Stat(".olympus/build/store/" + old.Tools["research"].Hash); !os.IsNotExist(err) {
 		t.Fatal("stale tool output survived replacement")
 	}
-	if _, err = os.Stat(".olympus/build/tools/assistant"); err != nil {
+	if _, err = os.Stat(".olympus/build/store/" + current.Tools["assistant"].Hash); err != nil {
 		t.Fatal(err)
 	}
 	siblings, err := os.ReadDir(".olympus")

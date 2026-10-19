@@ -2,6 +2,8 @@
 
 ## Development
 
+- M1 completion, first slice: address rendered config by tool hash, retain stable absolute Compose bind sources, separately verify/reuse tool uploads, and read/retain their entries in plan and GC (ADR 0030). Full command integration remains in progress.
+
 - Added read-only `olym plan`: in-memory evaluation, verified current-generation snapshot, per-tool file/image diffs, drift checks, unchanged totals and detailed exit codes. Added explicit/environment/default known_hosts selection and terminal-only unknown-key confirmation. Generations now persist recipe health checks with a validated activator HealthSource adapter (ADR 0028 amends 0027). Saved plans and secret-value fingerprint comparison remain deferred; no dependencies added.
 - Added `internal/deploy` for server preparation, verified atomic generation and Linux activator uploads, stdin-only 0600 secret payloads, detached systemd activation, fresh-SSH confirmation and TRD exit codes. Added server `activate`, `confirm` and `version` commands, fake transfer/protocol tests and an opt-in lab lifecycle test. No dependencies added. ADR 0029 records local binary verification and retained transient service results; manifest health wiring and embedded release checksums remain follow-ups.
 

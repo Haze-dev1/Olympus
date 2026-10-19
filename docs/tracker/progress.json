@@ -55,7 +55,7 @@
       "status": "in_progress",
       "file": "features/core-plan-apply.md",
       "updated": "2026-10-20",
-      "summary": "Offline build plus read-only plan implemented; apply/rollback CLI and secret fingerprints remain incomplete."
+      "summary": "Per-tool content-addressed mounts/uploads implemented; full M1 command integration and lab evidence pending."
     },
     "lock-file": {
       "status": "done",
@@ -118,6 +118,7 @@
     "ADR 0026 GitHub catalog wiring and local development overrides",
     "ADR 0027 activate by manifest id, server-side store links and health source",
     "ADR 0028 manifest health checks and activator HealthSource adapter",
-    "ADR 0029 verified deployment uploads and retained systemd activation results"
+    "ADR 0029 verified deployment uploads and retained systemd activation results",
+    "ADR 0030 stable per-tool content-addressed config entries"
   ]
 }

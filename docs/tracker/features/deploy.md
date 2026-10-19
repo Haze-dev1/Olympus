@@ -37,3 +37,7 @@ A1: secret payload only on stdin, remote output discarded; server Compose errors
 - End-to-end lab test re-run by the reviewer on a reset lab VM: `OLYMPUS_LAB=1 go test -tags lab ./internal/deploy -run TestLabDeploy` passed in 101 s. Docker and Compose were installed through sudo; a generation was uploaded, activated and confirmed, and `current` was verified; a second, unconfirmed activation rolled back by itself.
 - Merged `development` (plan and manifest health, ADR 0028). The server commands now load health checks from `store/gen-<id>/manifest.json`, replacing the empty health source.
 - `RollbackFailedError` now maps to exit code 5 on the server and in `deploy.Activate`, documented in TRD 10.1.
+
+## Per-tool entries, 2026-10-20
+
+ADR 0030 changes upload layout: validate every declared config hash, upload and verify each `store/<tool hash>/files/...` entry independently, reuse only verified entries, then publish the generation's Compose and manifest. A regression test uploads two generations sharing one tool entry and refuses reuse after tampering. No live lab evidence for this contract yet; the full M1 cycle remains pending.

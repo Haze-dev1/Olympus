@@ -131,25 +131,51 @@ func (c *Client) UploadGeneration(ctx context.Context, g *generation.Generation)
 	if !bytes.Equal(a, b) || len(g.Files["compose.yaml"]) == 0 {
 		return errors.New("deploy: generation files disagree with manifest")
 	}
+	entries := map[string]map[string][]byte{}
+	declared := map[string]bool{"compose.yaml": true, "manifest.json": true}
 	for name, tool := range g.Manifest.Tools {
-		if !stack.ValidName(name) {
-			return errors.New("deploy: invalid tool name")
+		if !stack.ValidName(name) || !idRE.MatchString(tool.Hash) {
+			return errors.New("deploy: invalid tool name or hash")
 		}
+		files := map[string][]byte{}
 		for p, hash := range tool.Files {
-			rel := "tools/" + name + "/files/" + strings.TrimPrefix(p, "/")
+			if !path.IsAbs(p) || path.Clean(p) != p || p == "/" {
+				return errors.New("deploy: invalid container path")
+			}
+			rel := "store/" + tool.Hash + "/files/" + strings.TrimPrefix(p, "/")
 			data, ok := g.Files[rel]
 			if !ok || generation.Hash(data) != hash {
 				return errors.New("deploy: manifest file hash mismatch")
 			}
+			declared[rel] = true
+			files["files/"+strings.TrimPrefix(p, "/")] = data
+		}
+		if len(files) > 0 {
+			entries[tool.Hash] = files
 		}
 	}
+	for p := range g.Files {
+		if !declared[p] {
+			return errors.New("deploy: undeclared generation file")
+		}
+	}
+	for _, hash := range schema.Keys(entries) {
+		if err := c.uploadEntry(ctx, hash, entries[hash]); err != nil {
+			return err
+		}
+	}
+	return c.uploadEntry(ctx, "gen-"+g.Manifest.ID, map[string][]byte{"compose.yaml": g.Files["compose.yaml"], "manifest.json": g.Files["manifest.json"]})
+}
+
+func (c *Client) uploadEntry(ctx context.Context, entry string, files map[string][]byte) (result error) {
+	var err error
 	var archive bytes.Buffer
 	tw := tar.NewWriter(&archive)
-	for _, p := range schema.Keys(g.Files) {
+	for _, p := range schema.Keys(files) {
 		if p == "." || path.IsAbs(p) || path.Clean(p) != p || strings.HasPrefix(p, "../") || strings.ContainsAny(p, "\n\r\\") {
 			return errors.New("deploy: unsafe generation path")
 		}
-		data := g.Files[p]
+		data := files[p]
 		if err = tw.WriteHeader(&tar.Header{Name: p, Mode: 0600, Size: int64(len(data)), Typeflag: tar.TypeReg}); err != nil {
 			return err
 		}
@@ -160,9 +186,9 @@ func (c *Client) UploadGeneration(ctx context.Context, g *generation.Generation)
 	if err = tw.Close(); err != nil {
 		return err
 	}
-	destination := root + "/store/gen-" + g.Manifest.ID
+	destination := root + "/store/" + entry
 	if _, err = c.run(ctx, []string{"test", "-e", destination}, nil); err == nil {
-		return c.verifyFiles(ctx, destination, g.Files)
+		return c.verifyFiles(ctx, destination, files)
 	}
 	suffix, err := randomName()
 	if err != nil {
@@ -183,14 +209,14 @@ func (c *Client) UploadGeneration(ctx context.Context, g *generation.Generation)
 	if _, err = c.run(ctx, []string{"tar", "-x", "-f", "-", "--no-same-owner", "-C", stage}, &archive); err != nil {
 		return err
 	}
-	if err = c.verifyFiles(ctx, stage, g.Files); err != nil {
+	if err = c.verifyFiles(ctx, stage, files); err != nil {
 		return err
 	}
 	_, err = c.run(ctx, []string{"mv", "-T", "-n", "--", stage, destination}, nil)
 	if err != nil {
 		return err
 	}
-	return c.verifyFiles(ctx, destination, g.Files)
+	return c.verifyFiles(ctx, destination, files)
 }
 
 func (c *Client) verifyFiles(ctx context.Context, dir string, files map[string][]byte) error {

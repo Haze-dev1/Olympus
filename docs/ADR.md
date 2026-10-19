@@ -35,6 +35,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted, amended by 0028 |
 | [0028](#0028-store-health-checks-in-the-generation-manifest) | Store health checks in the generation manifest | Accepted |
 | [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result) | Verify deployment uploads and retain the activation result | Accepted |
+| [0030](#0030-address-rendered-files-by-tool-hash-across-generations) | Address rendered files by tool hash across generations | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -874,6 +875,32 @@ Server commands use the real Compose runner and health checker. Until the separa
 - Default transient service lifetime: loses the success result when systemd unloads the unit.
 - Execute an uploaded binary to check its version before hashing it: violates the checksum trust boundary.
 - New remote shell scripts or dependencies: existing argument-list commands and standard Go tar support suffice.
+
+## 0030. Address rendered files by tool hash across generations
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+- **Amends:** [0021](#0021-keep-the-first-generation-contract-offline), [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result)
+
+### Context
+
+Generation-relative bind sources change whenever any tool changes. Compose then recreates otherwise unchanged services, violating the per-tool convergence requirement.
+
+### Decision
+
+Local builds hold config files at `store/<tool hash>/files/<container path without leading slash>`. Compose bind sources are the corresponding absolute paths under `/var/lib/olympus`. Compute the tool hash from rendered file paths/bytes and the service before adding generated config bind mounts, avoiding a self-referential hash. Existing named volumes remain part of the service hash. The manifest stays version 1; tool hashes and generation identities change.
+
+Upload each declared tool entry separately, verifying its files before atomic publication or reuse. Generation entries contain only Compose and manifest files. Plan verifies current files at their tool hash paths. GC retains each kept manifest's tool entries as well as Compose references. This supersedes the generation-relative config layout; old offline builds must be rebuilt before deployment.
+
+### Consequences
+
+An unchanged tool has identical bind sources across generations. Uploads reuse verified entries. Corrupted existing entries fail closed rather than being overwritten. Generated mount sources are derived from the hash and are not themselves hashed.
+
+### Alternatives considered
+
+- Rewrite Compose during upload: makes deployment differ from the evaluated build.
+- Keep generation-relative mounts: recreates unrelated tools.
+- Hash the final absolute bind source: creates a circular hash dependency.
 
 ## Template
 

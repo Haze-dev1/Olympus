@@ -933,3 +933,21 @@ func TestRollbackRecordsTheGenerationItTriedToActivate(t *testing.T) {
 		t.Errorf("current is %q, want generations/2", got)
 	}
 }
+
+func TestGCKeepsManifestToolEntries(t *testing.T) {
+	f := newFixture(t)
+	entry := tool()
+	entry.Files["/config"] = generation.Hash([]byte("config"))
+	id := f.addGeneration(t, "kept", map[string]generation.Tool{"demo": entry}, "services: {}\n")
+	f.activate(t, id)
+	dir := filepath.Join(f.Root, "store", entry.Hash)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.GC(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	if !exists(dir) {
+		t.Fatal("deleted referenced tool entry")
+	}
+}

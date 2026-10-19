@@ -334,6 +334,8 @@ The build directory is tool-owned only when it contains a valid version-1 Olympu
   log/<timestamp>-<command>.log           activator logs
 ```
 
+Local builds mirror tool entries at `store/<tool hash>/files/<container path without leading slash>`. Generation entries upload only `compose.yaml` and `manifest.json`. Tool hashes cover rendered paths/bytes and service configuration before generated config bind mounts are added; their absolute sources are derived from that hash. Unchanged tools therefore keep identical bind sources across generations. See [ADR 0030](ADR.md#0030-address-rendered-files-by-tool-hash-across-generations).
+
 Store paths are immutable once written: uploads go to `store/.incoming/<random>/` and are renamed into place only after their hash is verified, so a dropped connection never leaves a half-written entry.
 
 ### 7.2 Server preparation
