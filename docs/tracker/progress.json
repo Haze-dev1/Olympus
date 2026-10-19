@@ -108,6 +108,6 @@
     "ADR 0023 canonical catalog tree hash",
     "ADR 0024 stdlib registry digest resolution",
     "ADR 0025 local QEMU test lab",
-    "ADR 0026 activate by manifest id, server-side store links and health source"
+    "ADR 0027 activate by manifest id, server-side store links and health source"
   ]
 }

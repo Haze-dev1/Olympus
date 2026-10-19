@@ -31,7 +31,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0023](#0023-hash-the-extracted-catalog-tree-in-a-canonical-form) | Hash the extracted catalog tree in a canonical form | Accepted |
 | [0024](#0024-resolve-image-digests-with-the-standard-library) | Resolve image digests with the standard library | Accepted |
 | [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted |
-| [0026](#0026-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted |
+| [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -738,7 +738,7 @@ We will test against one disposable local VM, started by `lab/lab.sh`. It runs t
 - **A paid VPS for every test:** most realistic, but costs money, is slower to reset and needs network access for every run. Kept for the pre-release check.
 - **libvirt or Incus:** convenient management, but they add system services, network bridges and group membership on the host.
 
-## 0026. Activate a generation from the store by manifest id
+## 0027. Activate a generation from the store by manifest id
 
 - **Status:** Accepted
 - **Date:** 2026-10-20
