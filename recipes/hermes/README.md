@@ -30,9 +30,22 @@ Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
 
 ## UNVERIFIED
 
-- That Hermes reads `ANTHROPIC_API_KEY` and `TELEGRAM_BOT_TOKEN` from the
-  process environment, not only from `/opt/data/.env`. Compose delivers secrets
-  as environment variables (A1); if Hermes ignores them, the activator must
-  write them into `.env` at deploy time.
-- That `hermes --version` exits 0 on the image; confirm during the VM test.
-- Whether the image's default command runs the gateway without extra arguments.
+- Gateway operation with a real chat channel, including platform authentication,
+  remains unverified. The lab intentionally configures no channel.
+
+## Lab observations, 2026-10-20
+
+The real CLI lifecycle passed on the 6144 MiB Ubuntu 24.04 lab VM with Compose
+v5.6.0. The image contains `/bin/sh`, `mkdir` and `cp`; init copied both config
+and the shared skill successfully. The image's default invocation starts the
+interactive chat, so the recipe sets `command: [gateway, run]`, the documented
+long-running mode (s6 supervises the gateway). With no chat channel configured
+the container stays up and `hermes --version` passes its command health check. The YAML MCP entry retained `${GITHUB_TOKEN}`;
+no sentinel value appeared in managed config or the store.
+
+Hermes's own `hermes_cli.config._env_ref_lookup` resolved the injected process
+environment without printing values. No secret dotenv provisioning is required
+for this default profile. An image-created `/opt/data/.env` exists but contained
+no sentinel. Profile-scoped secrets and live provider/chat authentication are
+not exercised. With no channel the test proves container and CLI readiness;
+it does not claim that a bot or a model session ran.

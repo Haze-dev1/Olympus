@@ -1,16 +1,16 @@
 {
-  "id": "sha256-bf8ca32dc248ba0e7d509c35c39dd4d105fef61951d7a356f705900c67e9305b",
+  "id": "sha256-2bca3f9e8dea2716467c29403dc08d31809f75768ae9133109f949167de8fe53",
   "inputs": {
-    "recipes": "sha256-450da6b5a02e44e6e0f23d4dc88c763a8e1d300f7591690300e3a1360e622a74"
+    "recipes": "sha256-b288a0038f28a628bd4a1f1ab0b368e074e3e42ab460fce7ce67ff9e9bf88dfb"
   },
   "olym": "0.1.0-dev",
   "tools": {
     "codex": {
       "files": {
         "/root/.codex/config.toml": "sha256-2ea2eabdca78723415237f1d5d9109b95f84992b2a6da231b9aba3f17b4873bf",
-        "/root/.olympus-build/Dockerfile": "sha256-ea4dc603a19ba54844e725b4e67d8ffe7e79c4dbe3c2ca6f9ad37f690bb9603b"
+        "/root/.olympus-build/Dockerfile": "sha256-0866f6b35bbd87d010c87f08124b7411f08e7071cd697d36bf3994147ffdf74f"
       },
-      "hash": "sha256-39590452620ef1880bcf0b73205d1e38677b1b7ba41b848147c848d37ed939e2",
+      "hash": "sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db",
       "health": {
         "command": [
           "codex",
@@ -18,7 +18,7 @@
         ],
         "timeout": "60s"
       },
-      "image": "olympus/codex:sha256-0a5b3506fa4c",
+      "image": "olympus/codex:sha256-3d123fc04a15",
       "secrets": [
         "api-key",
         "github-token"
@@ -29,7 +29,7 @@
         "/opt/data/config.yaml": "sha256-0a7f7cecdf0e730006d8528d3e4dbc030cd6338bf6ebc8727a485405d40b7ff2",
         "/opt/data/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-4192ceb6ef18e5b0cf5e24a430667f9cc95a2b52c1bb7437285e26539b8b01c5",
+      "hash": "sha256-2bd8c9fb544a0176653e4998434b0b644a6a2b74f43024e85de3fb9b1032d3ac",
       "health": {
         "command": [
           "hermes",

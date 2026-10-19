@@ -41,3 +41,18 @@ Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
   The recipe therefore expects `ANTHROPIC_API_KEY` in the environment.
 - Whether `OPENCODE_SERVER_PASSWORD` is needed for a localhost-only port. It is
   not set here; add it if the port is made public.
+
+## Lab observations, 2026-10-20
+
+The real CLI lifecycle passed on the 6144 MiB Ubuntu 24.04 lab VM with Compose
+v5.6.0. The pinned image contains `/bin/sh`, `mkdir` and `cp`; init copied its
+JSON config successfully. `serve --hostname 0.0.0.0 --port 4096` ran and the
+server's `127.0.0.1:4096/global/health` returned `healthy: true` without a real
+provider key or server password. Only the server's loopback port is published.
+MCP config kept `{env:GITHUB_TOKEN}` rather than the sentinel value. The shared
+skill was readable. A no-op preserved every container ID. Removing only this
+tool's MCP list recreated only OpenCode and its init service; rollback succeeded.
+
+The 2 GB resource estimate, future v2 compatibility, headless provider auth JSON
+and public-port authentication policy are not settled by this no-inference,
+localhost-only run. Real provider requests were not attempted.
