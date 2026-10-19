@@ -1,0 +1,29 @@
+name: olympus
+services:
+  research:
+    env_file:
+    - /var/lib/olympus/secrets/research/environment
+    environment:
+      OBSERVATORY_HOME: /opt/observatory
+    image: ghcr.io/example/observatory:1.2.0
+    labels:
+      org.olympus.tool: research
+    ports:
+    - 127.0.0.1:8642:8642
+    restart: unless-stopped
+    user: 1000:1000
+    volumes:
+    - source: research_data
+      target: /opt/observatory
+      type: volume
+    - read_only: true
+      source: ./tools/research/files/opt/observatory/SOUL.md
+      target: /opt/observatory/SOUL.md
+      type: bind
+    - read_only: true
+      source: ./tools/research/files/opt/observatory/config.yaml
+      target: /opt/observatory/config.yaml
+      type: bind
+volumes:
+  research_data:
+    name: olympus_research_data

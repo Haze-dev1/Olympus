@@ -1,0 +1,10 @@
+logging:
+  level: info
+mcp_servers:
+  github:
+    args:
+    - stdio
+    command: github-mcp
+    env:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+model: local-test-model
