@@ -212,9 +212,14 @@ func Build(in Inputs) (*generation.Generation, error) {
 			if err != nil {
 				return nil, fmt.Errorf("%s: MCP secret lacks a declared environment mapping", name)
 			}
-			b, _ := encode.Canonical(m)
+			b, err := encode.Canonical(m)
+			if err != nil {
+				return nil, err
+			}
 			var obj any
-			_ = json.Unmarshal(b, &obj)
+			if err = json.Unmarshal(b, &obj); err != nil {
+				return nil, err
+			}
 			mcps[mcpName] = obj
 		}
 		files := map[string][]byte{}

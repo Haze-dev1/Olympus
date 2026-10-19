@@ -83,6 +83,7 @@
     "ADR 0017 server-side activation, confirm-or-rollback",
     "ADR 0018 structured config, JSON Schemas",
     "ADR 0020 approved YAML/TOML dependencies",
-    "ADR 0021 offline generation contract"
+    "ADR 0021 offline generation contract",
+    "ADR 0022 atomic replacement of owned build output"
   ]
 }

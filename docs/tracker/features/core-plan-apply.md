@@ -18,11 +18,11 @@ Evaluate the stack locally into a generation, then activate it on the server ove
 
 ## Decisions and boundaries
 
-[ADR 0020](../../ADR.md#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) records the exact approved YAML and TOML dependencies and the limited schema vocabulary. [ADR 0021](../../ADR.md#0021-keep-the-first-generation-contract-offline) records local artifact layout, canonical hashing, input identity and preservation of differing existing output. TRD section 6.5 describes the implemented boundary.
+[ADR 0020](../../ADR.md#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) records the exact approved YAML and TOML dependencies and the limited schema vocabulary. [ADR 0021](../../ADR.md#0021-keep-the-first-generation-contract-offline) records local artifact layout, canonical hashing and input identity. Its output-preservation policy is superseded by [ADR 0022](../../ADR.md#0022-atomically-replace-owned-local-build-directories), which authorizes atomic replacement of manifest-owned local output. TRD section 6.5 describes the implemented boundary.
 
 MCP environment-variable delivery covers only the test recipe. Its `github-token` secret declares `env: GITHUB_TOKEN`; its MCP entry contains `${GITHUB_TOKEN}`, never the source value. Compose references a future per-tool environment file; no such file is generated. Per-tool delivery and syntax remain open under TRD section 16. No wrapper scripts or general runtime secret mechanism were added.
 
-There is no SSH, server access, apply, plan, rollback, catalog fetching, registry resolution or `stack.lock`. Tagged images and relative local mounts make these inspection artifacts, not deployable locked generations. Hooks and health settings are validated but never run. Public port builds and channel rendering fail explicitly. An identical build reuses output; differing existing output requires a fresh `-o` directory and is preserved.
+There is no SSH, server access, apply, plan, rollback, catalog fetching, registry resolution or `stack.lock`. Tagged images and relative local mounts make these inspection artifacts, not deployable locked generations. Hooks and health settings are validated but never run. Public port builds and channel rendering fail explicitly. Rebuilds stage and atomically replace manifest-owned output. Existing directories without valid Olympus manifests are preserved and refused.
 
 ## Verification evidence
 
@@ -49,6 +49,32 @@ Commands and results from 2026-10-19:
 No server or container was started, so no server teardown was required. Final review found and fixed a possible volume-name collision between hyphenated tool/volume pairs; `eval.TestVolumeNamesCannotCollideAcrossTools` now covers it and the complete suite passed afterward.
 
 The first sandboxed dependency download failed because network access was blocked. Both exact approved versions downloaded with approved access. A sandboxed initial test invocation reported installed standard packages unavailable; rerunning with approved toolchain/cache access passed. Updating the protected test skill required filesystem approval and then succeeded.
+
+## PR #5 review follow-up, 2026-10-19
+
+All three requested findings are addressed on `feat/m1-offline-core`:
+
+1. **High, integer precision:** `schema.read` retains native int64/uint64 values. Integer validation and typed stack/recipe decode no longer receive rounded floats. Encoder JSON normalization and JSON seeds use `UseNumber`, then convert integer tokens into concrete integer types for YAML/TOML encoders. Tests cover nested integers, signed int64 limits, a value above 2^53, typed stack decoding, and a TOML managed seed retaining `port = 8642`.
+2. **Medium, changed builds:** stage a complete generation in a fresh sibling directory, then use native atomic exchange for manifest-owned output. Validate the old manifest and refuse unowned directories. Clean up prior owned output, without following its symlinks, after publication. The default-path CLI regression builds, edits the stack and builds again; additional tests cover stale files, failed staging, invalid ownership markers and unrelated output.
+3. **Low, ignored errors:** propagate both `encode.Canonical` and `json.Unmarshal` errors at MCP entry conversion. These failure branches cannot be induced through the current string-only MCP struct without adding artificial injection hooks; source inspection verifies both checks, and existing MCP golden/format tests verify the legitimate path.
+
+Verification observed in this follow-up:
+
+- `go test ./internal/schema ./internal/encode ./internal/eval -run 'TestInteger|TestTOMLSeed'`: failed before fixes with `8642.0` and rounding of `9007199254740993` to `9007199254740992`.
+- Initial focused rerun exposed the YAML parser's positive uint64 representation. Normalized positive integers within int64 range to int64; signed limits and cross-format round trips then passed.
+- `go test ./internal/schema ./internal/encode ./internal/eval ./internal/stack ./internal/recipe`: passed after the integer fix.
+- `go test ./internal/generation ./internal/cli`: passed after atomic replacement and default rebuild tests.
+- `go build -o /tmp/olym ./cmd/olym/`, `go vet ./...`, and `go test ./...`: passed, exit 0 after all product changes; seven test-bearing packages passed, two packages had no test files. Existing golden output and purity tests pass without regenerating expected files.
+- `GOOS=linux GOARCH=arm64 go build -o /tmp/olym-linux-arm64 ./cmd/olym/`: passed, exit 0.
+- `GOOS=darwin GOARCH=amd64 go build -o /tmp/olym-darwin-amd64 ./cmd/olym/`: passed, exit 0.
+- `GOOS=darwin GOARCH=arm64 go build -o /tmp/olym-darwin-arm64 ./cmd/olym/`: passed, exit 0.
+- These cross-target checks compile the syscall implementation; no macOS or Linux arm64 runtime was available. Unsupported platforms/filesystems and power-loss scenarios were not exercised.
+- `python /tmp/olym-check-docs.py`: passed, exit 0, checking all 162 relative documentation links/anchors plus tracker and schema JSON.
+- `git diff --check`: passed, exit 0.
+
+ADR 0022 records the changed durable output-ownership and replacement policy, superseding that portion of ADR 0021. Integer preservation and error propagation correct the existing contract and require no separate architecture decision. No dependency was added or changed. The feature remains in progress because server behavior is still outside this slice.
+
+Security: output deletion is now authorized only for manifest-owned local build directories or temporary directories created by this invocation. A3 confinement and symlink defenses remain in place. Existing sentinel leak, localhost and YAML-safety tests pass. No real secrets were read, no server was contacted, and no full vulnerability scan or independent security review was performed. Atomic visibility is tested on Linux amd64; other platforms' runtime behavior remains unverified.
 
 ## Offline edge-case coverage
 
