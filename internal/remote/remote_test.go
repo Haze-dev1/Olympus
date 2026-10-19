@@ -27,11 +27,12 @@ func TestHostKeyKnownConnects(t *testing.T) {
 
 	confirmCalled := false
 	c, err := dialTest(t, Config{
-		Host:       addr,
-		User:       "tester",
-		KeyFile:    keyFile,
-		KnownHosts: known,
-		Confirm:    func(string, string) bool { confirmCalled = true; return true },
+		HostKeyAlgorithms: []string{ssh.KeyAlgoED25519},
+		Host:              addr,
+		User:              "tester",
+		KeyFile:           keyFile,
+		KnownHosts:        known,
+		Confirm:           func(string, string) bool { confirmCalled = true; return true },
 	})
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
@@ -98,11 +99,12 @@ func TestHostKeyChangedRefused(t *testing.T) {
 
 	confirmCalled := false
 	_, err := dialTest(t, Config{
-		Host:       addr,
-		User:       "tester",
-		KeyFile:    keyFile,
-		KnownHosts: known,
-		Confirm:    func(string, string) bool { confirmCalled = true; return true },
+		HostKeyAlgorithms: []string{ssh.KeyAlgoED25519},
+		Host:              addr,
+		User:              "tester",
+		KeyFile:           keyFile,
+		KnownHosts:        known,
+		Confirm:           func(string, string) bool { confirmCalled = true; return true },
 	})
 	if err == nil {
 		t.Fatal("Dial succeeded for a changed host key")

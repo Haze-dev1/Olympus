@@ -34,12 +34,15 @@ type ConfirmFunc func(host, fingerprint string) bool
 
 // Config describes one SSH connection.
 type Config struct {
-	Host       string        // "host" or "host:port"; the port defaults to 22
-	User       string        // SSH user
-	KeyFile    string        // private key path; empty means use the SSH agent
-	KnownHosts string        // known_hosts path; empty means ~/.ssh/known_hosts
-	Timeout    time.Duration // dial timeout; zero means no timeout
-	Confirm    ConfirmFunc   // called only for an unknown host key
+	// HostKeyAlgorithms optionally restricts negotiation to the pinned key type.
+	// Verification against KnownHosts still applies to every negotiated key.
+	HostKeyAlgorithms []string
+	Host              string        // "host" or "host:port"; the port defaults to 22
+	User              string        // SSH user
+	KeyFile           string        // private key path; empty means use the SSH agent
+	KnownHosts        string        // known_hosts path; empty means ~/.ssh/known_hosts
+	Timeout           time.Duration // dial timeout; zero means no timeout
+	Confirm           ConfirmFunc   // called only for an unknown host key
 }
 
 // Client is an authenticated SSH connection to one server.
@@ -71,10 +74,11 @@ func Dial(cfg Config) (*Client, error) {
 		addr = net.JoinHostPort(addr, "22")
 	}
 	conn, err := ssh.Dial("tcp", addr, &ssh.ClientConfig{
-		User:            cfg.User,
-		Auth:            auth,
-		HostKeyCallback: callback,
-		Timeout:         cfg.Timeout,
+		HostKeyAlgorithms: cfg.HostKeyAlgorithms,
+		User:              cfg.User,
+		Auth:              auth,
+		HostKeyCallback:   callback,
+		Timeout:           cfg.Timeout,
 	})
 	if err != nil {
 		closeIf(agentConn)
