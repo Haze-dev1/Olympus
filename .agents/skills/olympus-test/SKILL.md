@@ -20,7 +20,7 @@ For an offline-only change, mark front 4 and the server-only parts of front 5 no
 
 ## Guardrails
 
-- **Disposable servers only.** Live fronts run against a server created for this run and destroyed after it. Never point `apply` or `destroy` at a server the user did not name as disposable for this run.
+- **Disposable servers only.** Live fronts run against the lab VM (`lab/lab.sh up`, then `lab/lab.sh reset` between runs; see `lab/README.md`) or a server the user names as disposable. Pass the lab's SSH key, `known_hosts` and `XDG_CACHE_HOME` from `lab/lab.sh env` so no run touches the developer's `~/.ssh` or `~/.cache`. Never point `apply` or `destroy` at a server the user did not name as disposable for this run.
 - **Sentinel secrets.** The test `.env` uses made-up values with a fixed prefix, such as `OLYM_SENTINEL_<NAME>_<random>`, never real keys. That makes leak checks safe: search output for the prefix. Real provider calls need a target and call budget the user approves for this run.
 - **Never read the user's real `.env`.** Build the test `.env` in a temporary directory.
 - **Report, don't fix.** Findings go in the report. Change product code only when the user asks, after the report.

@@ -10,7 +10,8 @@
         "core-plan-apply",
         "lock-file",
         "catalog-lock",
-        "remote-ssh"
+        "remote-ssh",
+        "test-lab"
       ]
     },
     {
@@ -83,6 +84,10 @@
     "recipe-catalog": {
       "status": "not_started",
       "file": "features/recipe-catalog.md"
+    },
+    "test-lab": {
+      "status": "done",
+      "file": "features/test-lab.md"
     }
   },
   "decisions": [
@@ -96,6 +101,7 @@
     "ADR 0021 offline generation contract",
     "ADR 0022 atomic replacement of owned build output",
     "ADR 0023 canonical catalog tree hash",
-    "ADR 0024 stdlib registry digest resolution"
+    "ADR 0024 stdlib registry digest resolution",
+    "ADR 0025 local QEMU test lab"
   ]
 }

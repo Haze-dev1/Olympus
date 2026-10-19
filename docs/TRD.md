@@ -513,7 +513,7 @@ Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)
 | Golden | `build` output for sample stacks | Committed expected generations under `testdata/`; byte comparison |
 | Purity | Same inputs → identical output; different secret values → identical output; shuffled map order → identical output | Build twice in one test and compare hashes |
 | Recipe | Every catalog recipe validates and builds; image digests resolve | CI job over `recipes/` |
-| Integration | The full cycle on a real server: apply, re-apply, upgrade, rollback, kill-the-CLI, destroy | Disposable server per run (**open:** local VM with Incus or QEMU, or a short-lived VPS) |
+| Integration | The full cycle on a real server: apply, re-apply, upgrade, rollback, kill-the-CLI, destroy | The disposable lab VM from `lab/lab.sh` ([ADR 0025](ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)); one real VPS run before release |
 | Security | Rules A1–A12; leak search using sentinel secret values (`OLYM_SENTINEL_…`) in all output, logs, lock and server files | Integration suite plus the project's security review skill |
 
 Every case in [edgecases/apply.md](edgecases/apply.md) becomes a test at one of these levels, or is listed as a gap.
@@ -579,6 +579,6 @@ Before the first release, check that `olym` is not already taken in Homebrew and
 - [ ] Per tool: how secrets inside MCP entries are delivered (environment placeholder or wrapper reading `/run/secrets`).
 - [ ] Skills: copy into each tool, or one shared read-only mount.
 - [ ] Tools that rewrite their own config files: confirm the `writable: true` copy approach.
-- [ ] Integration test servers: local VMs or short-lived VPSes.
+- [x] Integration test servers: a local QEMU VM from the Ubuntu cloud image ([ADR 0025](ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)), plus one VPS run before release.
 - [ ] The final URL scheme for the catalog input and whether `git` is ever required locally.
 - [ ] CLI framework: `cobra` or the standard library.
