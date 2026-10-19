@@ -7,7 +7,16 @@ description: Run an Olympus QA pass when asked to test or verify Olympus. Covers
 
 One run proves a change (or the whole tool) on six fronts and ends in one report. Every front ends **green**, **red**, or **not run (reason)**. A pass applies only to what was exercised in this session; old evidence is reported separately.
 
-> As of 2026-10-19 the Go module exists with `internal/catalog` and `internal/lock`; front 1 runs the build, vet, test and format commands in `AGENTS.md` under "Validation before you commit". The `olym` CLI does not exist yet, so front 4 is "not run (no CLI)" until slice 1 lands.
+As of 2026-10-19, the offline core and the `internal/catalog` and `internal/lock` packages exist (not yet wired into the CLI). Use Go 1.25 or newer:
+
+- `go build -o /tmp/olym ./cmd/olym/`
+- `go vet ./...`
+- `go test ./...`
+- `gofmt -l .` prints nothing
+
+The tests include the sample recipe, golden generation, secret-value and key-order purity, CLI diagnostics, and path confinement. To regenerate expected output after reviewing an intentional format change, run `go test ./internal/eval -update`, then inspect `testdata/golden/`.
+
+For an offline-only change, mark front 4 and the server-only parts of front 5 not run. `plan`, `apply`, `rollback` and `destroy` are not implemented.
 
 ## Guardrails
 

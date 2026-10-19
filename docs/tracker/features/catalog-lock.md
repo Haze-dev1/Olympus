@@ -23,7 +23,7 @@ Standalone `internal/catalog` and `internal/lock` packages for slice 2: fetch an
 ## Progress
 
 - 2026-10-19: implemented both packages and their offline tests. `go.mod` was created with `module github.com/Haze-dev1/Olympus` and `go 1.27.2`; no dependencies.
-- Catalog hash format recorded in [ADR 0020](../../ADR.md#0020-hash-the-extracted-catalog-tree-in-a-canonical-form); registry resolution choice in [ADR 0021](../../ADR.md#0021-resolve-image-digests-with-the-standard-library).
+- Catalog hash format recorded in [ADR 0023](../../ADR.md#0023-hash-the-extracted-catalog-tree-in-a-canonical-form); registry resolution choice in [ADR 0024](../../ADR.md#0024-resolve-image-digests-with-the-standard-library).
 - The registry resolver handles public images with anonymous bearer auth only. Private registries and Docker credential helpers are not supported.
 - Dependency proposal, not added: `github.com/google/go-containerregistry` **v0.22.1** (published 2026-09-04, Google-maintained, regular releases). It is a maintained upgrade path for credentials and platform handling, but the standard library covers v1's unauthenticated tag-to-index-digest need, so no module was added. Adding it needs the user's approval.
 
@@ -45,6 +45,6 @@ Tests cover hash determinism and a golden value, tampered tarball rejection, pat
 
 - `olym update` is not wired; no command calls these packages yet.
 - No live registry or GitHub fetch was run in this slice; tests are offline. A live check belongs to the `olym update` work.
-- Private registries and credential helpers are unsupported (ADR 0021).
+- Private registries and credential helpers are unsupported (ADR 0024).
 - Integration with the stack loader, recipe validation and generation building is untested because those packages do not exist yet.
 - This branch needs rebasing on `development` after `feat/m1-offline-core` merges; `go.mod` and `AGENTS.md` validation commands are the likely overlap.
