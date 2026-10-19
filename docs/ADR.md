@@ -34,6 +34,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0026](#0026-wire-github-catalogs-and-preserve-local-development-overrides) | Wire GitHub catalogs and preserve local development overrides | Accepted |
 | [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted, amended by 0028 |
 | [0028](#0028-store-health-checks-in-the-generation-manifest) | Store health checks in the generation manifest | Accepted |
+| [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result) | Verify deployment uploads and retain the activation result | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -839,6 +840,40 @@ Generation builds remain pure and secret-free. Version 1 is additive, so old gen
 - Put health only in Compose: requires container-local HTTP tooling.
 - Import activator types into generation: creates an import cycle.
 - Persist numeric nanoseconds: harder to inspect than recipe duration strings.
+
+## 0029. Verify deployment uploads and retain the activation result
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+- **Amends:** [0017](#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms)
+
+### Context
+
+The client must distinguish a detached activation's result even when it fails before writing state, or systemd unloads a successfully completed transient service. Release builds do not yet embed Linux binary checksums. The current manifest has no health data.
+
+### Decision
+
+Upload regular generation files through a tar stream into a random directory under `store/.incoming`, validate manifest identity and declared file hashes locally, verify every uploaded file against the local bytes using server-side SHA256, then rename the directory to `store/gen-<id>`. Reuse an existing destination only after verifying its files. Clean failed staging directories when the SSH connection permits; a broken connection can leave only an unpublished `.incoming` directory.
+
+Upload a local Linux ELF binary matching the server architecture into a temporary file, verify its SHA256 before executing its `version` command, require the CLI version, then publish `bin/olym-<version>` and its stable symlink. Recheck checksum and version before activation. Explicit development paths are supported. Embedded release checksums and release downloads remain deferred, so this trusts the selected local file rather than a release signature.
+
+Start a uniquely named systemd transient service with `Type=exec` and `RemainAfterExit=yes`. Read its exit result before stopping and resetting the unit. This retains successful results that systemd would otherwise unload. Poll state only to obtain a new confirmation nonce; never reuse a nonce present before launch. Confirm through a new SSH connection with the same host-key policy. If confirmation cannot be sent, continue observing the server's automatic rollback when the original connection remains available.
+
+Server commands use the real Compose runner and health checker. Until the separately developed manifest health field lands, an empty health source performs no readiness checks. Suppress container command output in these commands to prevent it entering activation logs. The SSH configuration may explicitly restrict host-key algorithms while still requiring the normal known-host verification; the lab selects its pinned Ed25519 key type.
+
+### Consequences
+
+- Failed uploads do not publish partial store entries. Interrupted connections may leave unpublished staging directories for later cleanup.
+- Pre-activation errors return 1, a completed rollback returns 3 and lock contention returns 4. An unavailable monitoring connection reports an error without claiming a verified rollback.
+- Successfully observed transient services are cleaned up. A disconnected client can leave a completed unit requiring later cleanup.
+- Manifest health wiring, release checksum embedding, secret fingerprints, container-user ownership and secret-change recreation remain separate work. The existing fixed secrets payload path also requires callers to serialize payload submission with activation; the activator lock alone does not protect competing uploads of secrets.
+
+### Alternatives considered
+
+- Read only `state.json`: misses failures before state publication and can read a previous run's state.
+- Default transient service lifetime: loses the success result when systemd unloads the unit.
+- Execute an uploaded binary to check its version before hashing it: violates the checksum trust boundary.
+- New remote shell scripts or dependencies: existing argument-list commands and standard Go tar support suffice.
 
 ## Template
 

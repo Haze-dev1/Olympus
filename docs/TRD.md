@@ -389,6 +389,8 @@ CLI                                         SERVER
  │◄─ result ─────────────────────────────────
 ```
 
+The client retains the transient service result with `Type=exec` and `RemainAfterExit=yes`, reads its exit status, then stops and resets the unit. It checks both the uploaded binary checksum and version before starting the service ([ADR 0029](ADR.md#0029-verify-deployment-uploads-and-retain-the-activation-result)).
+
 The confirmation must come over a **new** SSH connection: it proves that the user can still reach the server after the change, which is what protects against a change that blocks SSH.
 
 ### 8.2 The lock
@@ -478,6 +480,7 @@ Every secret value read from `.env` is registered with `internal/redact` before 
 | 2 | `plan --detailed-exitcode` found changes |
 | 3 | `apply` or `rollback` failed after activation began; the server rolled back to the previous generation |
 | 4 | The server lock is held by another run |
+| 5 | `apply` or `rollback` failed after activation began, and returning to the previous generation also failed; the server may be down |
 
 ### 10.2 Plan output
 

@@ -22,6 +22,9 @@ func Run(args []string, out, stderr io.Writer) int {
 }
 
 func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver lock.Resolver) int {
+	if len(args) > 0 && (args[0] == "activate" || args[0] == "confirm" || args[0] == "version") {
+		return server(args, out, stderr)
+	}
 	if len(args) == 0 || (args[0] != "check" && args[0] != "build" && args[0] != "update" && args[0] != "plan") {
 		fmt.Fprintln(stderr, "usage: olym {check|build|update|plan} [-f stack.yaml] [-recipes recipes] [-o .olympus/build]")
 		return 1
