@@ -41,3 +41,9 @@ A1: secret payload only on stdin, remote output discarded; server Compose errors
 ## Per-tool entries, 2026-10-20
 
 ADR 0030 changes upload layout: validate every declared config hash, upload and verify each `store/<tool hash>/files/...` entry independently, reuse only verified entries, then publish the generation's Compose and manifest. A regression test uploads two generations sharing one tool entry and refuses reuse after tampering. No live lab evidence for this contract yet; the full M1 cycle remains pending.
+
+## M1 integration, 2026-10-20
+
+Apply and rollback now share the detached start and fresh-SSH confirmation protocol. Each deployment has a unique payload and request id; current-id validation runs under the server lock. Shared connection setup, repeated sudo detection, status verification and safe exit-status propagation are tested. Full CLI lab cycles include fresh Docker bootstrap, verified tool-entry reuse, no-op reapply, concurrent apply and cleanup. See core-plan-apply.md for exact results, failures and release trust limits.
+
+Final M1 evidence: source-complete `TestLabM1` passed in 77.902 s on a reset Ubuntu VM, 2026-10-20. Build, vet, full unit suite and formatting passed; see [core-plan-apply.md](core-plan-apply.md) for failures, exact commands and release limits.

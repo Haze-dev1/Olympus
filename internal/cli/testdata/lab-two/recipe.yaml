@@ -1,0 +1,14 @@
+name: lab-two
+kind: app
+image: nginx:1.27.5-alpine
+volumes:
+  config: /etc/nginx/conf.d
+  data: /usr/share/nginx/html
+health:
+  command: [nginx, -t]
+  timeout: 10s
+secrets:
+  credential: {env: LAB_CREDENTIAL}
+templates:
+  - src: default.conf.tmpl
+    dst: /etc/nginx/conf.d/default.conf

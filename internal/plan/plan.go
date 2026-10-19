@@ -28,6 +28,7 @@ type Change struct {
 	Name, Kind   string
 	Files, Drift []string
 	Image        bool
+	Secret       bool
 }
 type Diff struct {
 	Changes   []Change
@@ -188,13 +189,16 @@ func (d Diff) Print(out io.Writer) {
 			fmt.Fprintf(out, "  - %-16s removed\n", c.Name)
 		default:
 			restart++
+			if c.Secret {
+				fmt.Fprintf(out, "  ~ %-16s secret changed\n", c.Name)
+			}
 			if c.Image {
 				fmt.Fprintf(out, "  ~ %-16s image changed\n", c.Name)
 			}
 			for _, f := range c.Files {
 				fmt.Fprintf(out, "  ~ %-16s config: %s\n", c.Name, f)
 			}
-			if !c.Image && len(c.Files) == 0 && len(c.Drift) == 0 {
+			if !c.Secret && !c.Image && len(c.Files) == 0 && len(c.Drift) == 0 {
 				fmt.Fprintf(out, "  ~ %-16s configuration changed\n", c.Name)
 			}
 		}
@@ -203,4 +207,25 @@ func (d Diff) Print(out io.Writer) {
 		}
 	}
 	fmt.Fprintf(out, "\n%d unchanged. %d to restart, %d to add, %d to remove. Volumes are kept.\n", d.Unchanged, restart, add, remove)
+}
+
+// SecretChanges merges fingerprint changes without counting a tool twice.
+func (d *Diff) SecretChanges(changed map[string]bool) {
+	for _, name := range schema.Keys(changed) {
+		if !changed[name] {
+			continue
+		}
+		found := false
+		for i := range d.Changes {
+			if d.Changes[i].Name == name {
+				d.Changes[i].Secret = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			d.Changes = append(d.Changes, Change{Name: name, Kind: "~", Secret: true})
+			d.Unchanged--
+		}
+	}
 }

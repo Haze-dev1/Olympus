@@ -13,7 +13,7 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Recipe name not found in `recipes/` | Fail; suggest the closest recipe name |
 | Recipe lacks support for MCP servers or skills the agent asks for | Warn and continue without that feature |
 | Recipe lacks support for a channel the agent asks for | Fail, as specified by TRD section 6.1; supported channel rendering remains outside the first offline slice |
-| `stack.yaml` pins a version different from `stack.lock` | The stack file wins; `plan` shows the change and `apply` rewrites the lock |
+| `stack.yaml` pins a version different from `stack.lock` | Reject a changed image_tag with `run olym update`; update records the override and resolves the new digest |
 
 ## Offline input and generation safety
 
@@ -55,7 +55,7 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Connection drops after activation starts | The activator keeps running; with no confirmation by `confirm_timeout` it re-activates the previous generation and releases the lock ([ADR 0017](../ADR.md#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms)) |
 | The new generation breaks SSH access (for example a port or firewall change) | The CLI cannot reconnect to confirm, so the server rolls back by itself |
 | Confirmation arrives after the timeout | `confirm` fails and says the server already rolled back; `apply` exits non-zero |
-| `apply --no-confirm` | Activates without waiting; no automatic rollback for lost access; warn once |
+| `apply --yes` | Skips only the local y/N question; always reconnect and confirm so lost access still rolls back |
 | Activator binary on the server is a different version | Upload the matching build before activating; never run a mismatched activator |
 | Activator binary fails its checksum | Refuse to run it; re-upload |
 | Another `apply`, `rollback` or `gc` is running | Fail with who holds the lock and since when |
@@ -80,3 +80,13 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | --- | --- |
 | Containers removed by hand already | Skip them; remove what is left |
 | Data volumes exist | Keep them unless `--delete-data` is passed; list what was kept |
+
+## Saved plans and competing runs
+
+| Case | Intended behaviour |
+| --- | --- |
+| Desired generation, current id, SSH target or secret fingerprints changed after saving a plan | Refuse before server preparation; ask the operator to run plan again |
+| Current changes after approval but before activation | Refuse under the activator lock |
+| Concurrent apply uploads secrets | Unique root-only payload per request; a contender cannot replace another payload or confirm another request |
+| Secret installation fails after earlier tools were replaced | Restore earlier tools and fingerprints before returning; return exit 5 if restoration itself fails |
+| Confirmation arrives at or after its deadline | Refuse it; never extend the deadline |

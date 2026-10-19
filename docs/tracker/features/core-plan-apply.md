@@ -1,6 +1,6 @@
 # Core: check, build, plan, apply, rollback
 
-- **Status:** In progress, offline build and read-only plan implemented
+- **Status:** Done for M1, full CLI lab acceptance verified
 - **Updated:** 2026-10-20
 - **Milestone:** M1
 - **Plan:** [plans/v1.md](../../plans/v1.md)
@@ -144,3 +144,52 @@ ADR 0030 replaces generation-relative config binds with absolute per-tool conten
 Focused eval, deploy and plan tests passed. The initial CLI run failed because sandbox policy blocks localhost test listeners; the full suite is rerun with approved access. Verification and commit evidence follow below. Security: entries are validated before upload; existing corruption is refused, generated mounts stay under the Olympus store, and no secret values enter artifacts. No external scan in this slice.
 
 First-slice validation: `GOCACHE=/tmp/olym-go-cache go build -o /tmp/olym ./cmd/olym/`, `go vet ./...`, and the approved `go test ./...` all passed with Go 1.27.2. `gofmt -l .` printed nothing; the documentation checker passed 220 relative links/anchors plus tracker/schema JSON; `git diff --check` passed. The lab cycle is deferred to the subsequent command-integration slice, not claimed as complete.
+
+## M1 command completion, 2026-10-20
+
+The first contract commit `505519a` was pushed early on `feat/m1-complete`. The subsequent integration implements apply with local approval and saved-plan staleness checks; status text/JSON; detached rollback and fresh-SSH confirmation; GC using flag, server.keep or 5; and confirmed destroy that keeps volumes/state unless explicitly deleting data. All commands use the stack's connection settings and the shared known_hosts policy. Apply checks expected current again under the server lock. Secret values are read only at the CLI boundary from the adjacent .env and delivered per declared tool; HMAC fingerprints and selective recreation preserve generation purity. Partial secret-install I/O errors restore prior tools. Changed image_tag overrides fail with `run olym update`.
+
+ADRs 0030–0033 record stable tool entries, per-request confirmation/saved plans, secret transactions/fingerprints and the additive lock image_tag field. No other architecture decision was needed. No dependencies were added or changed. The evaluator and golden changes remain confined to the separately authorized store layout/mount-source contract in the first commit. Recipe, schema and production-recipe behavior remain owned by the other agent.
+
+### Verification and failures
+
+Go 1.27.2 was used. Full unit suite passed all 13 test-bearing packages; two packages have no tests. Build, vet and formatting passed. The tagged CLI test skips without OLYMPUS_LAB=1. Commands use GOCACHE=/tmp/olym-go-cache; lab tests use the exact key, known_hosts and XDG cache from `/home/haze/Projects/Olympus/lab/lab.sh env`, never the developer's SSH files or cache.
+
+The first full CLI lab cycle passed in 72.951 s. The expanded run passed in 79.365 s, including failed readiness and concurrency. It uses the fixed nginx index digest `sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10` and test recipes under internal/cli/testdata, with no provider API calls. The final source-complete rerun includes the first-server fingerprint regression assertion and passed in 77.902 s.
+
+Failures observed and corrected during integration:
+
+- Sandboxed tests could not bind localhost listeners. Approved full-suite reruns passed.
+- Saved plan followed by flags was rejected by Go flag parsing. Interspersed parsing preserves flag/value pairs; a regression test and live saved apply cover it.
+- Repeated privilege detection ran id through sudo, then dropped sudo for Docker bootstrap. UseServer now determines the actual SSH uid before wrapping subsequent commands; unit and fresh-VM apply cover it.
+- An expanded test read an earlier health failure's rolled-back state while the killed operation still held the lock, then treated legitimate GC contention as failure. The test now requires the killed request's own terminal state. The subsequent expanded run passed.
+- Before the final source check, first-server plans computed fingerprints without a server key. They now omit those fingerprints and never persist a publicly keyed hash; the first apply reads current values. Existing-server saved plans bind secret values with the real server key.
+
+### QA fronts and limits
+
+| Front | Result | Evidence / limit |
+| --- | --- | --- |
+| Static/unit | Green | Full build, vet, unit suite and gofmt; package checks during iteration |
+| Recipe validation | Green for test recipes | Two nginx fixtures parse and run; production recipes not changed or certified |
+| Edge cases | Green for requested M1 flow; other rows remain gaps | Tests below; no simulated full disk, capacity/port conflict, unsupported remote architecture or real firewall loss |
+| Live cycle | Green | Reset Ubuntu VM, actual CLI subprocesses, pinned image; detailed result below |
+| Exposure/secrets | Green for exercised boundaries | No sentinel in CLI output, store, activator/container logs; exact special-character delivery; mode 0600; unrelated Docker container/volume survives destroy; external VPS scan not run |
+| Review/scanners | Scoped source review | [Review record](../m1-review.md); no dependency or secret scanner installed, none added |
+
+The live test asserts check=0, plan detailed=2, saved apply=0, status=0 with two running healthy tools and image/generation fields, reapply=0 with identical container IDs, stale saved apply=1, config plan=2 and only the configured tool recreated, rollback=0 with the unrelated tool unchanged, secret plan=2 and only that tool recreated, failing health apply=3 with previous current retained, competing apply=4, actual CLI kill after detached start with autonomous rollback, GC=0, destroy=0 with volumes/state retained, and delete-data destroy=0 with state/project volumes removed while unrelated resources survive. Key/digest/version rejection, partial secret-install failure, failed rollback=5, known/unknown/changed host keys, quoting and confinement are additionally covered by unit tests.
+
+Remaining release limits: amd64 Ubuntu only in this lab; no real VPS, arm64 runtime, macOS client or interactive unknown-host-terminal test. A Linux activator is selected locally and byte/version verified; release download/signature/checksum embedding is not implemented. Explicit rollback retains current credentials; automatic rollback restores failed-transaction credentials. Unused incoming payloads/retained units can remain after an interrupted contender and need cleanup or delete-data destroy. Corrupt immutable store entries are refused, not repaired in place. No historical secret archive, container-user file-secret ownership, production hook execution, capacity/port preflight or arbitrary production-recipe certification is claimed. These do not alter the requested M1 lab acceptance; later recipe/release work remains separate.
+
+Security: A1 values remain outside evaluated/saved artifacts, logs and argv; A2 uses quoted argv; A3 uses confined hash-addressed entries; A4/A9/A10 retain the existing evaluator/validation checks. A5 delivers only declared per-tool environment secrets with root-only files. A6 verifies both SSH connections. A7 deploys only digest-pinned images. A8 runs readiness commands inside the project container, and no host-side hooks were added. A11 scopes runtime deletion to Olympus; the explicitly requested Docker bootstrap additionally installs system apt/Docker configuration on the disposable server. A12 verifies the locally selected Linux build's bytes and version. Review the release trust and file-secret ownership limits before release; no external vulnerability scan was run.
+
+### Final source-complete results
+
+- `OLYMPUS_LAB=1` with explicit lab host/port/user/key/known_hosts, `XDG_CACHE_HOME=/home/haze/Projects/Olympus/.lab/cache` and `GOCACHE=/tmp/olym-go-cache go test -tags lab ./internal/cli -run TestLabM1 -count=1 -v -timeout 20m`: **PASS**, 77.902 s on a freshly reset canonical VM. Every acceptance assertion above passed, including initial saved-plan fingerprint omission and the exact special-character secret bytes. Only sentinel values were used.
+- Final `GOCACHE=/tmp/olym-go-cache go build -o /tmp/olym ./cmd/olym/`: passed, exit 0.
+- Final `GOCACHE=/tmp/olym-go-cache go vet ./...`: passed, exit 0.
+- Final approved `GOCACHE=/tmp/olym-go-cache go test ./...`: passed, exit 0, 13 test-bearing packages and two without tests. The I/O restoration regression reaches beta's backup failure after alpha's replacement and proves alpha's old values/fingerprints are restored.
+- `gofmt -l .`: no output. `git diff --check`: passed. Documentation checker: all 234 relative links/anchors, tracker JSON and published schema JSON passed.
+- `GOCACHE=/tmp/olym-go-cache go test -tags lab ./internal/cli ./internal/deploy -run TestLab -count=1` without OLYMPUS_LAB: passed with live tests skipped as designed. The older package-only deploy test was not run live again; the broader final CLI test exercises the integrated path.
+- The canonical VM was shut down with its lab.sh down after verification. The final delete-data step removed Olympus state and project volumes; unrelated test resources were explicitly cleaned up after their survival checks.
+
+This final section supersedes the historical offline/read-only scope statements above. M1 is complete at the requested lab acceptance scope, with the release limits listed above retained explicitly.

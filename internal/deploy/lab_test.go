@@ -61,7 +61,7 @@ func TestLabDeploy(t *testing.T) {
 		t.Fatal(err)
 	}
 	makeGeneration := func(marker string) *generation.Generation {
-		g := &generation.Generation{Manifest: generation.Manifest{Version: 1, Olym: eval.Version, Inputs: map[string]string{"lab": marker}, Tools: map[string]generation.Tool{"tiny": {Image: image, Files: map[string]string{}}}}, Files: map[string][]byte{"compose.yaml": []byte("services:\n  tiny:\n    image: " + image + "\n    command: [sleep, '3600']\n")}}
+		g := &generation.Generation{Manifest: generation.Manifest{Version: 1, Olym: eval.Version, Inputs: map[string]string{"lab": marker}, Tools: map[string]generation.Tool{"tiny": {Hash: generation.Hash([]byte("tiny")), Image: image, Files: map[string]string{}}}}, Files: map[string][]byte{"compose.yaml": []byte("services:\n  tiny:\n    image: " + image + "\n    command: [sleep, '3600']\n")}}
 		if e := g.Finish(); e != nil {
 			t.Fatal(e)
 		}

@@ -951,3 +951,50 @@ func TestGCKeepsManifestToolEntries(t *testing.T) {
 		t.Fatal("deleted referenced tool entry")
 	}
 }
+
+func TestInstallSecretsRestoresEarlierToolsOnIOFailure(t *testing.T) {
+	f := newFixture(t)
+	id := f.addGeneration(t, "io-failure", map[string]generation.Tool{"alpha": tool("credential"), "beta": tool("credential")}, "services: {}\n")
+	if err := f.ensureRoot(); err != nil {
+		t.Fatal(err)
+	}
+	dir := f.secretsDir("alpha")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "credential"), []byte("old"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Fingerprint validation succeeds, then backing up beta hits a real I/O
+	// error after alpha has already been replaced. A dangling source works
+	// even when tests run as root; chmod-only failures would not.
+	if err := os.MkdirAll(f.secretsDir("beta"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("missing-credential", filepath.Join(f.secretsDir("beta"), "credential")); err != nil {
+		t.Fatal(err)
+	}
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"alpha":{"secrets":{"credential":"new"}},"beta":{"secrets":{"credential":"new"}}}}`)
+	if err := f.Activate(context.Background(), id); err == nil || !strings.Contains(err.Error(), "keep the secret beta/credential") {
+		t.Fatalf("did not reach the second backup I/O failure: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "credential"))
+	if err != nil || string(b) != "old" {
+		t.Fatal("earlier tool secrets were not restored")
+	}
+	if f.runner.count("up") != 0 {
+		t.Fatal("started Compose after secret install failed")
+	}
+	if exists(filepath.Join(dir, "fingerprints.json")) {
+		t.Fatal("new fingerprint survived failed installation")
+	}
+}
+
+func TestFingerprintsBindServerKeyNameAndValue(t *testing.T) {
+	base := Fingerprints([]byte("server one"), map[string]string{"a": "sentinel"}, nil)
+	for _, fp := range []map[string]string{Fingerprints([]byte("server two"), map[string]string{"a": "sentinel"}, nil), Fingerprints([]byte("server one"), map[string]string{"b": "sentinel"}, nil), Fingerprints([]byte("server one"), map[string]string{"a": "changed"}, nil)} {
+		if fmt.Sprint(fp) == fmt.Sprint(base) {
+			t.Fatal("fingerprint did not change")
+		}
+	}
+}
