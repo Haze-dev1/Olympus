@@ -20,10 +20,10 @@ lab/lab.sh up       # first run downloads the image (about 600 MB) and boots; la
 lab/lab.sh status
 lab/lab.sh ssh      # a shell on the VM as the sudo user "olympus"
 lab/lab.sh reset    # throw the VM away and boot a fresh one
-lab/lab.sh down
+lab/lab.sh down     # clean shutdown through the VM's power button; the disk is kept
 ```
 
-The VM's disk is a copy-on-write layer over the downloaded image, so `reset` discards every change in about 20 seconds without downloading again.
+The VM's disk is a copy-on-write layer over the downloaded image, so `reset` discards every change in about 15 seconds without downloading again. `down` then `up` keeps the disk, and with it the VM's SSH host key, so restarts take under 10 seconds.
 
 ## Pointing Olympus at it
 
