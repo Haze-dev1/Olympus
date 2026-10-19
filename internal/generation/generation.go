@@ -2,10 +2,9 @@
 package generation
 
 import (
-	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -67,94 +66,129 @@ func (g *Generation) Finish() error {
 	return nil
 }
 
-// Write requires a fresh or empty directory. It never deletes prior output.
-// os.Root and exclusive file creation prevent escaping through existing links.
-func (g *Generation) Write(dir string) error {
+// Write stages a complete generation beside the destination, then atomically
+// publishes it. Only a directory with a valid Olympus manifest may be replaced.
+func (g *Generation) Write(dir string) (result error) {
 	for p := range g.Files {
 		if !recipe.SafeRelative(p) {
 			return fmt.Errorf("unsafe generated path")
 		}
 	}
 	abs, err := filepath.Abs(dir)
-	if err != nil {
+	if err != nil || filepath.Dir(abs) == abs {
 		return fmt.Errorf("invalid build directory")
 	}
-	for parent := abs; ; parent = filepath.Dir(parent) {
-		info, e := os.Lstat(parent)
+	for ancestor := abs; ; ancestor = filepath.Dir(ancestor) {
+		info, e := os.Lstat(ancestor)
 		if e == nil && (info.Mode()&os.ModeSymlink != 0 || !info.IsDir()) {
 			return fmt.Errorf("unsafe build directory ancestor")
 		}
 		if e != nil && !os.IsNotExist(e) {
 			return fmt.Errorf("cannot inspect build directory")
 		}
-		if filepath.Dir(parent) == parent {
+		if filepath.Dir(ancestor) == ancestor {
 			break
 		}
 	}
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("cannot create build directory")
+	parentPath, name := filepath.Dir(abs), filepath.Base(abs)
+	if err = os.MkdirAll(parentPath, 0700); err != nil {
+		return fmt.Errorf("cannot create build parent")
 	}
-	info, err := os.Lstat(dir)
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("unsafe build directory")
-	}
-	entries, err := os.ReadDir(dir)
+	parent, err := os.OpenRoot(parentPath)
 	if err != nil {
-		return fmt.Errorf("cannot read build directory")
+		return fmt.Errorf("cannot open build parent")
 	}
-	if len(entries) > 0 {
-		count := 0
-		err = filepath.WalkDir(dir, func(p string, d fs.DirEntry, e error) error {
-			if e != nil {
-				return e
-			}
-			if d.Type()&os.ModeSymlink != 0 {
-				return fmt.Errorf("symlink in output")
-			}
-			if d.IsDir() {
-				return nil
-			}
-			rel, e := filepath.Rel(dir, p)
-			if e != nil {
-				return e
-			}
-			expected, ok := g.Files[filepath.ToSlash(rel)]
-			if !ok {
-				return fmt.Errorf("unexpected output file")
-			}
-			actual, e := recipe.ReadFile(dir, rel)
-			if e != nil || !bytes.Equal(actual, expected) {
-				return fmt.Errorf("output differs")
-			}
-			count++
-			return nil
-		})
-		if err == nil && count == len(g.Files) {
-			return nil
+	defer parent.Close()
+	old, err := parent.Lstat(name)
+	exists := err == nil
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("cannot inspect build directory")
+	}
+	if exists && !ownedDirectory(parent, name) {
+		return fmt.Errorf("build directory has no valid Olympus manifest; refusing to replace it")
+	}
+	stagePath, err := os.MkdirTemp(parentPath, "."+name+"-")
+	if err != nil {
+		return fmt.Errorf("cannot stage build directory")
+	}
+	stage := filepath.Base(stagePath)
+	defer func() {
+		if err := parent.RemoveAll(stage); err != nil && result == nil {
+			result = fmt.Errorf("generation published, but previous output cleanup failed")
 		}
-		return fmt.Errorf("build directory contains different files; use -o with a fresh directory")
-	}
-	root, err := os.OpenRoot(dir)
+	}()
+	root, err := parent.OpenRoot(stage)
 	if err != nil {
-		return fmt.Errorf("cannot open build directory")
+		return fmt.Errorf("cannot open staging directory")
 	}
-	defer root.Close()
+	err = g.writeFiles(root)
+	closeErr := root.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return fmt.Errorf("cannot close staging directory")
+	}
+	if !ownedDirectory(parent, stage) {
+		return fmt.Errorf("generation has no valid Olympus manifest")
+	}
+	if exists {
+		current, e := parent.Lstat(name)
+		if e != nil || !os.SameFile(old, current) || !ownedDirectory(parent, name) {
+			return fmt.Errorf("build directory changed during staging")
+		}
+	}
+	fd, err := parent.Open(".")
+	if err != nil {
+		return fmt.Errorf("cannot open build parent descriptor")
+	}
+	defer fd.Close()
+	if err = publishDirectory(fd, stage, name, exists); err != nil {
+		return fmt.Errorf("cannot atomically publish build directory: %w", err)
+	}
+	return nil
+}
+func (g *Generation) writeFiles(root *os.Root) error {
 	for _, p := range schema.Keys(g.Files) {
-		if !recipe.SafeRelative(p) {
-			return fmt.Errorf("unsafe generated path")
-		}
-		if err = root.MkdirAll(filepath.Dir(p), 0700); err != nil {
+		if err := root.MkdirAll(filepath.Dir(p), 0700); err != nil {
 			return fmt.Errorf("cannot create output directories")
 		}
-		f, e := root.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-		if e != nil {
+		f, err := root.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
 			return fmt.Errorf("cannot create output file")
 		}
-		_, e = f.Write(g.Files[p])
+		_, err = f.Write(g.Files[p])
 		closeErr := f.Close()
-		if e != nil || closeErr != nil {
+		if err != nil || closeErr != nil {
 			return fmt.Errorf("cannot write output file")
 		}
 	}
 	return nil
+}
+func ownedDirectory(parent *os.Root, name string) bool {
+	info, err := parent.Lstat(name)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return false
+	}
+	root, err := parent.OpenRoot(name)
+	if err != nil {
+		return false
+	}
+	defer root.Close()
+	info, err = root.Lstat("manifest.json")
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 4<<20 {
+		return false
+	}
+	b, err := root.ReadFile("manifest.json")
+	if err != nil {
+		return false
+	}
+	var m Manifest
+	if json.Unmarshal(b, &m) != nil || m.Version != 1 || m.Olym == "" || m.Inputs == nil || m.Tools == nil {
+		return false
+	}
+	id := m.ID
+	m.ID = ""
+	canonical, err := encode.Canonical(m)
+	return err == nil && id == Hash(canonical)
 }

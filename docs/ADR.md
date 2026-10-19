@@ -26,7 +26,8 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0018](#0018-build-structured-config-as-data-and-publish-json-schemas) | Build structured config as data, and publish JSON Schemas | Accepted |
 | [0019](#0019-name-the-project-olympus-with-the-command-olym) | Name the project Olympus, with the command olym | Accepted |
 | [0020](#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) | Use goccy YAML and pelletier TOML for the offline core | Accepted |
-| [0021](#0021-keep-the-first-generation-contract-offline) | Keep the first generation contract offline | Accepted |
+| [0021](#0021-keep-the-first-generation-contract-offline) | Keep the first generation contract offline | Accepted, output policy superseded by 0022 |
+| [0022](#0022-atomically-replace-owned-local-build-directories) | Atomically replace owned local build directories | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -569,7 +570,7 @@ The published input schemas are embedded. A small validator evaluates only their
 
 ## 0021. Keep the first generation contract offline
 
-- **Status:** Accepted
+- **Status:** Accepted; output preservation policy superseded by [0022](#0022-atomically-replace-owned-local-build-directories)
 - **Date:** 2026-10-19
 - **Amends:** [0014](#0014-evaluate-the-stack-locally-into-a-generation-then-activate-it-on-the-server), for the first offline slice only
 
@@ -598,6 +599,36 @@ Keep ports private, reject public requests and channel rendering, and never exec
 - **Resolve secrets while rendering:** violates purity and risks leaking values into outputs and hashes.
 - **A general wrapper mechanism:** explicitly deferred by the user.
 - **Delete the existing output automatically:** risks deleting user files and requires separate confirmation under repository policy.
+
+## 0022. Atomically replace owned local build directories
+
+- **Status:** Accepted, requested in PR #5 review
+- **Date:** 2026-10-19
+- **Supersedes:** The existing-output preservation policy in [0021](#0021-keep-the-first-generation-contract-offline); all other offline boundaries remain unchanged
+
+### Context
+
+The original offline builder refused changed output at the default path, preventing ordinary build/edit/build use. The user authorized replacement and cleanup of tool-owned build output while requiring preservation of unrelated directories. Ordinary directory rename cannot atomically replace a non-empty destination.
+
+### Decision
+
+Recognize tool-owned output by a regular, non-symlink version-1 Olympus `manifest.json`, with a CLI version, input/tool maps and a generation ID matching canonical manifest contents. Refuse any existing directory without this marker. Stage all files and the manifest in a fresh sibling directory, verify that generation, then atomically exchange it with the owned build directory. Remove the exchanged old directory after publication. Failed staging leaves old output intact, and initial publication is exclusive so it cannot replace a directory created in the meantime.
+
+Use the operating system's native atomic operations through the Go standard library's syscall interface, adding no dependency. Linux amd64/arm64 uses `renameat2` with `RENAME_EXCHANGE` or `RENAME_NOREPLACE`. macOS amd64/arm64 uses `renameatx_np` with `RENAME_SWAP` or `RENAME_EXCL`. Sources: [Linux rename manual](https://man7.org/linux/man-pages/man2/rename.2.html), [XNU syscall definitions](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/syscalls.master), [XNU rename flags](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/stdio.h). Unsupported platforms or filesystem operations fail without a non-atomic fallback. Parent directory descriptors and confined filesystem APIs bound publication and cleanup to the selected local output parent.
+
+### Consequences
+
+- Rebuilding after edits works at the default output path and removes stale artifacts.
+- A valid manifest declares the entire build directory tool-owned, including extra files placed there. It is an ownership marker, not authentication against a malicious local user.
+- Staged content becomes visible as a complete directory. This promises atomic visibility, not power-loss durability or concurrent-build ordering.
+- Linux amd64 is runtime-tested in this run. Other supported targets are cross-compiled; native runtime verification remains outstanding.
+
+### Alternatives considered
+
+- **Require a fresh directory after each edit:** breaks the requested default rebuild workflow.
+- **Rename old output away, then rename new output into place:** leaves a window with no build directory.
+- **Delete prior output before writing:** risks data loss on failed builds and exposes incomplete output.
+- **Add a filesystem dependency:** unnecessary for the native operations needed here; dependency choices remain unchanged.
 
 ## Template
 

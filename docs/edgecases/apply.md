@@ -27,8 +27,11 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | YAML aliases, anchors, tags, duplicate keys or extra documents | Reject; do not expand aliases or construct objects |
 | MCP secret reference has no supplied recipe secret with an environment target | Fail in the test-recipe convention; real-tool delivery remains open |
 | Two tool/volume pairs would have the same hyphen-concatenated name | Use an unambiguous underscore separator; keep the volumes distinct |
-| Build directory contains differing or unrelated output | Preserve it and require a fresh `-o` directory |
-| Identical generation is built into its existing directory | Succeed without changing its files |
+| Build directory has a valid Olympus manifest and changed inputs | Stage a complete sibling generation, atomically replace the tool-owned directory, and remove stale files |
+| Build directory exists without a valid Olympus manifest, even if empty | Refuse and preserve it |
+| Staging fails while replacing owned output | Keep prior output intact and clean up staging |
+| Integer config value or int64 above 2^53 in a managed seed | Preserve its exact integer value through YAML, TOML and JSON rendering |
+| Identical generation is built into its existing directory | Succeed with byte-identical files and hashes |
 
 ## Server
 
