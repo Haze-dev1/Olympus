@@ -5,10 +5,11 @@
     {
       "id": "M1",
       "name": "Core on one server (Go; generations; Compose)",
-      "status": "not_started",
+      "status": "in_progress",
       "features": [
         "core-plan-apply",
-        "lock-file"
+        "lock-file",
+        "remote-ssh"
       ]
     },
     {
@@ -53,6 +54,10 @@
     "lock-file": {
       "status": "not_started",
       "file": "features/lock-file.md"
+    },
+    "remote-ssh": {
+      "status": "in_progress",
+      "file": "features/remote-ssh.md"
     },
     "recipe-format": {
       "status": "not_started",
