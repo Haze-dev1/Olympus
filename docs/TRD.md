@@ -115,7 +115,7 @@ Docker Engine and the Docker Compose v2 plugin (installed by Olympus if missing)
 
 ```yaml
 inputs:
-  recipes: github:haze/olympus/recipes   # proposed URL; the official catalog
+  recipes: github:Haze-dev1/Olympus/recipes   # default catalog
 
 server:
   host: 203.0.113.10
@@ -211,7 +211,7 @@ JSON, written only by Olympus, keys sorted, one trailing newline:
   "version": 1,
   "inputs": {
     "recipes": {
-      "url": "github:haze/olympus/recipes",
+      "url": "github:Haze-dev1/Olympus/recipes",
       "rev": "3f2a9c1e5b7d4e8a9c217d4e5f6a8b90c1d2e3f4",
       "hash": "sha256-…"
     }
@@ -288,21 +288,23 @@ Because secrets are excluded, a secret change never changes a hash (PRD N-P2). S
 
 - **Catalog:** `update` (or the first `check` with no lock) asks the git host for the newest commit of the catalog's default branch, downloads its tarball, and computes a content hash over the extracted tree: SHA-256 over `olympus-catalog-v1` + NUL, then for each regular file sorted by relative slash path, the path, NUL, its permission bits in octal, NUL, size in decimal, NUL, contents and NUL. The result is `sha256-<hex>`; it is both the lock hash and the cache directory name. See [ADR 0023](ADR.md#0023-hash-the-extracted-catalog-tree-in-a-canonical-form).
 - **Images:** for each tool, resolve the recipe's image tag (or the stack's `image_tag` override) to its index digest through the registry API, without a local Docker.
-- `update` rewrites the lock and nothing else. Commands other than `check` and `update` refuse to run with a missing lock entry.
+- `update` rewrites `stack.lock` beside the selected stack file and nothing else except the catalog cache. `check` creates a missing lock; `build` requires one. Both reject a missing tool entry and direct the user to `olym update`. An existing lock must match the selected catalog URL.
+- The catalog source accepts `github:<owner>/<repo>[/<path>]`, defaulting to `github:Haze-dev1/Olympus/recipes`. The GitHub API's `commits/HEAD` endpoint resolves the default branch. `GITHUB_TOKEN`, when set, is used only for GitHub commit and tarball requests, including redirects confined to GitHub origins. It is never persisted or passed to registries, and response bodies and transport errors cannot echo it into diagnostics.
+- Explicit `-recipes <directory>` is a development override for `check` and `build`. It announces that the catalog pin is skipped. Existing tool image pins remain mandatory; without a lock this mode permits local tagged artifacts without resolution. It retains the local content identity in the manifest. `update -recipes` is refused because local catalogs have no GitHub revision to pin.
 
 ### 6.5 Current offline slice
 
-The M1 offline slice implements `check` and `build` with local `-recipes recipes` input and no lock or network access. The CLI uses standard `flag`; `-f` selects the stack file and `build -o` selects its output directory, defaulting to `.olympus/build`. `check` validates the stack and checks names in the adjacent `.env`; `build` additionally validates recipes and renders artifacts. Process environment fallback is deferred.
+The M1 CLI implements `check`, `build` and `update` with catalog and lock resolution as specified in section 6.4. The CLI uses standard `flag`; `-f` selects the stack file and `build -o` selects its output directory, defaulting to `.olympus/build`. `check` validates the stack, recipes and rendering and checks names in the adjacent `.env`; `build` writes the rendered artifacts. `update` resolves catalog and images without requiring runtime secret names or writing a generation. Process environment fallback for stack secret references is deferred.
 
 Published stack and recipe schemas are embedded. The core evaluates the schema vocabulary they use, with additional semantic checks for references and confinement. YAML aliases, anchors, tags, multiple documents and duplicate keys are rejected. String values that resemble YAML boolean or leading-zero numeric scalars must be quoted. Input documents and recipe sources are bounded to 4 MiB, and YAML data nesting to 64 levels. YAML integers retain integer types through validation and typed decoding. JSON normalization uses number-preserving decoding and concrete integer conversion before YAML/TOML/JSON encoding, including managed config seeds and int64 values above 2^53.
 
-The local generation contains `compose.yaml`, `manifest.json` and `tools/<tool>/files/<container path>`. Compose uses relative read-only file binds and named data volumes. The local recipe input identity is the hash of canonical recipe data and template source bytes, not a catalog revision. There is no tool-hash label because including a tool hash in the service being hashed would be circular. This is an offline artifact contract; server store assembly and hash labels belong to activation.
+The local generation contains `compose.yaml`, `manifest.json` and `tools/<tool>/files/<container path>`. Compose uses relative read-only file binds and named data volumes. Catalog builds record the full locked catalog revision in manifest inputs and the locked image digests in Compose and manifest tools. Explicit local recipe overrides retain the hash of canonical recipe data and template source bytes. There is no tool-hash label because including a tool hash in the service being hashed would be circular. This is an offline artifact contract; server store assembly and hash labels belong to activation.
 
 All ports remain bound to localhost. Public port requests and channel rendering fail explicitly in this slice. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity but never executed. Skills, when requested and supported, are copied from confined local folders.
 
 Only the fictional test recipe's MCP secret convention is exercised. Each MCP variable must map to an explicitly supplied recipe secret with an `env` target. Its config references that environment variable name. Compose points to `/var/lib/olympus/secrets/<tool>/environment`; no environment file or secret value is built. Real-tool secret syntax and delivery remain open under section 16. There are no wrapper scripts.
 
-The build directory is tool-owned only when it contains a valid version-1 Olympus manifest whose generation ID matches its canonical contents. A complete new generation is written to a fresh sibling directory and atomically exchanged with prior owned output. The prior directory is then removed, eliminating stale files. An existing directory without a valid manifest, including an empty directory or a symlinked manifest, is refused. Staging and publication failures leave prior output intact. Native exchange and exclusive initial publication use Linux `renameat2` or macOS `renameatx_np`, on amd64/arm64. Other platforms and unsupported filesystems fail explicitly without a non-atomic fallback. This updates the original preservation policy in [ADR 0022](ADR.md#0022-atomically-replace-owned-local-build-directories). See [ADR 0023](ADR.md#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) and [0021](ADR.md#0021-keep-the-first-generation-contract-offline).
+The build directory is tool-owned only when it contains a valid version-1 Olympus manifest whose generation ID matches its canonical contents. A complete new generation is written to a fresh sibling directory and atomically exchanged with prior owned output. The prior directory is then removed, eliminating stale files. An existing directory without a valid manifest, including an empty directory or a symlinked manifest, is refused. Staging and publication failures leave prior output intact. Native exchange and exclusive initial publication use Linux `renameat2` or macOS `renameatx_np`, on amd64/arm64. Other platforms and unsupported filesystems fail explicitly without a non-atomic fallback. This updates the original preservation policy in [ADR 0022](ADR.md#0022-atomically-replace-owned-local-build-directories). See [ADR 0020](ADR.md#0020-use-goccy-yaml-and-pelletier-toml-for-the-offline-core) and [0021](ADR.md#0021-keep-the-first-generation-contract-offline).
 
 ## 7. Server
 

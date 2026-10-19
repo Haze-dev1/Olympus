@@ -1,6 +1,6 @@
 # Catalog and lock packages
 
-- **Status:** In progress
+- **Status:** Done
 - **Milestone:** M1
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -10,7 +10,7 @@ Standalone `internal/catalog` and `internal/lock` packages for slice 2: fetch an
 
 - `internal/catalog`: parse a `github:owner/repo[/path]` source, download the tarball for a full commit revision, extract only the catalog subdirectory into `~/.cache/olympus/inputs/<hash>/`, reject paths outside it, and compute and verify the canonical tree hash.
 - `internal/lock`: strict JSON read/write of `stack.lock` (sorted keys, one trailing newline), validation of pinned inputs and images, and resolution of an image tag to its multi-architecture index digest through the registry HTTP API.
-- Out of scope: the CLI, `olym update`, stack parsing, recipe loading and any wiring into `plan`, `apply` or generation building. Those follow after slice 1 (`feat/m1-offline-core`) lands.
+- CLI wiring now covers `check`, `build` and `update`; `plan`, `apply`, SSH and activation remain outside this feature.
 
 ## Acceptance
 
@@ -41,10 +41,16 @@ Run from the repository root; no network is used (registry and tarball tests use
 
 Tests cover hash determinism and a golden value, tampered tarball rejection, path escape/absolute path/symlink rejection, verified cache reuse and cache repair, lock round-trip against exact bytes, invalid lock rejection, registry digest resolution, bearer-token retry, single-manifest rejection and digest-header mismatch.
 
-## Gaps
+## CLI wiring evidence, 2026-10-20
 
-- `olym update` is not wired; no command calls these packages yet.
-- No live registry or GitHub fetch was run in this slice; tests are offline. A live check belongs to the `olym update` work.
-- Private registries and credential helpers are unsupported (ADR 0024).
-- Integration with the stack loader, recipe validation and generation building is untested because those packages do not exist yet.
-- This branch needs rebasing on `development` after `feat/m1-offline-core` merges; `go.mod` and `AGENTS.md` validation commands are the likely overlap.
+- `check` creates a missing adjacent lock; `update` advances default-branch revision and image index digests without generation output. Existing locks require every stack tool and the selected source URL.
+- Catalog builds use verified cached content, locked image digests in Compose and manifest tools, and the full revision in manifest inputs. Explicit local recipes announce the catalog-pin bypass and retain existing image pins; local builds without locks remain development-only. Local `update` is refused.
+- GitHub-only optional credentials are isolated from registry requests and removed across foreign redirects. Catalog HTTP errors omit response bodies and transport details. YAML validation remains unchanged, rejecting custom tags and aliases under A9.
+- Offline `httptest` integration covers newest revisions, first-check lock creation, build refusing a missing lock, existing-check lock preservation, locked digests and revision, network-free cached builds, missing tools, tampered catalog hashes and local overrides. Catalog tests cover anonymous/private lookups, malformed commits, HTTP and transport errors, and credential-free foreign redirects for lookup and tarballs.
+- ADR review: added [0026](../../ADR.md#0026-wire-github-catalogs-and-preserve-local-development-overrides) because arbitrary GitHub sources supersede the official-only restriction and the local development bypass needs an explicit boundary. Existing lock/hash formats and registry choices are unchanged.
+
+## Verification and limits for CLI wiring
+
+Go 1.27.2: `go build -o /tmp/olym ./cmd/olym/`, `go vet ./...` and `go test ./...` passed. `gofmt -l .` and `git diff --check` produced no output. All 201 relative links and anchors under `docs/` resolve; `docs/tracker/progress.json` parses as valid JSON. Initial sandbox package checks could not write the Go cache or bind local test ports; rerun outside the sandbox passed. A test fixture initially used unsupported recipe kind `agent`; corrected to `harness`, then package tests passed.
+
+No live GitHub, private repository or registry requests were made. Private registries and credential helpers remain unsupported under ADR 0024. No full security scan or server QA was requested; `internal/remote` and `internal/activate` are untouched.

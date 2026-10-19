@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-19",
+  "updated": "2026-10-20",
   "phase": "implementation",
   "milestones": [
     {
@@ -54,11 +54,11 @@
       "file": "features/core-plan-apply.md"
     },
     "lock-file": {
-      "status": "in_progress",
+      "status": "done",
       "file": "features/lock-file.md"
     },
     "catalog-lock": {
-      "status": "in_progress",
+      "status": "done",
       "file": "features/catalog-lock.md"
     },
     "remote-ssh": {
@@ -102,6 +102,7 @@
     "ADR 0022 atomic replacement of owned build output",
     "ADR 0023 canonical catalog tree hash",
     "ADR 0024 stdlib registry digest resolution",
-    "ADR 0025 local QEMU test lab"
+    "ADR 0025 local QEMU test lab",
+    "ADR 0026 GitHub catalog wiring and local development overrides"
   ]
 }
