@@ -47,6 +47,7 @@ type Source struct {
 	Owner string
 	Repo  string
 	Path  string // subdirectory, empty for the whole repository
+	Ref   string // optional branch, tag or revision; empty resolves HEAD
 }
 
 // ParseSource parses the stack file's recipe input, such as
@@ -56,11 +57,23 @@ func ParseSource(s string) (Source, error) {
 	if !ok {
 		return Source{}, fmt.Errorf("catalog: source %q: only github:owner/repo[/path] is supported", s)
 	}
-	parts := strings.Split(rest, "/")
+	location, query, hasQuery := strings.Cut(rest, "?")
+	ref := ""
+	if hasQuery {
+		values, err := url.ParseQuery(query)
+		if err != nil || len(values) != 1 || len(values["ref"]) != 1 {
+			return Source{}, errors.New("catalog: expected a single ref query parameter")
+		}
+		ref = values.Get("ref")
+		if ref == "" || len(ref) > 255 || strings.ContainsAny(ref, "\x00\r\n\t #?\\") || strings.HasPrefix(ref, "/") || strings.Contains(ref, "..") {
+			return Source{}, errors.New("catalog: invalid ref")
+		}
+	}
+	parts := strings.Split(location, "/")
 	if len(parts) < 2 {
 		return Source{}, fmt.Errorf("catalog: source %q: want github:owner/repo[/path]", s)
 	}
-	src := Source{Owner: parts[0], Repo: parts[1], Path: strings.Join(parts[2:], "/")}
+	src := Source{Owner: parts[0], Repo: parts[1], Path: strings.Join(parts[2:], "/"), Ref: ref}
 	if !githubName.MatchString(src.Owner) || !githubName.MatchString(src.Repo) ||
 		src.Owner == "." || src.Owner == ".." || src.Repo == "." || src.Repo == ".." {
 		return Source{}, fmt.Errorf("catalog: source %q: invalid owner or repository", s)
@@ -212,9 +225,13 @@ func (f Fetcher) apiURL() string {
 	return "https://api.github.com"
 }
 
-// Latest resolves HEAD, GitHub's default-branch commit, to a full revision.
+// Latest resolves the requested ref, or the default branch, to a full revision.
 func (f Fetcher) Latest(ctx context.Context, src Source) (string, error) {
-	resp, err := f.request(ctx, f.apiURL()+"/repos/"+src.Owner+"/"+src.Repo+"/commits/HEAD")
+	ref := src.Ref
+	if ref == "" {
+		ref = "HEAD"
+	}
+	resp, err := f.request(ctx, f.apiURL()+"/repos/"+src.Owner+"/"+src.Repo+"/commits/"+url.PathEscape(ref))
 	if err != nil {
 		return "", err
 	}
