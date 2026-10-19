@@ -14,7 +14,18 @@ import (
 	"github.com/Haze-dev1/Olympus/internal/schema"
 )
 
+type Health struct {
+	HTTP    *HTTPCheck `json:"http,omitempty"`
+	Command []string   `json:"command,omitempty"`
+	Timeout string     `json:"timeout,omitempty"`
+}
+type HTTPCheck struct {
+	Port int    `json:"port"`
+	Path string `json:"path"`
+}
+
 type Tool struct {
+	Health  *Health           `json:"health,omitempty"`
 	Hash    string            `json:"hash"`
 	Image   string            `json:"image"`
 	Files   map[string]string `json:"files"`

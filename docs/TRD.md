@@ -237,12 +237,15 @@ JSON rather than YAML because nobody edits it by hand and its diffs stay simple.
       "hash": "sha256-<tool hash>",
       "image": "nousresearch/hermes-agent@sha256:…",
       "files": { "/opt/data/config.yaml": "sha256-…" },
-      "secrets": ["model_key", "telegram_token"]
+      "secrets": ["model_key", "telegram_token"],
+      "health": { "http": { "port": 8642, "path": "/health" }, "timeout": "120s" }
     }
   },
   "olym": "1.0.0"
 }
 ```
+
+Optional `health` carries the recipe HTTP check or argument-list command and an optional duration-string timeout. Older version-1 manifests may omit it. The activator manifest adapter validates and converts these values for both activation and rollback ([ADR 0028](ADR.md#0028-store-health-checks-in-the-generation-manifest)). Health changes alter generation identity; tool hashes remain file-and-Compose hashes.
 
 Secret names are listed so `plan` can report added or removed secrets; values and their fingerprints never appear here.
 
@@ -300,7 +303,7 @@ Published stack and recipe schemas are embedded. The core evaluates the schema v
 
 The local generation contains `compose.yaml`, `manifest.json` and `tools/<tool>/files/<container path>`. Compose uses relative read-only file binds and named data volumes. Catalog builds record the full locked catalog revision in manifest inputs and the locked image digests in Compose and manifest tools. Explicit local recipe overrides retain the hash of canonical recipe data and template source bytes. There is no tool-hash label because including a tool hash in the service being hashed would be circular. This is an offline artifact contract; server store assembly and hash labels belong to activation.
 
-All ports remain bound to localhost. Public port requests and channel rendering fail explicitly in this slice. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity but never executed. Skills, when requested and supported, are copied from confined local folders.
+All ports remain bound to localhost. Public port requests and channel rendering fail explicitly in this slice. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity. Health checks are also persisted in each manifest tool for the activator; builds execute neither hooks nor checks. Skills, when requested and supported, are copied from confined local folders.
 
 Only the fictional test recipe's MCP secret convention is exercised. Each MCP variable must map to an explicitly supplied recipe secret with an `env` target. Its config references that environment variable name. Compose points to `/var/lib/olympus/secrets/<tool>/environment`; no environment file or secret value is built. Real-tool secret syntax and delivery remain open under section 16. There are no wrapper scripts.
 
@@ -337,11 +340,13 @@ Store paths are immutable once written: uploads go to `store/.incoming/<random>/
 
 On the first `plan` or `apply`, over SSH:
 
-1. Verify the host key against `~/.ssh/known_hosts`. An unknown host prompts once with the key fingerprint; a changed key is an error (rule A6).
+1. Verify the host key against `-known-hosts <path>`, else `OLYM_KNOWN_HOSTS`, else `~/.ssh/known_hosts`. An unknown host asks `y/N` on a terminal with the key fingerprint and is refused without a terminal; a changed key is always an error (rule A6). Use `server.ssh_key` (expanding a leading `~/`) or, when absent, the SSH agent.
 2. Detect the OS from `/etc/os-release`; refuse anything but Ubuntu 22.04, 24.04 and Debian 12.
 3. Check for root, or passwordless sudo; with neither, stop and print the exact command that needs it.
 4. Install Docker Engine and the Compose plugin from Docker's apt repository if missing (only during `apply`).
-5. Create `/var/lib/olympus/` and `key` if missing.
+5. Create `/var/lib/olympus/` and `key` if missing, only during `apply`.
+
+The implemented `plan` slice only verifies SSH and root/passwordless sudo, then reads generation metadata and file hashes. It does not install software, create server files, or perform the future OS/capacity/port/image-architecture preflight.
 
 ### 7.3 Compose project
 
@@ -457,7 +462,7 @@ Every secret value read from `.env` is registered with `internal/redact` before 
 | --- | --- | --- | --- |
 | `check` | no | no | Validates; writes `stack.lock` only if missing |
 | `build [-o dir]` | no | no | Writes the generation to `./.olympus/build/` |
-| `plan [-out file] [--detailed-exitcode]` | read | no | Saved plans record the generation hash and the server's current id; `apply file` refuses if either changed |
+| `plan [-known-hosts path] [--detailed-exitcode]` | read | no | Builds in memory and compares the current generation; saved plans (`-out`) are deferred |
 | `apply [file] [--no-confirm]` | write | yes | `--no-confirm` skips the confirmation wait and warns that lost access will not roll back |
 | `status [--json]` | read | no | Tool state, health, image, generation number |
 | `rollback` | write | yes | Previous generation, with confirm-or-revert |
@@ -475,8 +480,17 @@ Every secret value read from `.env` is registered with `internal/redact` before 
 | 2 | `plan --detailed-exitcode` found changes |
 | 3 | `apply` or `rollback` failed after activation began; the server rolled back to the previous generation |
 | 4 | The server lock is held by another run |
+| 5 | `apply` or `rollback` failed after activation began, and returning to the previous generation also failed; the server may be down |
 
 ### 10.2 Plan output
+
+`plan` uses the same stack, catalog and lock preparation as `build`, including explicit `-recipes` development overrides. It never writes `.olympus/build`. It does not read runtime secret values or require their presence. Secret value change detection is deferred until server fingerprints exist; changes to declared secret names appear as a generic configuration change.
+
+Resolve `current -> generations/<n>` once and resolve that numbered link to `/var/lib/olympus/store/gen-<manifest-id>`. Read the bounded manifest there, verify its version, identity and canonical hash, then hash each recorded file at `tools/<tool>/files/<container path>` in that same generation with `sha256sum`. An absent current is an empty server; malformed/dangling links, unreadable state and hashing failures are errors. A missing regular file counts as drift. Non-root readers first verify `sudo -n id -u`, then run all generation reads with `sudo -n`. All commands use quoted argument lists; no shell script or write command runs remotely.
+
+Output lists added/removed tools, changed file paths, image changes and drift paths, plus an unchanged count and add/remove/restart totals. Other tool-manifest changes, including health or secret-name changes, use `configuration changed`. File contents, old/new values and semantic managed-key diffs are not printed. Drift makes `--detailed-exitcode` return 2 even when the desired tool manifest is unchanged. Default success is 0; errors are 1.
+
+The example below illustrates the wider v1 output, including future semantic and secret-value diffs:
 
 ```text
 Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)

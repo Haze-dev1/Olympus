@@ -1,7 +1,7 @@
 # Core: check, build, plan, apply, rollback
 
-- **Status:** In progress, offline slice implemented
-- **Updated:** 2026-10-19
+- **Status:** In progress, offline build and read-only plan implemented
+- **Updated:** 2026-10-20
 - **Milestone:** M1
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -22,7 +22,7 @@ Evaluate the stack locally into a generation, then activate it on the server ove
 
 MCP environment-variable delivery covers only the test recipe. Its `github-token` secret declares `env: GITHUB_TOKEN`; its MCP entry contains `${GITHUB_TOKEN}`, never the source value. Compose references a future per-tool environment file; no such file is generated. Per-tool delivery and syntax remain open under TRD section 16. No wrapper scripts or general runtime secret mechanism were added.
 
-There is no SSH, server access, apply, plan, rollback, catalog fetching, registry resolution or `stack.lock`. Tagged images and relative local mounts make these inspection artifacts, not deployable locked generations. Hooks and health settings are validated but never run. Public port builds and channel rendering fail explicitly. Rebuilds stage and atomically replace manifest-owned output. Existing directories without valid Olympus manifests are preserved and refused.
+At the original offline milestone there was no SSH, server access, apply, plan, rollback, catalog fetching, registry resolution or `stack.lock`; subsequent catalog/remote/activator work and the plan slice below supersede that boundary. Tagged images and relative local mounts make these inspection artifacts, not deployable locked generations. Hooks and health settings are validated but never run. Public port builds and channel rendering fail explicitly. Rebuilds stage and atomically replace manifest-owned output. Existing directories without valid Olympus manifests are preserved and refused.
 
 ## Verification evidence
 
@@ -109,3 +109,30 @@ Security: output deletion is now authorized only for manifest-owned local build 
 ## Security note
 
 A1 is exercised with sentinel leak tests; the evaluator receives no secret values. A3 rejects traversal, destination escapes and source/output symlinks. A4 keeps all generated ports on localhost. A9 rejects executable tags, aliases and anchors. A10 rejects empty channel allow-lists. A5 is limited to declared secret names and future environment-file references; server permissions and materialization are unimplemented. A2, A6, A7, A8, A11 and A12 have no runtime action in this offline slice: no remote commands, pulls, hooks, activation or server writes occur. Review the exact golden artifacts, new ADRs and test-recipe secret convention before merging; runtime rules still require later server tests and a security review.
+
+## Read-only plan and manifest health, 2026-10-20
+
+Implemented on `feat/m1-plan`, cut from `development` at `f890280`. Health data is optional in version-1 generation tools, copied from recipes without secret values, and round-trips through JSON. `activate.ManifestHealthSource` takes a validated manifest loader keyed by generation ID and converts both active/previous checks directly into activator Health values. Existing activator code and server command wiring are untouched. ADR 0028 amends 0027; TRD 5.4, 6.5, 7.2 and 10 pin the format and implemented behavior.
+
+Plan builds in memory, selects known_hosts by flag/environment/home order, authenticates with the stack key or agent, refuses unknown keys without a terminal, and reads one resolved generation snapshot. It verifies the manifest canonical hash and compares file SHA-256 values with the server's recorded hashes. It reports new/removed tools, file/image/configuration changes, drift and unchanged totals. Detailed exit codes are 0/2, errors 1. Passwordless sudo is checked before non-root reads. No remote write commands, lock, package installation, health execution or container operations occur.
+
+### Verification in this run
+
+- Go `1.27.2 linux/amd64` satisfies the 1.26 minimum.
+- `go test ./internal/eval -update`: passed after intentional health-field golden regeneration. Inspected the golden manifest: health HTTP path/port/timeout added and generation ID changed; file/tool hashes unchanged.
+- `go test ./internal/plan ./internal/cli ./internal/activate ./internal/eval`: passed. New tests cover new/removed tools, changed/added/removed files, changed image, unchanged tools, drift, absent current, permission/error rejection, bounded/validated manifest flow, sudo argument lists, known_hosts precedence, fake-reader CLI output and exit codes, health JSON round-trip and HealthSource compatibility.
+- `go build -o /tmp/olym ./cmd/olym/`: passed, exit 0.
+- `go vet ./...`: passed, exit 0.
+- `go test ./...`: passed, exit 0, 13 test-bearing packages and two packages without tests.
+- `gofmt -l .`: passed, exit 0, no output.
+- `python3 /tmp/olym-check-docs.py`: passed, 211 relative docs links/anchors, tracker JSON and published schema JSON. `git diff --check`: passed.
+- Initial sandboxed checks failed on Go cache writes and loopback test listeners; approved reruns passed.
+- Scoped Olympus QA fronts: static/unit green; recipe golden green for the fictional recipe, no production recipe changed; edge cases covered as above, remaining gaps below; live plan red; server exposure/secret modes not run because this slice performs no deployment.
+- Read settings from `~/Projects/Olympus/lab/lab.sh env`. Sandboxed `status` said not running because process visibility was restricted; approved `status` confirmed running and SSH reachable on 127.0.0.1:2222.
+- Exactly one read-only lab attempt used an isolated `/tmp/olym-plan-lab/stack.yaml`, the lab key explicitly in `server.ssh_key`, explicit lab `-known-hosts`, `XDG_CACHE_HOME=/home/haze/Projects/Olympus/.lab/cache`, and the local fictional recipe override. `olym plan --detailed-exitcode` exited 1 during SSH handshake with connection reset by peer, before any generation read. No successful live diff was verified. The VM was not started, stopped, reset or otherwise changed; its owner retains it.
+
+### Incomplete scope and review limits
+
+Secret value change detection is deliberately absent: server HMAC fingerprints do not exist yet. Saved plans, semantic config-key diffs, port/RAM/OS/architecture preflight and apply/server command integration remain outside this slice. HealthSource loading must be wired by the server-command implementation. The live handshake failure remains unresolved and needs another authorized live check. No full vulnerability scan or independent security review ran. Existing remote tests cover unknown/changed host keys and shell quoting; this run adds known_hosts selection tests, but does not exercise an interactive terminal prompt on the VM.
+
+Security: plan never reads runtime secret values or prints file contents/remote stderr (A1); every remote operation is a quoted argument list (A2); host-key verification is mandatory and noninteractive unknown keys fail closed (A6); no server changes occur (A11). No new dependency was added. No rule was intentionally relaxed. Review the manifest adapter integration and failed live SSH check before treating server behavior as fully verified.

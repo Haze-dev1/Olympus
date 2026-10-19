@@ -25,8 +25,8 @@ func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver l
 	if len(args) > 0 && (args[0] == "activate" || args[0] == "confirm" || args[0] == "version") {
 		return server(args, out, stderr)
 	}
-	if len(args) == 0 || (args[0] != "check" && args[0] != "build" && args[0] != "update") {
-		fmt.Fprintln(stderr, "usage: olym {check|build|update} [-f stack.yaml] [-recipes recipes] [-o .olympus/build]")
+	if len(args) == 0 || (args[0] != "check" && args[0] != "build" && args[0] != "update" && args[0] != "plan") {
+		fmt.Fprintln(stderr, "usage: olym {check|build|update|plan} [-f stack.yaml] [-recipes recipes] [-o .olympus/build]")
 		return 1
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
@@ -34,12 +34,14 @@ func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver l
 	file := flags.String("f", "stack.yaml", "stack file")
 	recipes := flags.String("recipes", "", "local recipe directory")
 	output := flags.String("o", ".olympus/build", "build directory")
+	known := flags.String("known-hosts", "", "SSH known_hosts file")
+	detailed := flags.Bool("detailed-exitcode", false, "exit 2 when plan finds changes")
 	if flags.Parse(args[1:]) != nil || flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "invalid flags; use -f, -recipes and -o")
+		fmt.Fprintln(stderr, "invalid flags; use -f, -recipes, -o, -known-hosts and --detailed-exitcode")
 		return 1
 	}
 	s, d := stack.Load(*file)
-	if args[0] != "update" {
+	if args[0] != "update" && args[0] != "plan" {
 		stack.CheckEnv(d, *file)
 	}
 	for _, e := range d.Errors {
@@ -73,6 +75,9 @@ func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver l
 	}
 	for _, warning := range g.Warnings {
 		fmt.Fprintln(stderr, "warning:", warning)
+	}
+	if args[0] == "plan" {
+		return planGeneration(s, g, *file, *known, *detailed, out, stderr)
 	}
 	if err = g.Write(*output); err != nil {
 		fmt.Fprintln(stderr, err)

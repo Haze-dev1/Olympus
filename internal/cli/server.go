@@ -2,19 +2,39 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"regexp"
 
 	"github.com/Haze-dev1/Olympus/internal/activate"
 	"github.com/Haze-dev1/Olympus/internal/eval"
+	"github.com/Haze-dev1/Olympus/internal/generation"
 )
 
-// emptyHealth is temporary until generation manifests carry health data.
-type emptyHealth struct{}
+var generationID = regexp.MustCompile(`^sha256-[0-9a-f]{64}$`)
 
-func (emptyHealth) Health(string) (map[string]activate.Health, error) { return nil, nil }
+// storeManifest loads a generation's manifest from the server store, so health
+// checks for activation and rollback come from the generation itself (ADR 0028).
+func storeManifest(root string) activate.ManifestHealthSource {
+	return func(id string) (generation.Manifest, error) {
+		var m generation.Manifest
+		if !generationID.MatchString(id) {
+			return m, errors.New("invalid generation id")
+		}
+		b, err := os.ReadFile(filepath.Join(root, "store", "gen-"+id, "manifest.json"))
+		if err != nil {
+			return m, err
+		}
+		if len(b) > 4<<20 || json.Unmarshal(b, &m) != nil {
+			return m, errors.New("invalid generation manifest")
+		}
+		return m, nil
+	}
+}
 
 // quietCompose avoids copying untrusted container output into activator logs.
 type quietCompose struct{ activate.Compose }
@@ -61,7 +81,7 @@ func server(args []string, out, stderr io.Writer) int {
 		return 1
 	}
 	runner := quietCompose{}
-	a := activate.Activator{Runner: runner, Checker: activate.Checker{Runner: runner}, Health: emptyHealth{}, Log: out}
+	a := activate.Activator{Runner: runner, Checker: activate.Checker{Runner: runner}, Health: storeManifest(activate.DefaultRoot), Log: out}
 	var err error
 	if args[0] == "activate" {
 		err = a.Activate(context.Background(), args[1])
@@ -77,6 +97,11 @@ func server(args []string, out, stderr io.Writer) int {
 	if errors.As(err, &locked) {
 		fmt.Fprintln(stderr, locked)
 		return 4
+	}
+	var rollbackFailed *activate.RollbackFailedError
+	if errors.As(err, &rollbackFailed) {
+		fmt.Fprintln(stderr, "activation failed and the server could not roll back; it may be down")
+		return 5
 	}
 	var rolledBack *activate.RolledBackError
 	if errors.As(err, &rolledBack) {

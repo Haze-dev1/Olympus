@@ -365,6 +365,8 @@ func (c *Client) Activate(ctx context.Context, id string) (int, error) {
 				return 3, errors.New("deploy: activation failed; server rolled back")
 			case "4":
 				return 4, errors.New("deploy: server lock is held")
+			case "5":
+				return 5, errors.New("deploy: activation failed and the server could not roll back; it may be down")
 			}
 			return 1, errors.New("deploy: activation failed; inspect server logs")
 		}

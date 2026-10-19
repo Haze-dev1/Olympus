@@ -31,3 +31,9 @@ Follow up when manifest health lands: replace emptyHealth with a manifest-backed
 ## Security
 
 A1: secret payload only on stdin, remote output discarded; server Compose errors omit container output. A2: every remote operation uses argv through remote.Run. A5: 0600 payload and inherited per-tool secret enforcement; environment mapping and container-user chown remain caller/activator limitations. A6: both SSH connections verify host keys. A11: deployment state stays under /var/lib/olympus and Compose stays in project olympus; the explicitly requested Docker bootstrap additionally modifies system apt/Docker configuration. A12: local file checksum and version checked before activation; embedded release trust is deferred as requested. No external security scan was run.
+
+## Merge into development (2026-10-20)
+
+- End-to-end lab test re-run by the reviewer on a reset lab VM: `OLYMPUS_LAB=1 go test -tags lab ./internal/deploy -run TestLabDeploy` passed in 101 s. Docker and Compose were installed through sudo; a generation was uploaded, activated and confirmed, and `current` was verified; a second, unconfirmed activation rolled back by itself.
+- Merged `development` (plan and manifest health, ADR 0028). The server commands now load health checks from `store/gen-<id>/manifest.json`, replacing the empty health source.
+- `RollbackFailedError` now maps to exit code 5 on the server and in `deploy.Activate`, documented in TRD 10.1.
