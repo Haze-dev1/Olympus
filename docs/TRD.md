@@ -286,7 +286,7 @@ Because secrets are excluded, a secret change never changes a hash (PRD N-P2). S
 
 ### 6.4 Lock resolution
 
-- **Catalog:** `update` (or the first `check` with no lock) asks the git host for the newest commit of the catalog's default branch, downloads its tarball, and computes a content hash over the extracted tree (sorted paths, file modes, contents), like a Nix NAR hash.
+- **Catalog:** `update` (or the first `check` with no lock) asks the git host for the newest commit of the catalog's default branch, downloads its tarball, and computes a content hash over the extracted tree: SHA-256 over `olympus-catalog-v1` + NUL, then for each regular file sorted by relative slash path, the path, NUL, its permission bits in octal, NUL, size in decimal, NUL, contents and NUL. The result is `sha256-<hex>`; it is both the lock hash and the cache directory name. See [ADR 0020](ADR.md#0020-hash-the-extracted-catalog-tree-in-a-canonical-form).
 - **Images:** for each tool, resolve the recipe's image tag (or the stack's `image_tag` override) to its index digest through the registry API, without a local Docker.
 - `update` rewrites the lock and nothing else. Commands other than `check` and `update` refuse to run with a missing lock entry.
 

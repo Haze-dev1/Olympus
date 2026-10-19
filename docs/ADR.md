@@ -25,6 +25,8 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0017](#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms) | Activate on the server, and roll back unless the CLI confirms | Accepted |
 | [0018](#0018-build-structured-config-as-data-and-publish-json-schemas) | Build structured config as data, and publish JSON Schemas | Accepted |
 | [0019](#0019-name-the-project-olympus-with-the-command-olym) | Name the project Olympus, with the command olym | Accepted |
+| [0020](#0020-hash-the-extracted-catalog-tree-in-a-canonical-form) | Hash the extracted catalog tree in a canonical form | Accepted |
+| [0021](#0021-resolve-image-digests-with-the-standard-library) | Resolve image digests with the standard library | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -535,6 +537,82 @@ The project is **Olympus**. The command and binary are **`olym`** (`olym plan`, 
 - **Keep "AITerraform":** implies an affiliation with HashiCorp's Terraform and invites trademark trouble.
 - **`olympus` as the command:** clear, but long to type in every command.
 - **homebrew-core from the first release:** needs a track record the project does not have yet.
+
+## 0020. Hash the extracted catalog tree in a canonical form
+
+- **Status:** Accepted
+- **Date:** 2026-10-19
+
+### Context
+
+`stack.lock` pins the recipe catalog by commit and by a content hash ([0008](#0008-pin-exact-versions-in-stacklock), [0016](#0016-pin-the-recipe-set-as-a-flake-style-input)). The lock hash decides whether the cached tree is the one that revision produced, and it is the cache's directory name, so it must be reproducible by any Olympus version, on any machine, from the files alone. [TRD 6.4](TRD.md#64-lock-resolution) only said "sorted paths, file modes, contents", like a Nix NAR hash, which leaves the exact byte stream open.
+
+The alternatives each had a problem. Hashing the downloaded tarball depends on gzip headers, entry order and mtimes that GitHub does not guarantee. A git tree hash depends on git's object format and does not hash a subdirectory directly. A NAR is well specified but implements a general serialization (directories, symlinks, executable bits, device nodes) for a use that only has regular files.
+
+### Decision
+
+We will hash the **extracted catalog subdirectory** with SHA-256 over this byte stream:
+
+1. the domain string `olympus-catalog-v1` followed by a NUL byte;
+2. for every regular file, sorted by relative path with `/` separators:
+   - the relative path, NUL,
+   - the permission bits (`0`–`777`) in octal, NUL,
+   - the size in decimal, NUL,
+   - the file contents,
+   - NUL.
+
+The result is `sha256-<hex>`, which is both the lock's `hash` and the cache directory name under `~/.cache/olympus/inputs/`. Directories, empty directories, mtimes, ownership and setuid/setgid/sticky bits are excluded. Symlinks and other non-regular files are rejected before hashing, not hashed.
+
+### Consequences
+
+- The hash can be recomputed from an extracted tree with no git, network or Docker, and cache entries are verified on every use.
+- Content or permission changes change the hash; moving files, rewriting them in a different order, or changing mtimes does not.
+- The hash is not a commit hash and not a NAR hash. A change to the format needs a new domain string (`olympus-catalog-v2`) so old and new values can never collide.
+- Empty directories are not represented; recipes must not rely on them.
+- Setuid/setgid/sticky bits are not represented; extraction does not preserve them either.
+
+### Alternatives considered
+
+- **Tarball bytes:** GitHub can regenerate the archive with different compression and metadata, so the same revision would hash differently.
+- **Git tree hash:** exact for the repository, but extracting a subdirectory needs git object parsing, and the result would still not cover extracted modes as the cache sees them.
+- **Nix NAR serialization:** proven, but far more format than regular files and modes need, and we would own a NAR implementation for one hash.
+- **Contents only:** misses the executable bit, which recipe scripts need.
+- **A per-file manifest in the lock:** same guarantee with a larger file and more code.
+
+## 0021. Resolve image digests with the standard library
+
+- **Status:** Accepted
+- **Date:** 2026-10-19
+
+### Context
+
+The lock stores each tool image as a multi-architecture index digest ([TRD 5.3](TRD.md#53-lock-file-stacklock); security rule A7). Resolution happens by talking to the registry API, because the TRD excludes a local Docker daemon, and it must work for the official public images in v1. The TRD lists `github.com/google/go-containerregistry` as a candidate. That module is maintained (v0.22.1, 2026-09-04), but it brings a dependency tree for auth, transport, platforms and image manipulation that this narrow job does not need.
+
+### Decision
+
+We will resolve tags to index digests in `internal/lock` using `net/http` only:
+
+- `GET /v2/<repository>/manifests/<tag>` with an `Accept` header for the OCI index and Docker manifest list;
+- on `401`, follow an anonymous `Bearer` challenge once, then retry;
+- reject anything that is not an index/list with at least one manifest;
+- compute the SHA-256 of the response body and require the `Docker-Content-Digest` header, when present, to match;
+- return `name@sha256:<hex>`. A reference that is already pinned is validated and returned without a network call.
+
+v1 supports public registries with anonymous bearer auth only. Docker credential helpers, private registries, platform selection and fetching a platform manifest are out of scope; the digest is the index digest, as the lock requires.
+
+### Consequences
+
+- One less dependency and supply-chain surface in the binary; tests run against `httptest` with no network.
+- We own the registry protocol edge cases: redirects, token challenges, content types and digest checks. They are covered by unit tests, but a real registry is only exercised end to end when `olym update` is wired and tested live.
+- Private images fail with a clear registry error until a new ADR adds credentials.
+- If private registries or credential helpers become required, adding `go-containerregistry` is the upgrade path, and this decision is superseded rather than patched indefinitely.
+
+### Alternatives considered
+
+- **`github.com/google/go-containerregistry` v0.22.1:** maintained and complete, but a large dependency for one unauthenticated request; not added pending a real need for credentials or platform handling.
+- **Shell out to `crane`, `skopeo` or `docker`:** adds an external tool and a version to support, and Docker is explicitly not required.
+- **Keep the tag in the lock:** moves on every pull and breaks A7 and reproducible generations.
+- **Query the registry's web API or a third-party service:** undocumented, rate-limited, and trusts a third party for a security-relevant value.
 
 ## Template
 

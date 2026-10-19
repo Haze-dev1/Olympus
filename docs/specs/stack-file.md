@@ -115,7 +115,7 @@ Written by Olympus only (`check` when missing, and `update`). JSON with sorted k
 }
 ```
 
-`image` pins the multi-architecture index digest. Every later run uses the locked revision and digests; `update` moves them forward ([ADR 0008](../ADR.md#0008-pin-exact-versions-in-stacklock), [0016](../ADR.md#0016-pin-the-recipe-set-as-a-flake-style-input)).
+`image` pins the multi-architecture index digest. Every later run uses the locked revision and digests; `update` moves them forward ([ADR 0008](../ADR.md#0008-pin-exact-versions-in-stacklock), [0016](../ADR.md#0016-pin-the-recipe-set-as-a-flake-style-input)). `hash` is the canonical hash of the extracted catalog tree, defined in [ADR 0020](../ADR.md#0020-hash-the-extracted-catalog-tree-in-a-canonical-form).
 
 ## Generations and server layout
 

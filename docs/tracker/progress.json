@@ -5,10 +5,11 @@
     {
       "id": "M1",
       "name": "Core on one server (Go; generations; Compose)",
-      "status": "not_started",
+      "status": "in_progress",
       "features": [
         "core-plan-apply",
-        "lock-file"
+        "lock-file",
+        "catalog-lock"
       ]
     },
     {
@@ -51,8 +52,12 @@
       "file": "features/core-plan-apply.md"
     },
     "lock-file": {
-      "status": "not_started",
+      "status": "in_progress",
       "file": "features/lock-file.md"
+    },
+    "catalog-lock": {
+      "status": "in_progress",
+      "file": "features/catalog-lock.md"
     },
     "recipe-format": {
       "status": "not_started",
@@ -81,6 +86,8 @@
     "ADR 0015 Compose runtime",
     "ADR 0016 recipe input",
     "ADR 0017 server-side activation, confirm-or-rollback",
-    "ADR 0018 structured config, JSON Schemas"
+    "ADR 0018 structured config, JSON Schemas",
+    "ADR 0020 canonical catalog tree hash",
+    "ADR 0021 stdlib registry digest resolution"
   ]
 }

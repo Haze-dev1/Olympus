@@ -45,7 +45,16 @@ Read-only questions and planning-only runs leave these files unchanged. User ins
 
 ## Validation before you commit
 
-No code exists yet, so there are no build, lint or test commands. When the Go module is created (step 1 of `docs/plans/v1.md`), list them here and in the `olympus-test` skill. Until then, for docs changes:
+Build, vet and test the Go packages:
+
+- `go build ./...`
+- `go vet ./...`
+- `go test ./...`
+- `gofmt -l .` prints nothing; any listed file needs formatting.
+
+Run the package-scoped command (`go test ./internal/<package>/...`) while iterating and the full set before committing.
+
+For docs changes:
 
 - Check every relative link and anchor in `docs/` resolves.
 - Check `docs/tracker/progress.json` is valid JSON.

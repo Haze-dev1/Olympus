@@ -7,7 +7,7 @@ description: Run an Olympus QA pass when asked to test or verify Olympus. Covers
 
 One run proves a change (or the whole tool) on six fronts and ends in one report. Every front ends **green**, **red**, or **not run (reason)**. A pass applies only to what was exercised in this session; old evidence is reported separately.
 
-> As of 2026-10-19 there is no code. Fronts 1 and 4 have no commands yet. When the Go module is created, put the commands in `AGENTS.md` under "Validation before you commit" and in this skill.
+> As of 2026-10-19 the Go module exists with `internal/catalog` and `internal/lock`; front 1 runs the build, vet, test and format commands in `AGENTS.md` under "Validation before you commit". The `olym` CLI does not exist yet, so front 4 is "not run (no CLI)" until slice 1 lands.
 
 ## Guardrails
 
