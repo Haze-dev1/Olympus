@@ -1,0 +1,28 @@
+{
+  "id": "sha256-7e7939bfba8704343856538714feb010ebd5ba7a3a48aa31837bea0d4d150803",
+  "inputs": {
+    "recipes": "sha256-994b243ec04d94ac2643dc41c250a411e993b3aa1d46b1deace609f186eea4a9"
+  },
+  "olym": "0.1.0-dev",
+  "tools": {
+    "research": {
+      "files": {
+        "/opt/observatory/SOUL.md": "sha256-8fbfee040b3467d67bc6bdbda062d578385c5858877dd4ce6ddeda5d5c580434",
+        "/opt/observatory/config.yaml": "sha256-7ae84f2a5e9fe38ca7d81024283a336b3ac5aa4fcc4fb299c90ce001a01e5fe8"
+      },
+      "hash": "sha256-9441e7bf671df087fe7e9250cbd41e900a331d7f749e5deb9d94216326a440a1",
+      "health": {
+        "http": {
+          "path": "/health",
+          "port": 8642
+        },
+        "timeout": "30s"
+      },
+      "image": "ghcr.io/example/observatory:1.2.0",
+      "secrets": [
+        "github-token"
+      ]
+    }
+  },
+  "version": 1
+}

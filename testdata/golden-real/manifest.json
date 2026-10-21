@@ -1,0 +1,68 @@
+{
+  "id": "sha256-2bca3f9e8dea2716467c29403dc08d31809f75768ae9133109f949167de8fe53",
+  "inputs": {
+    "recipes": "sha256-b288a0038f28a628bd4a1f1ab0b368e074e3e42ab460fce7ce67ff9e9bf88dfb"
+  },
+  "olym": "0.1.0-dev",
+  "tools": {
+    "codex": {
+      "files": {
+        "/root/.codex/config.toml": "sha256-2ea2eabdca78723415237f1d5d9109b95f84992b2a6da231b9aba3f17b4873bf",
+        "/root/.olympus-build/Dockerfile": "sha256-0866f6b35bbd87d010c87f08124b7411f08e7071cd697d36bf3994147ffdf74f"
+      },
+      "hash": "sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db",
+      "health": {
+        "command": [
+          "codex",
+          "--version"
+        ],
+        "timeout": "60s"
+      },
+      "image": "olympus/codex:sha256-3d123fc04a15",
+      "secrets": [
+        "api-key",
+        "github-token"
+      ]
+    },
+    "hermes": {
+      "files": {
+        "/opt/data/config.yaml": "sha256-0a7f7cecdf0e730006d8528d3e4dbc030cd6338bf6ebc8727a485405d40b7ff2",
+        "/opt/data/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
+      },
+      "hash": "sha256-2bd8c9fb544a0176653e4998434b0b644a6a2b74f43024e85de3fb9b1032d3ac",
+      "health": {
+        "command": [
+          "hermes",
+          "--version"
+        ],
+        "timeout": "60s"
+      },
+      "image": "nousresearch/hermes-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "secrets": [
+        "github-token",
+        "model-key",
+        "telegram-token"
+      ]
+    },
+    "opencode": {
+      "files": {
+        "/root/.config/opencode/opencode.json": "sha256-9765633802f5a3692220f9d994f73c87edee3ba4965559ee1de1b0f9cdcf536a",
+        "/root/.config/opencode/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
+      },
+      "hash": "sha256-9efb9c26f0458870d820b794cafef5de2541bd0c729e1cc2ab39313961bb53d3",
+      "health": {
+        "http": {
+          "path": "/global/health",
+          "port": 4096
+        },
+        "timeout": "60s"
+      },
+      "image": "ghcr.io/anomalyco/opencode@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "secrets": [
+        "github-token",
+        "model-key"
+      ]
+    }
+  },
+  "version": 1
+}

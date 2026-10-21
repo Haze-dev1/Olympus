@@ -1,0 +1,14 @@
+server:
+  host: offline.example.test
+mcps:
+  github:
+    command: github-mcp
+    args: [stdio]
+    env:
+      GITHUB_TOKEN: ${GH_TOKEN}
+agents:
+  research:
+    recipe: observatory
+    mcps: [github]
+    secrets:
+      github-token: ${GH_TOKEN}

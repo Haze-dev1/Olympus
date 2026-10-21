@@ -1,0 +1,35 @@
+name: codex
+kind: coding-agent
+image: node:22-bookworm-slim
+resources:
+  min_ram: 4GB
+volumes:
+  home: /root
+env:
+  CODEX_HOME: /root/.codex
+command: [sleep, infinity]
+build:
+  src: Dockerfile
+  dst: /root/.olympus-build/Dockerfile
+health:
+  command: [codex, --version]
+  timeout: 60s
+secrets:
+  api-key:
+    env: CODEX_API_KEY
+  github-token:
+    env: GITHUB_TOKEN
+supports:
+  mcps:
+    file: /root/.codex/config.toml
+    format: toml
+    style: codex
+    key: mcp_servers
+  skills:
+    dir: /root/.agents/skills
+    mode: mount
+writable:
+  - /root/.codex/config.toml
+templates:
+  - src: config.toml.tmpl
+    dst: /root/.codex/config.toml

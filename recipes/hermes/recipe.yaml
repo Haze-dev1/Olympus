@@ -1,0 +1,43 @@
+name: hermes
+kind: harness
+image: nousresearch/hermes-agent:latest
+resources:
+  min_ram: 4GB
+volumes:
+  data: /opt/data
+env:
+  HERMES_HOME: /opt/data
+# The image's default invocation starts the interactive chat. `gateway run` is the
+# documented long-running mode (references/hermes-agent docker-compose.yml and
+# website/docs/user-guide/docker.md): s6 supervises the gateway and the command
+# keeps the container alive.
+command: [gateway, run]
+health:
+  command: [hermes, --version]
+  timeout: 60s
+secrets:
+  model-key:
+    env: ANTHROPIC_API_KEY
+  telegram-token:
+    env: TELEGRAM_BOT_TOKEN
+  github-token:
+    env: GITHUB_TOKEN
+supports:
+  mcps:
+    file: /opt/data/config.yaml
+    format: yaml
+    style: hermes
+    key: mcp_servers
+  skills:
+    dir: /opt/data/skills
+    mode: copy
+  channels:
+    telegram:
+      env:
+        token: TELEGRAM_BOT_TOKEN
+        allow: TELEGRAM_ALLOWED_USERS
+writable:
+  - /opt/data/config.yaml
+templates:
+  - src: config.yaml.tmpl
+    dst: /opt/data/config.yaml

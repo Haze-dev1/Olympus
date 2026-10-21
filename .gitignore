@@ -5,3 +5,10 @@
 
 # Reference repos (cloned for reading, see references/README.md)
 references/
+
+# Local generations and development binary
+.olympus/
+/olym
+
+# Test lab VM files (see lab/README.md)
+.lab/

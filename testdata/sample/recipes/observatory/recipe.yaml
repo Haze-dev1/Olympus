@@ -1,0 +1,29 @@
+name: observatory
+kind: harness
+image: ghcr.io/example/observatory:1.2.0
+user: "1000:1000"
+resources:
+  min_ram: 1GB
+volumes:
+  data: /opt/observatory
+ports: [8642]
+env:
+  OBSERVATORY_HOME: /opt/observatory
+health:
+  http: {port: 8642, path: /health}
+  timeout: 30s
+secrets:
+  github-token: {env: GITHUB_TOKEN}
+supports:
+  mcps:
+    file: /opt/observatory/config.yaml
+    format: yaml
+    style: hermes
+    key: mcp_servers
+templates:
+  - src: config.yaml.tmpl
+    dst: /opt/observatory/config.yaml
+  - src: SOUL.md.tmpl
+    dst: /opt/observatory/SOUL.md
+hooks:
+  post_install: [observatory, initialize]

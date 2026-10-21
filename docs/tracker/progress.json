@@ -1,0 +1,146 @@
+{
+  "updated": "2026-10-20",
+  "phase": "implementation",
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "Core on one server (Go; generations; Compose)",
+      "status": "done",
+      "features": [
+        "core-plan-apply",
+        "lock-file",
+        "catalog-lock",
+        "remote-ssh",
+        "test-lab",
+        "activator",
+        "deploy"
+      ]
+    },
+    {
+      "id": "M2",
+      "name": "Recipe format",
+      "status": "done",
+      "features": [
+        "recipe-format",
+        "first-recipes"
+      ]
+    },
+    {
+      "id": "M3",
+      "name": "Shared MCP servers and skills",
+      "status": "done",
+      "features": [
+        "shared-mcps-skills"
+      ]
+    },
+    {
+      "id": "M4",
+      "name": "Chat channels",
+      "status": "in_progress",
+      "features": [
+        "channels"
+      ]
+    },
+    {
+      "id": "M5",
+      "name": "Recipe catalog",
+      "status": "not_started",
+      "features": [
+        "recipe-catalog"
+      ]
+    }
+  ],
+  "features": {
+    "core-plan-apply": {
+      "status": "done",
+      "file": "features/core-plan-apply.md",
+      "updated": "2026-10-20",
+      "summary": "M1 full CLI cycle verified on reset Ubuntu lab in 77.902 s: pinned apply/no-op/selective changes, rollback, health failure, contention, real CLI kill, GC and scoped destroy."
+    },
+    "lock-file": {
+      "status": "done",
+      "file": "features/lock-file.md",
+      "updated": "2026-10-20"
+    },
+    "catalog-lock": {
+      "status": "done",
+      "file": "features/catalog-lock.md"
+    },
+    "remote-ssh": {
+      "status": "done",
+      "file": "features/remote-ssh.md",
+      "updated": "2026-10-20"
+    },
+    "activator": {
+      "status": "done",
+      "file": "features/activator.md",
+      "updated": "2026-10-20"
+    },
+    "recipe-format": {
+      "status": "done",
+      "file": "features/recipe-format.md",
+      "updated": "2026-10-20",
+      "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
+    },
+    "first-recipes": {
+      "status": "done",
+      "file": "features/first-recipes.md",
+      "updated": "2026-10-20",
+      "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
+    },
+    "shared-mcps-skills": {
+      "status": "done",
+      "file": "features/shared-mcps-skills.md",
+      "updated": "2026-10-20",
+      "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
+    },
+    "channels": {
+      "status": "in_progress",
+      "file": "features/channels.md",
+      "updated": "2026-10-20",
+      "summary": "Hermes Telegram renders as environment variables with a required allow-list; live bot test pending."
+    },
+    "recipe-catalog": {
+      "status": "not_started",
+      "file": "features/recipe-catalog.md"
+    },
+    "test-lab": {
+      "status": "done",
+      "file": "features/test-lab.md"
+    },
+    "deploy": {
+      "status": "done",
+      "file": "features/deploy.md",
+      "updated": "2026-10-20"
+    }
+  },
+  "decisions": [
+    "ADR 0013 Go",
+    "ADR 0014 generations",
+    "ADR 0015 Compose runtime",
+    "ADR 0016 recipe input",
+    "ADR 0017 server-side activation, confirm-or-rollback",
+    "ADR 0018 structured config, JSON Schemas",
+    "ADR 0020 approved YAML/TOML dependencies",
+    "ADR 0021 offline generation contract",
+    "ADR 0022 atomic replacement of owned build output",
+    "ADR 0023 canonical catalog tree hash",
+    "ADR 0024 stdlib registry digest resolution",
+    "ADR 0025 local QEMU test lab",
+    "ADR 0026 GitHub catalog wiring and local development overrides",
+    "ADR 0027 activate by manifest id, server-side store links and health source",
+    "ADR 0028 manifest health checks and activator HealthSource adapter",
+    "ADR 0029 verified deployment uploads and retained systemd activation results",
+    "ADR 0030 stable per-tool content-addressed config entries",
+    "ADR 0031 request-bound activation and saved plans",
+    "ADR 0032 server-key HMAC fingerprints and secret transactions",
+    "ADR 0033 image tag overrides recorded in lock",
+    "ADR 0035 build recipes from a content-addressed Dockerfile",
+    "ADR 0036 writable config through a Compose init service",
+    "ADR 0037 MCP secrets as tool-native environment references",
+    "ADR 0038 skills mounted or copied per recipe",
+    "ADR 0039 Hermes channels as environment variables",
+    "ADR 0040 optional catalog refs resolved to immutable commits",
+    "ADR 0041 prepare and reuse content-addressed built images"
+  ]
+}

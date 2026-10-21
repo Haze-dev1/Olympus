@@ -1,0 +1,8 @@
+gateway: {}
+mcp_servers:
+  github:
+    args:
+    - "@modelcontextprotocol/server-github"
+    command: npx
+    env:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}

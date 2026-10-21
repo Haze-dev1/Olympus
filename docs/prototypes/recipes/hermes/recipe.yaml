@@ -1,0 +1,29 @@
+# Prototype of a recipe. The checked recipe is ../../recipes/hermes.
+# See docs/specs/recipe.md.
+name: hermes
+kind: harness
+image: nousresearch/hermes-agent:latest   # default tag; stack.lock pins the digest
+resources: { min_ram: 4GB }
+volumes:
+  data: /opt/data
+env:
+  HERMES_HOME: /opt/data
+health:
+  command: [hermes, --version]            # the API server is off by default
+  timeout: 60s
+secrets:
+  model-key:      { env: ANTHROPIC_API_KEY }
+  telegram-token: { env: TELEGRAM_BOT_TOKEN }
+  github-token:   { env: GITHUB_TOKEN }
+supports:
+  mcps:     { file: /opt/data/config.yaml, format: yaml, style: hermes, key: mcp_servers }
+  skills:   { dir: /opt/data/skills, mode: copy }
+  channels:
+    telegram:
+      env: { token: TELEGRAM_BOT_TOKEN, allow: TELEGRAM_ALLOWED_USERS }
+writable: [/opt/data/config.yaml]
+templates:
+  - src: config.yaml.tmpl
+    dst: /opt/data/config.yaml
+hooks:
+  post_install: [hermes, setup, --non-interactive]
