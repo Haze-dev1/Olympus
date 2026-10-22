@@ -317,16 +317,24 @@ func TestLatestAndCredentialConfinement(t *testing.T) {
 	}
 }
 
-func TestLatestEscapesRef(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.URL.EscapedPath(); got != "/repos/owner/repo/commits/feat%2Freal-stack" {
-			t.Errorf("lookup path %s", got)
-		}
-		w.Write([]byte(`{"sha":"` + testRev + `"}`))
-	}))
-	defer server.Close()
-	rev, err := (Fetcher{APIURL: server.URL}).Latest(context.Background(), Source{Owner: "owner", Repo: "repo", Ref: "feat/real-stack"})
-	if err != nil || rev != testRev {
-		t.Fatalf("lookup: %s %v", rev, err)
+func TestLatestPreservesRefSlashes(t *testing.T) {
+	for _, ref := range []string{"", "development", "feat/real-stack", "refs/heads/feature/x", "release+candidate/v1"} {
+		t.Run(ref, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				want := ref
+				if want == "" {
+					want = "HEAD"
+				}
+				if r.URL.Path != "/repos/owner/repo/commits/"+want || strings.Contains(r.URL.EscapedPath(), "%2F") || r.URL.RawQuery != "" {
+					t.Errorf("lookup URL %s", r.URL)
+				}
+				w.Write([]byte(`{"sha":"` + testRev + `"}`))
+			}))
+			defer server.Close()
+			rev, err := (Fetcher{APIURL: server.URL}).Latest(context.Background(), Source{Owner: "owner", Repo: "repo", Ref: ref})
+			if err != nil || rev != testRev {
+				t.Fatalf("lookup: %s %v", rev, err)
+			}
+		})
 	}
 }

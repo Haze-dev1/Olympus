@@ -231,7 +231,11 @@ func (f Fetcher) Latest(ctx context.Context, src Source) (string, error) {
 	if ref == "" {
 		ref = "HEAD"
 	}
-	resp, err := f.request(ctx, f.apiURL()+"/repos/"+src.Owner+"/"+src.Repo+"/commits/"+url.PathEscape(ref))
+	segments := strings.Split(ref, "/")
+	for i := range segments {
+		segments[i] = url.PathEscape(segments[i])
+	}
+	resp, err := f.request(ctx, f.apiURL()+"/repos/"+src.Owner+"/"+src.Repo+"/commits/"+strings.Join(segments, "/"))
 	if err != nil {
 		return "", err
 	}
