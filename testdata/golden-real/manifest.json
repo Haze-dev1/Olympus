@@ -1,5 +1,5 @@
 {
-  "id": "sha256-2bca3f9e8dea2716467c29403dc08d31809f75768ae9133109f949167de8fe53",
+  "id": "sha256-29608b0dcc8d4cc4b82211b997aba4b1fdda18b9ec4d09b56e9fff5231fde2a4",
   "inputs": {
     "recipes": "sha256-b288a0038f28a628bd4a1f1ab0b368e074e3e42ab460fce7ce67ff9e9bf88dfb"
   },
@@ -27,9 +27,10 @@
     "hermes": {
       "files": {
         "/opt/data/config.yaml": "sha256-0a7f7cecdf0e730006d8528d3e4dbc030cd6338bf6ebc8727a485405d40b7ff2",
+        "/opt/data/skills/.olympus-managed-files": "sha256-6010f28d44d93f45e923ed30b6879219b49abe1092286b1aaba8fe724088fc03",
         "/opt/data/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-2bd8c9fb544a0176653e4998434b0b644a6a2b74f43024e85de3fb9b1032d3ac",
+      "hash": "sha256-b282d770da91f2dbf4f1a7419d240223f27804c15da9b46b91898e1eaed46e8b",
       "health": {
         "command": [
           "hermes",

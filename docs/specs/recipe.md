@@ -58,7 +58,7 @@ Compose delivers the actual values as environment variables through `/var/lib/ol
 
 A tool that rewrites its own config cannot use a read-only bind. The evaluator removes that bind and creates a one-shot `<tool>-init` service. The init service mounts the rendered file read-only under `/olympus-init/<n>`, mounts the tool's named volumes, and copies the file into place before the tool starts; the tool declares `depends_on: service_completed_successfully` ([ADR 0036](../ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)). `supports.skills.mode: copy` uses the same path.
 
-The stack file and the recipe set remain the source of truth: edits the tool makes to a managed file are overwritten on the next apply. Skills removed from the stack file are not deleted from a volume in `copy` mode.
+The stack file and the recipe set remain the source of truth: edits the tool makes to a managed file are overwritten on the next apply. In `copy` mode, the init service records copied file paths in `.olympus-managed-files` and prunes those files before copying the current selection, including an empty selection. Unrecorded files and directories survive; copies predating the ledger remain untouched. Unsafe ledger paths and symlink ancestors fail init ([ADR 0042](../ADR.md#0042-track-and-prune-only-previously-copied-skill-files)).
 
 ## Built images
 
