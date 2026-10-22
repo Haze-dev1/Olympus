@@ -394,6 +394,27 @@ func Build(in Inputs) (*generation.Generation, error) {
 				}
 			}
 		}
+		prune := ""
+		if support := r.Supports.Skills; support != nil && support.Mode == "copy" {
+			prune, err = pruneSkills(support.Dir)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", name, err)
+			}
+			ledger := path.Join(support.Dir, skillLedger)
+			if files[ledger] != nil || managed[ledger] != nil {
+				return nil, fmt.Errorf("%s: skill ledger collides with generated file", name)
+			}
+			var owned strings.Builder
+			for _, dst := range skillCopies {
+				rel := strings.TrimPrefix(dst, support.Dir+"/")
+				if strings.HasPrefix(strings.Split(rel, "/")[0], skillLedger) {
+					return nil, fmt.Errorf("%s: skill name is reserved", name)
+				}
+				fmt.Fprintln(&owned, rel)
+			}
+			files[ledger] = []byte(owned.String())
+			skillCopies = append(skillCopies, ledger)
+		}
 		for _, p := range schema.Keys(managed) {
 			files[p], err = encode.Marshal(formats[p], managed[p])
 			if err != nil {
@@ -459,6 +480,7 @@ func Build(in Inputs) (*generation.Generation, error) {
 				}
 			}
 			var script strings.Builder
+			script.WriteString(prune)
 			for i, dst := range copies {
 				source := ""
 				for j := 0; j < len(service.Volumes); j++ {
@@ -473,9 +495,16 @@ func Build(in Inputs) (*generation.Generation, error) {
 				}
 				staging := fmt.Sprintf("/olympus-init/%d", i)
 				init.Volumes = append(init.Volumes, Mount{Type: "bind", Source: source, Target: staging, ReadOnly: true})
-				fmt.Fprintf(&script, "mkdir -p '%s' && cp -a '%s' '%s'\n", path.Dir(dst), staging, dst)
+				if prune != "" {
+					fmt.Fprintf(&script, "check_path '%s'\n", dst)
+				}
+				if prune != "" && dst == path.Join(r.Supports.Skills.Dir, skillLedger) {
+					fmt.Fprintf(&script, "check_path '%s.next'\nmkdir -p '%s' && cp -a '%s' '%s.next' && mv -f '%s.next' '%s'\n", dst, path.Dir(dst), staging, dst, dst, dst)
+				} else {
+					fmt.Fprintf(&script, "mkdir -p '%s' && cp -a '%s' '%s'\n", path.Dir(dst), staging, dst)
+				}
 			}
-			init.Entrypoint = []string{"/bin/sh", "-c", script.String()}
+			init.Entrypoint = []string{"/bin/sh", "-c", strings.ReplaceAll(script.String(), "$", "$$")}
 			compose.Services[initName] = init
 			service.DependsOn = map[string]Depends{initName: {Condition: "service_completed_successfully"}}
 		}
