@@ -23,15 +23,19 @@ Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
   into the volume instead of bind-mounting them (`mode: copy`).
 - Telegram: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USERS` (comma-separated).
   The gateway denies users outside the allow-list by default, so an empty
-  allow-list is rejected during the build.
+  allow-list is rejected during the build (Rule A10).
+- Discord: `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS` (comma-separated), and
+  optional `DISCORD_ALLOWED_ROLES` (comma-separated role IDs). The gateway fails
+  closed and denies users outside the allow-list by default, so an empty
+  allow-list is rejected during validation (Rule A10).
 - Resources: 2-4 GB recommended; 4 GB is the conservative figure used here.
 - Health: the API server on 8642 is off unless `API_SERVER_ENABLED=true`, so the
   health check uses `hermes --version` instead of HTTP. No port is published.
 
 ## UNVERIFIED
 
-- Gateway operation with a real chat channel, including platform authentication,
-  remains unverified. The lab intentionally configures no channel.
+- Gateway operation with real chat channels (Telegram, Discord), including platform
+  authentication, remains unverified. The lab intentionally configures no channel.
 
 ## Lab observations, 2026-10-20
 

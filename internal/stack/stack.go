@@ -30,6 +30,7 @@ type MCP struct {
 type Channel struct {
 	Token string
 	Allow []string
+	Roles []string `json:"roles,omitempty"`
 }
 type Tool struct {
 	Recipe   string

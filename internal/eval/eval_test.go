@@ -190,6 +190,16 @@ func TestRenderingFailuresAndWarnings(t *testing.T) {
 			v.Channels = map[string]stack.Channel{"telegram": {Token: "${TG}", Allow: []string{"owner"}}}
 			in.Stack.Agents["research"] = v
 		}, "not supported"},
+		{"unsupported channel roles", func(in Inputs) {
+			in.Recipes["observatory"].Supports.Channels = map[string]recipe.Channel{
+				"telegram": {Env: map[string]string{"token": "TELEGRAM_TOKEN", "allow": "TELEGRAM_ALLOW"}},
+			}
+			in.Recipes["observatory"].Secrets["tg"] = recipe.Secret{Env: "TELEGRAM_TOKEN"}
+			v := in.Stack.Agents["research"]
+			v.Secrets["tg"] = "${TG}"
+			v.Channels = map[string]stack.Channel{"telegram": {Token: "${TG}", Allow: []string{"owner"}, Roles: []string{"admin"}}}
+			in.Stack.Agents["research"] = v
+		}, "does not support roles"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

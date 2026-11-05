@@ -22,11 +22,16 @@ agents:
     secrets:
       model-key: ${ANTHROPIC_API_KEY}
       telegram-token: ${TELEGRAM_BOT_TOKEN}
+      discord-token: ${DISCORD_BOT_TOKEN}
       github-token: ${GH_TOKEN}
     channels:
       telegram:
         token: ${TELEGRAM_BOT_TOKEN}
         allow: ["@alice", "@bob"]
+      discord:
+        token: ${DISCORD_BOT_TOKEN}
+        allow: ["123456789"]
+        roles: ["987654321"]
   codex:
     recipe: codex
     mcps: [github]

@@ -2,6 +2,7 @@
 
 ## Development
 
+- OLY-17: add Discord channel support for Hermes Agent (`supports.channels.discord.env` with `token: DISCORD_BOT_TOKEN`, `allow: DISCORD_ALLOWED_USERS`, and optional `roles: DISCORD_ALLOWED_ROLES`). Evaluator injects `DISCORD_ALLOWED_USERS` and `DISCORD_ALLOWED_ROLES` into service environment while secret token is delivered strictly via secret `env_file` (`/var/lib/olympus/secrets/hermes/environment`, Rules A1, A5). Enforced non-empty allow-list validation (Rule A10). Stack schema updated with optional `roles` on channel specifications.
 - OLY-29: copied skills now carry a per-tool ownership ledger. Init prunes previously copied files, including obsolete files and empty selections, while retaining agent-created content and refusing unsafe paths or symlinks. Pre-ledger copies remain untouched. ADR 0042 records ownership and migration limits. Live lab validation on 2026-10-22 confirmed two-skill apply, removal of one skill on reapply, byte-identical preservation of the retained skill and four unrecorded volume files, a no-op third apply and clean teardown.
 - OLY-28: preserve slash separators when resolving catalog refs through the GitHub commits endpoint, while escaping each path segment.
 

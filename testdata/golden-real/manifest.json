@@ -1,7 +1,7 @@
 {
-  "id": "sha256-29608b0dcc8d4cc4b82211b997aba4b1fdda18b9ec4d09b56e9fff5231fde2a4",
+  "id": "sha256-07959952064d437d094385ede0554561c2f3307bff48dad65b9053f9f580d459",
   "inputs": {
-    "recipes": "sha256-b288a0038f28a628bd4a1f1ab0b368e074e3e42ab460fce7ce67ff9e9bf88dfb"
+    "recipes": "sha256-2fb9d573a4bba17e716f6bdc5bb7ea38e9534ddc8ce823a21b8512e3988a871f"
   },
   "olym": "0.1.0-dev",
   "tools": {
@@ -30,7 +30,7 @@
         "/opt/data/skills/.olympus-managed-files": "sha256-6010f28d44d93f45e923ed30b6879219b49abe1092286b1aaba8fe724088fc03",
         "/opt/data/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-b282d770da91f2dbf4f1a7419d240223f27804c15da9b46b91898e1eaed46e8b",
+      "hash": "sha256-b8b20004d5a343e17a921de96a576616953d94951f62a6a006847e01bfdb631e",
       "health": {
         "command": [
           "hermes",
@@ -40,6 +40,7 @@
       },
       "image": "nousresearch/hermes-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "secrets": [
+        "discord-token",
         "github-token",
         "model-key",
         "telegram-token"

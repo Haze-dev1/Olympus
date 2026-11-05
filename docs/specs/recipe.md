@@ -38,7 +38,7 @@ The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-cu
 | `mcps.key` | Key under which servers are listed, such as `mcp_servers` |
 | `skills.dir` | Folder the tool reads skills from |
 | `skills.mode` | `mount` for a read-only bind, or `copy` for the init service ([ADR 0038](../ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)) |
-| `channels.<name>.env` | Environment variables that configure the channel: `token` and `allow` ([ADR 0039](../ADR.md#0039-configure-hermes-channels-as-environment-variables)) |
+| `channels.<name>.env` | Environment variables that configure the channel: `token`, `allow`, and optional `roles` ([ADR 0039](../ADR.md#0039-configure-hermes-channels-as-environment-variables)) |
 
 If a stack file gives a tool MCP servers, skills or channels its recipe does not support, `plan` warns and names the tool.
 
