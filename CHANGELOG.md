@@ -2,6 +2,8 @@
 
 ## Development
 
+- OLY-30: selective secret recreation now cannot be skipped and survives a revert. `Recreate` is part of the activator's `Runner` interface instead of an optional type assertion, `Compose.Recreate` uses `--no-build --pull never --no-deps --force-recreate` like `Up`, an automatic revert recreates exactly the previous generation's tools whose secret files it restored (a tool that generation does not declare is skipped), and a failure to restore the previous secrets now takes the project down as well as reporting `rollback_failed`/exit 5 instead of leaving the failed generation running with the new values. Added offline regression tests, including red-before checks against the previous code. The lab verification was not run: this host has no QEMU. ADR 0043 amends 0027 and 0032.
+
 - OLY-29: copied skills now carry a per-tool ownership ledger. Init prunes previously copied files, including obsolete files and empty selections, while retaining agent-created content and refusing unsafe paths or symlinks. Pre-ledger copies remain untouched. ADR 0042 records ownership and migration limits. Live lab validation on 2026-10-22 confirmed two-skill apply, removal of one skill on reapply, byte-identical preservation of the retained skill and four unrecorded volume files, a no-op third apply and clean teardown.
 - OLY-28: preserve slash separators when resolving catalog refs through the GitHub commits endpoint, while escaping each path segment.
 
