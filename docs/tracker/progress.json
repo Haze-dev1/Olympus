@@ -86,8 +86,8 @@
     "first-recipes": {
       "status": "done",
       "file": "features/first-recipes.md",
-      "updated": "2026-10-20",
-      "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
+      "updated": "2026-11-05",
+      "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown. Hermes pinned to v0.22.7."
     },
     "shared-mcps-skills": {
       "status": "done",
@@ -98,8 +98,8 @@
     "channels": {
       "status": "in_progress",
       "file": "features/channels.md",
-      "updated": "2026-10-20",
-      "summary": "Hermes Telegram renders as environment variables with a required allow-list; live bot test pending."
+      "updated": "2026-11-05",
+      "summary": "Hermes Telegram and Discord render as environment variables with a required allow-list; live bot test pending."
     },
     "recipe-catalog": {
       "status": "not_started",
