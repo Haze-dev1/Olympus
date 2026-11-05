@@ -223,13 +223,13 @@ JSON, written only by Olympus, keys sorted, one trailing newline:
     }
   },
   "tools": {
-    "codex":  { "image": "ghcr.io/…/codex@sha256:…" },
-    "hermes": { "image": "nousresearch/hermes-agent@sha256:…" }
+    "codex":  { "image": "ghcr.io/…/codex@sha256:…", "platforms": ["linux/amd64", "linux/arm64"] },
+    "hermes": { "image": "nousresearch/hermes-agent@sha256:…", "platforms": ["linux/amd64", "linux/arm64"] }
   }
 }
 ```
 
-JSON rather than YAML because nobody edits it by hand and its diffs stay simple. `image` pins the multi-architecture index digest, so one lock works for amd64 and arm64 servers.
+JSON rather than YAML because nobody edits it by hand and its diffs stay simple. `image` pins the multi-architecture index digest, so one lock works for amd64 and arm64 servers. `platforms` records the `os/architecture` pairs the index was resolved to, sorted and de-duplicated, so the apply preflight can compare them with the server without contacting a registry again (7.2). It is optional: a lock written before this field, or a reference already pinned by digest, has no platforms and the preflight warns instead of guessing.
 
 ### 5.4 Generation manifest (`manifest.json`)
 
@@ -353,10 +353,20 @@ On the first `plan` or `apply`, over SSH:
 1. Verify the host key against `-known-hosts <path>`, else `OLYM_KNOWN_HOSTS`, else `~/.ssh/known_hosts`. An unknown host asks `y/N` on a terminal with the key fingerprint and is refused without a terminal; a changed key is always an error (rule A6). Use `server.ssh_key` (expanding a leading `~/`) or, when absent, the SSH agent.
 2. Detect the OS from `/etc/os-release`; refuse anything but Ubuntu 22.04, 24.04 and Debian 12.
 3. Check for root, or passwordless sudo; with neither, stop and print the exact command that needs it.
-4. Install Docker Engine and the Compose plugin from Docker's apt repository if missing (only during `apply`).
-5. Create `/var/lib/olympus/` and `key` if missing, only during `apply`.
+4. Run the read-only preflight described below. `plan` and `apply` both run it; a failure stops before anything is installed or written.
+5. Install Docker Engine and the Compose plugin from Docker's apt repository if missing (only during `apply`, after the preflight passes).
+6. Create `/var/lib/olympus/` and `key` if missing, only during `apply`.
 
-The implemented `plan` slice only verifies SSH and root/passwordless sudo, then reads generation metadata and file hashes. It does not install software, create server files, or perform the future OS/capacity/port/image-architecture preflight.
+The preflight compares the server with the stack before any mutation:
+
+| Check | Source | Outcome |
+| --- | --- | --- |
+| Architecture | `uname -m`, mapped to `amd64` or `arm64` | Unsupported machines fail. Each tool's image platforms come from `stack.lock`; an image without `linux/<server arch>` fails naming the tool, image and architecture. A lock without recorded platforms warns and asks the user to run `olym update`. |
+| Memory | `MemTotal` from `/proc/meminfo` | A recipe's `resources.min_ram`, below the server total, warns naming the tool and both sizes. |
+| Disk | `df -kP /var/lib` | Below 5 GiB warns; below 1 GiB fails with the free space. |
+| Ports | `ss -ltnp` for listeners, `docker ps` filtered to the `olympus` Compose project for the current generation's own published ports | A conflicting listener fails, naming the tool, port and process. A private port conflicts with loopback or wildcard listeners on that number; a public port with any listener. Ports held by the current generation are ignored, so re-applying is not a conflict. |
+
+The preflight is read-only: it installs nothing and writes no server files. Warnings are printed after the plan diff. `apply` continues only after its normal confirmation prompt, which shows them; `--yes` counts as that confirmation. Every preflight command is an argument list, and remote text (process names, addresses) is sanitized before it reaches a message (rules A1, A2). The failure exits with status 1.
 
 ### 7.3 Compose project
 
@@ -529,6 +539,8 @@ Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)
 | Missing secret | Name the variable and every line using it | 1 |
 | Unknown or changed host key | Prompt for unknown (show fingerprint); refuse changed | 1 |
 | Unsupported OS, no sudo | Stop before changes; print what is needed | 1 |
+| Server preflight fails: image has no server architecture, less than 1 GiB free disk, or a declared port is in use | Stop before changes; name the tool and image, the free space, or the port and process | 1 |
+| Server preflight warns: less than 5 GiB free disk or less RAM than a recipe's `min_ram` | Print the warning after the plan; `apply` continues only after confirmation | 1 if declined |
 | Lock held | Print holder from `lock.json` | 4 |
 | Connection drops during upload | Nothing activated; partial uploads stay in `.incoming` and are cleaned next run | 1 |
 | Image pull fails | Activator rolls back; reports image and registry error | 3 |

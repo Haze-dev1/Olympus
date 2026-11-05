@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -41,22 +42,24 @@ type Resolver struct {
 	Scheme string
 }
 
-// Resolve turns "repo/name:tag" into "repo/name@sha256:<index digest>". A
-// reference that already carries a sha256 digest is returned unchanged. Only
-// multi-architecture indexes and manifest lists are accepted, because the lock
-// must work on both amd64 and arm64.
-func (r Resolver) Resolve(ctx context.Context, ref string) (string, error) {
+// Resolve turns "repo/name:tag" into "repo/name@sha256:<index digest>" and
+// reports the "os/architecture" pairs the index covers. A reference that
+// already carries a sha256 digest is returned unchanged with no platforms,
+// because its index was never fetched. Only multi-architecture indexes and
+// manifest lists are accepted, because the lock must work on both amd64 and
+// arm64.
+func (r Resolver) Resolve(ctx context.Context, ref string) (string, []string, error) {
 	ref = strings.TrimSpace(ref)
 	if name, digest, ok := strings.Cut(ref, "@"); ok {
 		if _, _, err := splitTag(name); err != nil || !digestRE.MatchString(digest) {
-			return "", fmt.Errorf("lock: invalid image reference %q", ref)
+			return "", nil, fmt.Errorf("lock: invalid image reference %q", ref)
 		}
-		return name + "@" + digest, nil
+		return name + "@" + digest, nil, nil
 	}
 
 	name, tag, err := splitTag(ref)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	registry, repo := splitRegistry(name)
 	scheme := r.Scheme
@@ -71,20 +74,38 @@ func (r Resolver) Resolve(ctx context.Context, ref string) (string, error) {
 
 	body, mediaType, err := r.manifest(ctx, endpoint, repo)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if mediaType != ociIndex && mediaType != dockerList {
-		return "", fmt.Errorf("lock: %s is not a multi-arch index (media type %q)", ref, mediaType)
+		return "", nil, fmt.Errorf("lock: %s is not a multi-arch index (media type %q)", ref, mediaType)
 	}
 	var index struct {
-		Manifests []json.RawMessage `json:"manifests"`
+		Manifests []struct {
+			Platform *struct {
+				OS           string `json:"os"`
+				Architecture string `json:"architecture"`
+			} `json:"platform"`
+		} `json:"manifests"`
 	}
 	if err := json.Unmarshal(body, &index); err != nil || len(index.Manifests) == 0 {
-		return "", fmt.Errorf("lock: %s: response is not a valid image index", ref)
+		return "", nil, fmt.Errorf("lock: %s: response is not a valid image index", ref)
 	}
+	seen := map[string]bool{}
+	var platforms []string
+	for _, m := range index.Manifests {
+		if m.Platform == nil || m.Platform.OS == "" || m.Platform.OS == "unknown" || m.Platform.Architecture == "" || m.Platform.Architecture == "unknown" {
+			continue
+		}
+		p := m.Platform.OS + "/" + m.Platform.Architecture
+		if validPlatform(p) && !seen[p] {
+			seen[p] = true
+			platforms = append(platforms, p)
+		}
+	}
+	sort.Strings(platforms)
 
 	sum := sha256.Sum256(body)
-	return name + "@sha256:" + hex.EncodeToString(sum[:]), nil
+	return name + "@sha256:" + hex.EncodeToString(sum[:]), platforms, nil
 }
 
 func splitTag(ref string) (name, tag string, err error) {

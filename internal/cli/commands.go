@@ -58,6 +58,10 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 	if err = c.UseServer(ctx); err != nil {
 		return fail(err)
 	}
+	preflight, err := c.Preflight(ctx, preflightRequest(in))
+	if err != nil {
+		return fail(err)
+	}
 	current, actual, err := plan.ReadCurrent(ctx, c.Conn, cfg.User == "root")
 	if err != nil {
 		return fail(err)
@@ -96,6 +100,9 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 	diff.SecretChanges(changed)
 	fmt.Fprintf(out, "Plan: stack %q → %s\n", file, snapshot.Server)
 	diff.Print(out)
+	for _, warning := range preflight.Warnings {
+		fmt.Fprintln(out, "Warning:", warning)
+	}
 	if command == "plan" {
 		if output != "" {
 			b, e := json.MarshalIndent(snapshot, "", "  ")

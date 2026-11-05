@@ -197,3 +197,16 @@ This final section supersedes the historical offline/read-only scope statements 
 ## OLY-30 follow-up, 2026-11-05
 
 `apply` with only a secret value changed still reaches the activator through the CLI's fingerprint diff (`Diff.SecretChanges` adds a change, so `len(diff.Changes) != 0`) and the activator recreates only the affected tools. This follow-up closed three server-side gaps in that path: `Recreate` is now a required `Runner` method, `Compose.Recreate` uses `--no-build --pull never`, and an automatic revert recreates the previous generation's tools whose restored secrets it re-installs. A failed secret restoration now takes the project down and reports exit 5 instead of leaving the failed generation running. Offline evidence and the skipped lab run are recorded in [activator.md](activator.md#oly-30-selective-recreation-and-failed-first-activation-cleanup-2026-11-05); ADR 0043 amends 0027 and 0032. The lab is still **not run** for this branch: this host has no QEMU.
+
+## Apply preflight, 2026-11-05
+
+OLY-31 adds the read-only server preflight that earlier sections list as absent:
+supported OS, amd64/arm64 architecture against the image platforms recorded in
+`stack.lock`, `resources.min_ram` warnings, free disk, and declared ports
+(ignoring host ports published by the current `olympus` generation). It runs in
+`plan` and `apply` after SSH/privilege checks and before any mutation, fails with
+exit 1, and prints warnings before the apply confirmation. Details, tests and the
+unrun lab check are in [preflight.md](preflight.md) and
+[ADR 0044](../../ADR.md#0044-preflight-the-server-before-plan-and-apply). The
+earlier "capacity/port preflight remains outside this slice" statements describe
+the state before this section.

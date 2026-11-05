@@ -41,9 +41,11 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | OS is not Ubuntu or Debian | Fail before changing anything; list supported systems |
 | SSH user is not root and has no sudo | Fail with the exact command that needed sudo |
 | Docker already installed, with containers Olympus did not create | Leave them alone; manage only the `olympus` Compose project ([ADR 0015](../ADR.md#0015-use-one-docker-compose-project-as-the-runtime)) |
-| Port already used by something else | Fail for that tool in `plan`; name the port and the process using it |
-| Server has less RAM than a recipe's `min_ram` | Warn in `plan`; continue only if the user confirms |
-| ARM server and an image with no ARM build | Fail for that tool; name the image and architecture |
+| Port already used by something else | Fail for that tool in `plan`; name the port and the process using it. Ports published by the current `olympus` generation are ignored. |
+| Server has less RAM than a recipe's `min_ram` | Warn in `plan`; `apply` continues only after its confirmation prompt shows the warning |
+| ARM server and an image with no ARM build | Fail for that tool; name the image, the architecture and the platforms the lock recorded |
+| `stack.lock` has no image platforms (written before the field existed, or a reference already pinned by digest) | Warn in `plan` and suggest `olym update`; do not guess compatibility |
+| Server has less than 5 GiB free disk | Warn in `plan`; below 1 GiB fail and report the free space and path |
 | Built tool and init service share a local tag | Skip both during pull, build once before up; reuse the image on rollback |
 | Build fails before up | Restore the previous generation or take down the first failed deployment; suppress build output |
 | Catalog ref changes while a lock exists | Keep the locked commit until update; reject a changed source URL |
