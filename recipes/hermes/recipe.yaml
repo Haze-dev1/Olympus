@@ -1,6 +1,6 @@
 name: hermes
 kind: harness
-image: nousresearch/hermes-agent:latest
+image: nousresearch/hermes-agent:v0.22.7
 resources:
   min_ram: 4GB
 volumes:

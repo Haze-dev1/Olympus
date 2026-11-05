@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-22",
+  "updated": "2026-11-05",
   "phase": "implementation",
   "milestones": [
     {
@@ -85,8 +85,8 @@
     "first-recipes": {
       "status": "done",
       "file": "features/first-recipes.md",
-      "updated": "2026-10-20",
-      "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
+      "updated": "2026-11-05",
+      "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown. Hermes pinned to v0.22.7."
     },
     "shared-mcps-skills": {
       "status": "done",
