@@ -1,18 +1,20 @@
 # Hermes Agent recipe
 
-Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
+Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`; image release confirmed 2026-11-05:
 
 - Image, tags, ports, state layout, config keys, MCP shape, skills directory and
   Telegram variables: Hermes Agent documentation and source at
-  <https://github.com/NousResearch/hermes-agent> (read-only clone in
-  `references/hermes-agent`), plus Docker Hub `nousresearch/hermes-agent`.
+  <https://github.com/NousResearch/hermes-agent> (official repo and releases at
+  <https://github.com/NousResearch/hermes-agent/releases/tag/v0.22.7>), plus
+  Docker Hub `nousresearch/hermes-agent` tags.
 
 ## Checked facts
 
-- Image: `nousresearch/hermes-agent`, mutable tags `latest`, `stable`, `main`
-  and `X.Y.Z` releases. The recipe uses `latest`; the lock resolves and pins the
-  digest (A7). **UNVERIFIED:** no concrete version tag was confirmed, so the
-  recipe should move to a version tag when one is checked.
+- Image: `nousresearch/hermes-agent:v0.22.7`, release published 2026-11-03 and
+  verified 2026-11-05 on Docker Hub (digest
+  `sha256:e6d81ae52ebf6a43efa529701405509f20054ba818f179ddd748bed4f8af584c`).
+  The recipe pins `v0.22.7`; the lock resolves and pins the digest (A7). The
+  `gateway run` command and `/opt/data` state/config layout match upstream `v0.22.7`.
 - State: `/opt/data` is the `HERMES_HOME` volume; code lives in `/opt/hermes`.
 - Config: `/opt/data/config.yaml` (YAML), key `mcp_servers` for MCP servers.
   `hermes` rewrites this file, so it is listed under `writable`.
