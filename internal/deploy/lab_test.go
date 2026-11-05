@@ -56,7 +56,7 @@ func TestLabDeploy(t *testing.T) {
 	if err = c.UploadActivator(ctx, binary); err != nil {
 		t.Fatal(err)
 	}
-	image, err := (lock.Resolver{}).Resolve(ctx, "busybox:1.37.0")
+	image, _, err := (lock.Resolver{}).Resolve(ctx, "busybox:1.37.0")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-const indexBody = `{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":123,"platform":{"architecture":"amd64","os":"linux"}}]}`
+const indexBody = `{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":123,"platform":{"architecture":"amd64","os":"linux"}},{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","size":124,"platform":{"architecture":"arm64","os":"linux"}},{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","size":125,"platform":{"architecture":"unknown","os":"unknown"}}]}`
 
 func digestOf(body string) string {
 	sum := sha256.Sum256([]byte(body))
@@ -43,13 +43,16 @@ func TestResolveImageDigest(t *testing.T) {
 
 	host := hostOf(t, srv.URL)
 	r := Resolver{Scheme: "http"}
-	got, err := r.Resolve(context.Background(), host+"/acme/tool:1.2")
+	got, platforms, err := r.Resolve(context.Background(), host+"/acme/tool:1.2")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := host + "/acme/tool@" + digestOf(indexBody)
 	if got != want {
 		t.Fatalf("got %s, want %s", got, want)
+	}
+	if strings.Join(platforms, ",") != "linux/amd64,linux/arm64" {
+		t.Fatalf("platforms = %v, want linux/amd64 and linux/arm64 without attestations", platforms)
 	}
 	if !strings.Contains(accept, ociIndex) {
 		t.Fatalf("Accept header %q does not ask for an OCI index", accept)
@@ -85,7 +88,7 @@ func TestResolveImageUsesBearerToken(t *testing.T) {
 
 	host := hostOf(t, srv.URL)
 	r := Resolver{Scheme: "http"}
-	got, err := r.Resolve(context.Background(), host+"/acme/tool")
+	got, _, err := r.Resolve(context.Background(), host+"/acme/tool")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +106,7 @@ func TestResolveImageRejectsSingleManifest(t *testing.T) {
 	defer srv.Close()
 
 	r := Resolver{Scheme: "http"}
-	_, err := r.Resolve(context.Background(), hostOf(t, srv.URL)+"/acme/tool:1.2")
+	_, _, err := r.Resolve(context.Background(), hostOf(t, srv.URL)+"/acme/tool:1.2")
 	if err == nil || !strings.Contains(err.Error(), "not a multi-arch index") {
 		t.Fatalf("got error %v, want a multi-arch rejection", err)
 	}
@@ -118,7 +121,7 @@ func TestResolveImageRejectsBadDigestHeader(t *testing.T) {
 	defer srv.Close()
 
 	r := Resolver{Scheme: "http"}
-	_, err := r.Resolve(context.Background(), hostOf(t, srv.URL)+"/acme/tool:1.2")
+	_, _, err := r.Resolve(context.Background(), hostOf(t, srv.URL)+"/acme/tool:1.2")
 	if err == nil || !strings.Contains(err.Error(), "does not match") {
 		t.Fatalf("got error %v, want a digest mismatch", err)
 	}
@@ -126,12 +129,15 @@ func TestResolveImageRejectsBadDigestHeader(t *testing.T) {
 
 func TestResolvePinnedImageNeedsNoNetwork(t *testing.T) {
 	const pinned = "ghcr.io/acme/tool@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	got, err := Resolver{}.Resolve(context.Background(), pinned)
+	got, platforms, err := Resolver{}.Resolve(context.Background(), pinned)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != pinned {
 		t.Fatalf("got %s, want %s", got, pinned)
+	}
+	if platforms != nil {
+		t.Fatalf("pinned reference reported platforms %v without fetching the index", platforms)
 	}
 }
 

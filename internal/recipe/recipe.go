@@ -171,6 +171,11 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 	if r.Health.HTTP != nil && len(r.Health.Command) > 0 {
 		d.Add("/health", "choose HTTP or command health check")
 	}
+	if r.Resources.MinRAM != "" {
+		if _, err := ParseSize(r.Resources.MinRAM); err != nil {
+			d.Add("/resources/min_ram", "expected a size such as 4GB or 512MiB")
+		}
+	}
 	if !validImage(r.Image) {
 		d.Add("/image", "image must have an explicit tag or sha256 digest")
 	}

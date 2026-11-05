@@ -119,11 +119,11 @@ Written by Olympus only (`check` when missing, and `update`). JSON with sorted k
 {
   "version": 1,
   "inputs": { "recipes": { "url": "github:Haze-dev1/Olympus/recipes", "rev": "3f2a9c1e…", "hash": "sha256-…" } },
-  "tools": { "hermes": { "image": "nousresearch/hermes-agent@sha256:…" } }
+  "tools": { "hermes": { "image": "nousresearch/hermes-agent@sha256:…", "platforms": ["linux/amd64", "linux/arm64"] } }
 }
 ```
 
-`image` pins the multi-architecture index digest. Every later run uses the locked revision and digests; `update` moves them forward ([ADR 0008](../ADR.md#0008-pin-exact-versions-in-stacklock), [0016](../ADR.md#0016-pin-the-recipe-set-as-a-flake-style-input)). `hash` is the canonical hash of the extracted catalog tree, defined in [ADR 0023](../ADR.md#0023-hash-the-extracted-catalog-tree-in-a-canonical-form).
+`image` pins the multi-architecture index digest. Every later run uses the locked revision and digests; `update` moves them forward ([ADR 0008](../ADR.md#0008-pin-exact-versions-in-stacklock), [0016](../ADR.md#0016-pin-the-recipe-set-as-a-flake-style-input)). `platforms` records the `os/architecture` pairs the index contains, sorted and de-duplicated, so the apply preflight can check the server without another registry call; it is absent for locks written before the field and for digest-pinned references, and the preflight then warns. `hash` is the canonical hash of the extracted catalog tree, defined in [ADR 0023](../ADR.md#0023-hash-the-extracted-catalog-tree-in-a-canonical-form).
 
 ## Generations and server layout
 

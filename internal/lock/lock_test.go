@@ -24,7 +24,7 @@ func testFile() *File {
 			},
 		},
 		Tools: map[string]Tool{
-			"hermes": {Image: "nousresearch/hermes-agent@" + testImg},
+			"hermes": {Image: "nousresearch/hermes-agent@" + testImg, Platforms: []string{"linux/arm64", "linux/amd64", "linux/arm64"}},
 			"codex":  {Image: "ghcr.io/acme/codex@sha256:3333333333333333333333333333333333333333333333333333333333333333"},
 		},
 	}
@@ -55,7 +55,11 @@ func TestWriteReadRoundTrip(t *testing.T) {
       "image": "ghcr.io/acme/codex@sha256:3333333333333333333333333333333333333333333333333333333333333333"
     },
     "hermes": {
-      "image": "nousresearch/hermes-agent@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      "image": "nousresearch/hermes-agent@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
     }
   }
 }
@@ -106,6 +110,11 @@ func TestReadRejectsInvalidLock(t *testing.T) {
 			name: "trailing data",
 			body: `{"version":1,"inputs":{"recipes":{"url":"u","rev":"` + testRev + `","hash":"` + testHash + `"}},"tools":{}}{}`,
 			want: "trailing data",
+		},
+		{
+			name: "bad platform",
+			body: `{"version":1,"inputs":{"recipes":{"url":"u","rev":"` + testRev + `","hash":"` + testHash + `"}},"tools":{"hermes":{"image":"hermes@` + testImg + `","platforms":["nonsense"]}}}`,
+			want: "invalid image platform",
 		},
 	}
 	for _, tc := range cases {

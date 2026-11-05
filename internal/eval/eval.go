@@ -58,8 +58,11 @@ type Compose struct {
 // Inputs are collected before evaluation. Keeping file IO outside Build makes
 // the evaluator pure and lets tests supply exactly the same bytes twice.
 type Inputs struct {
-	Revision  string
-	Images    map[string]string
+	Revision string
+	Images   map[string]string
+	// Platforms are the locked image-index platforms per tool. They are not
+	// build inputs; the apply preflight compares them with the server.
+	Platforms map[string][]string
 	Stack     *stack.Stack
 	Recipes   map[string]*recipe.Recipe
 	Templates map[string]map[string][]byte

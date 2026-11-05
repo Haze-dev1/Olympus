@@ -184,11 +184,11 @@ func prepare(ctx context.Context, s *stack.Stack, file, local, command string, o
 			if err != nil {
 				return empty, fmt.Errorf("%s: %w", name, err)
 			}
-			image, err = resolver.Resolve(ctx, image)
+			image, platforms, err := resolver.Resolve(ctx, image)
 			if err != nil {
 				return empty, err
 			}
-			pinned.Tools[name] = lock.Tool{Image: image, ImageTag: tool.ImageTag}
+			pinned.Tools[name] = lock.Tool{Image: image, ImageTag: tool.ImageTag, Platforms: platforms}
 		}
 		if command == "check" {
 			inputs.Images = map[string]string{}
@@ -205,8 +205,10 @@ func prepare(ctx context.Context, s *stack.Stack, file, local, command string, o
 	}
 	if pinned != nil {
 		inputs.Images = map[string]string{}
+		inputs.Platforms = map[string][]string{}
 		for name, tool := range pinned.Tools {
 			inputs.Images[name] = tool.Image
+			inputs.Platforms[name] = tool.Platforms
 		}
 	}
 	return inputs, nil

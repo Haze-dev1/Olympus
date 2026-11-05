@@ -13,7 +13,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0005](#0005-describe-each-tool-with-a-declarative-yaml-recipe) | Describe each tool with a declarative YAML recipe | Accepted, amended by 0016, 0018 |
 | [0006](#0006-keep-official-recipes-in-one-folder-in-this-repo) | Keep official recipes in one folder in this repo | Accepted, source restriction superseded by 0026 |
 | [0007](#0007-run-each-tool-in-its-own-docker-container) | Run each tool in its own Docker container | Accepted |
-| [0008](#0008-pin-exact-versions-in-stacklock) | Pin exact versions in stack.lock | Accepted, amended by 0016 |
+| [0008](#0008-pin-exact-versions-in-stacklock) | Pin exact versions in stack.lock | Accepted, amended by 0016, 0044 |
 | [0009](#0009-keep-secrets-in-a-git-ignored-env-referenced-by-name) | Keep secrets in a git-ignored .env, referenced by name | Accepted |
 | [0010](#0010-expose-nothing-publicly-by-default) | Expose nothing publicly by default | Accepted |
 | [0011](#0011-make-apply-converge-to-the-desired-state-tracked-by-container-labels) | Make apply converge to the desired state, tracked by container labels | Superseded by 0014 |
@@ -48,6 +48,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0040](#0040-resolve-optional-catalog-refs-to-locked-commits) | Resolve optional catalog refs to locked commits | Accepted |
 | [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted |
 | [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
+| [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -232,7 +233,7 @@ We will run each tool as its own container on the server, with its own volumes a
 
 ## 0008. Pin exact versions in stack.lock
 
-- **Status:** Accepted, amended by [0016](#0016-pin-the-recipe-set-as-a-flake-style-input) (the lock pins the recipe input revision, not per-recipe versions)
+- **Status:** Accepted, amended by [0016](#0016-pin-the-recipe-set-as-a-flake-style-input) (the lock pins the recipe input revision, not per-recipe versions) and [0044](#0044-preflight-the-server-before-plan-and-apply) (the lock also records the resolved image platforms)
 - **Date:** 2026-10-19
 
 ### Context
@@ -1258,6 +1259,102 @@ initialization. A malicious concurrent writer could race path checks.
 - Infer ownership from the current stack: cannot identify removed skills.
 - Add host-side Docker volume inspection: expands privileges and duplicates
   the existing container init path.
+
+## 0044. Preflight the server before plan and apply
+
+- **Status:** Accepted
+- **Date:** 2026-11-05
+- **Amends:** [0008](#0008-pin-exact-versions-in-stacklock)
+
+### Context
+
+OLY-31: `plan` and `apply` verified SSH and root/passwordless sudo, then read
+metadata. Everything else surfaced late or not at all. An image with no build for
+the server's architecture failed during the pull, after uploads; a port another
+service already held failed inside Compose; low memory and disk failed mid-pull
+with a Docker error. The edge-case table requires the first two to fail in
+`plan`, naming the tool, image or port, and low memory to warn with confirmation.
+`resources.min_ram` was parsed into a struct and never used.
+
+The architecture check needs image platform data. `stack.lock` stores only the
+index digest, and ADR 0024 chose not to store platform information or fetch a
+platform manifest.
+
+### Decision
+
+The client runs a read-only preflight over SSH before any mutation, from
+`plan` and `apply` alike, after SSH and privilege checks and before reading the
+current generation:
+
+1. Read `/etc/os-release` and refuse an unsupported OS before anything else.
+2. Read `uname -m`; only `x86_64`/`amd64` and `aarch64`/`arm64` are supported.
+3. Compare each tool's locked image platforms with `linux/<server arch>`. A
+   missing match is a failure naming the tool, image and architecture; a lock
+   with no platform record warns and points at `olym update`.
+4. Read `MemTotal` from `/proc/meminfo`; warn per tool when the recipe's
+   `resources.min_ram` is larger. `apply` continues only after its normal
+   confirmation prompt, which shows the warning; `--yes` is that confirmation.
+5. Read free space with `df -kP /var/lib`; warn below 5 GiB and fail below 1 GiB.
+6. Read listeners with `ss -ltnp` and compare each recipe port with them. Host
+   ports published by containers carrying the
+   `com.docker.compose.project=olympus` label are ignored, so the current
+   generation never conflicts with itself; without a Docker daemon there can be
+   no olympus containers to ignore. A conflict fails naming the tool, port and
+   process.
+
+Failures exit 1. Every command is an argument list (A2), and remote text parsed
+from `ss` is stripped of control characters before it reaches a message (A1).
+
+To make step 3 possible offline, `update` and a lock-creating `check` record the
+index's `os/architecture` pairs in a new optional `platforms` array on each lock
+tool. The field is canonical (sorted, de-duplicated) and validated as
+`os/architecture`. A digest-pinned reference already in the stack has no fetched
+index, so it records nothing and warns.
+
+### Consequences
+
+- Wrong architecture, an occupied port and an unusable disk fail before any
+  upload or file write, with the tool named.
+- `plan` needs no registry access for the architecture check; a lock remains
+  sufficient to explain what will run.
+- The lock grows by a few bytes per tool and old locks keep working with a
+  warning. Older Olympus binaries reject a lock carrying the new field, which is
+  acceptable before a release.
+- Every `plan`/`apply` costs five extra read-only SSH commands (`cat`, `uname`,
+  `cat`, `df`, `ss`) plus one `docker ps` when ports are declared.
+- Missing `ss` or Docker degrades the port check to a warning rather than
+  blocking every deployment on a minimal system. The OS, architecture and disk
+  checks stay hard failures, and memory stays a warning.
+- `min_ram` is compared per tool, not summed across tools, matching the recipe
+  field's meaning. The check reads total memory, not currently available memory.
+- Public ports are checked, but public-port builds are still rejected by the
+  evaluator until that slice lands. A private port conflicts only with loopback
+  or wildcard listeners on the same number; a public port conflicts with any
+  listener. This avoids failing because another service holds that number on an
+  unrelated address, but a loopback bind can still be blocked by a wildcard
+  listener, which is what Docker publishes by default.
+- The preflight does not verify that an image can be pulled, only that its index
+  claims the platform. Pull, digest and registry failures remain activation
+  failures.
+- A hand-edited lock can claim platforms the index does not have; the platform
+  claim is trusted because the digest is the real check at pull time.
+
+### Alternatives considered
+
+- **Query the registry from the client at apply time:** needs network and token
+  handling in the apply path, fails when the registry is unreachable although a
+  cached image would run, and repeats work `update` already did.
+- **Run `docker manifest inspect` on the server:** Docker may not be installed
+  yet on a first apply, and it adds a registry dependency to the server.
+- **Refuse any index missing amd64 or arm64 at `update`:** hides the per-server
+  reason, blocks a valid amd64-only deployment, and still cannot explain an
+  older lock.
+- **Record ports in the manifest to detect our own:** changes generation hashes
+  for data the server already exposes through Docker labels.
+- **Hard-fail on low memory:** the edge-case table asks for a warning and
+  confirmation; servers are also shared, so the user decides.
+- **Inspect `/proc/net/tcp` instead of `ss`:** gives no process name, and the
+  edge case requires naming the process.
 
 ## Template
 

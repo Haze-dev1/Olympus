@@ -193,3 +193,16 @@ Security: A1 values remain outside evaluated/saved artifacts, logs and argv; A2 
 - The canonical VM was shut down with its lab.sh down after verification. The final delete-data step removed Olympus state and project volumes; unrelated test resources were explicitly cleaned up after their survival checks.
 
 This final section supersedes the historical offline/read-only scope statements above. M1 is complete at the requested lab acceptance scope, with the release limits listed above retained explicitly.
+
+## Apply preflight, 2026-11-05
+
+OLY-31 adds the read-only server preflight that earlier sections list as absent:
+supported OS, amd64/arm64 architecture against the image platforms recorded in
+`stack.lock`, `resources.min_ram` warnings, free disk, and declared ports
+(ignoring host ports published by the current `olympus` generation). It runs in
+`plan` and `apply` after SSH/privilege checks and before any mutation, fails with
+exit 1, and prints warnings before the apply confirmation. Details, tests and the
+unrun lab check are in [preflight.md](preflight.md) and
+[ADR 0044](../../ADR.md#0044-preflight-the-server-before-plan-and-apply). The
+earlier "capacity/port preflight remains outside this slice" statements describe
+the state before this section.

@@ -28,7 +28,7 @@ func TestCatalogCommands(t *testing.T) {
 			t.Error("GitHub credential reached registry")
 		}
 		w.Header().Set("Content-Type", "application/vnd.oci.image.index.v1+json")
-		fmt.Fprint(w, `{"schemaVersion":2,"manifests":[{}]}`)
+		fmt.Fprint(w, `{"schemaVersion":2,"manifests":[{"platform":{"os":"linux","architecture":"amd64"}}]}`)
 	}))
 	defer registry.Close()
 	var archive bytes.Buffer
@@ -105,6 +105,9 @@ func TestCatalogCommands(t *testing.T) {
 	pinned, err := lock.Read(lockPath)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if got := strings.Join(pinned.Tools["assistant"].Platforms, ","); got != "linux/amd64" {
+		t.Fatalf("lock platforms = %q, want the resolved index platforms", got)
 	}
 	outputDir := filepath.Join(dir, "build")
 	if code, output := invoke("build", "-o", outputDir); code != 0 {

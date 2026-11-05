@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-22",
+  "updated": "2026-11-05",
   "phase": "implementation",
   "milestones": [
     {
@@ -13,7 +13,8 @@
         "remote-ssh",
         "test-lab",
         "activator",
-        "deploy"
+        "deploy",
+        "preflight"
       ]
     },
     {
@@ -112,6 +113,12 @@
       "status": "done",
       "file": "features/deploy.md",
       "updated": "2026-10-20"
+    },
+    "preflight": {
+      "status": "done",
+      "file": "features/preflight.md",
+      "updated": "2026-11-05",
+      "summary": "Read-only preflight in plan/apply: OS, arch vs locked image platforms, RAM, disk and occupied ports (ignoring the current olympus generation). Offline tests only; lab not run (no QEMU on this host)."
     }
   },
   "decisions": [
@@ -142,6 +149,7 @@
     "ADR 0039 Hermes channels as environment variables",
     "ADR 0040 optional catalog refs resolved to immutable commits",
     "ADR 0041 prepare and reuse content-addressed built images",
-    "ADR 0042 track and prune only previously copied skill files"
+    "ADR 0042 track and prune only previously copied skill files",
+    "ADR 0044 preflight the server before plan and apply"
   ]
 }

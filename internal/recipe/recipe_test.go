@@ -24,6 +24,8 @@ func TestRecipeValidation(t *testing.T) {
 		{"volume traversal", strings.Replace(base, "/opt/demo", "/opt/../demo", 1), "invalid volume"},
 		{"overlap", strings.Replace(base, "{data: /opt/demo}", "{data: /opt/demo, sub: /opt/demo/sub}", 1), "must not overlap"},
 		{"variable in image", strings.Replace(base, "example/demo:1", "${IMAGE}", 1), "secret-capable"},
+		{"valid min ram", base + "resources: {min_ram: 4GB}\n", ""},
+		{"bad min ram", base + "resources: {min_ram: lots}\n", "expected a size"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

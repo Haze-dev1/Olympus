@@ -15,7 +15,7 @@ The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-cu
 | `name` | yes | Recipe name, matching its folder |
 | `kind` | yes | `harness`, `coding-agent` or `app` |
 | `image` | yes | Container image with a default tag; the lock pins its digest |
-| `resources.min_ram` | no | Minimum memory; `plan` warns if the server has less |
+| `resources.min_ram` | no | Minimum memory as a size such as `4GB` or `512MiB` (decimal `KB`/`MB`/`GB`/`TB`, binary `KiB`/`MiB`/`GiB`/`TiB`); the preflight warns if the server has less and `apply` continues only after confirmation |
 | `volumes` | no | Map of name → path in the container. Kept across upgrades and by `destroy` unless asked. |
 | `ports` | no | Ports the tool listens on; bound to localhost |
 | `command` | no | Argument list that replaces the image's default command |
