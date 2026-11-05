@@ -76,9 +76,7 @@ services:
     entrypoint:
     - /bin/sh
     - -c
-    - |
-      mkdir -p '/opt/data' && cp -a '/olympus-init/0' '/opt/data/config.yaml'
-      mkdir -p '/opt/data/skills/deploy-checklist' && cp -a '/olympus-init/1' '/opt/data/skills/deploy-checklist/SKILL.md'
+    - "set -eu\nroot='/opt/data/skills'\nledger=\"$$root/.olympus-managed-files\"\ncheck_path() {\n current=''\n rest=\"$$1\"\n while [ -n \"$$rest\" ]; do\n  part=$${rest%%/*}\n  if [ \"$$part\" = \"$$rest\" ]; then rest=''; else rest=$${rest#*/}; fi\n  [ -n \"$$part\" ] || continue\n  case \"$$part\" in .|..) exit 1;; esac\n  current=\"$$current/$$part\"\n  [ ! -L \"$$current\" ] || exit 1\n done\n}\ncheck_path \"$$ledger\"\nif [ -f \"$$ledger\" ]; then\n while IFS= read -r rel || [ -n \"$$rel\" ]; do\n  case \"$$rel\" in ''|/*|*[!A-Za-z0-9._@+/-]*|'.olympus-managed-files') exit 1;; esac\n  check_path \"$$root/$$rel\"\n done < \"$$ledger\"\n while IFS= read -r rel || [ -n \"$$rel\" ]; do\n  rm -f -- \"$$root/$$rel\"\n done < \"$$ledger\"\nfi\ncheck_path '/opt/data/config.yaml'\nmkdir -p '/opt/data' && cp -a '/olympus-init/0' '/opt/data/config.yaml'\ncheck_path '/opt/data/skills/deploy-checklist/SKILL.md'\nmkdir -p '/opt/data/skills/deploy-checklist' && cp -a '/olympus-init/1' '/opt/data/skills/deploy-checklist/SKILL.md'\ncheck_path '/opt/data/skills/.olympus-managed-files'\ncheck_path '/opt/data/skills/.olympus-managed-files.next'\nmkdir -p '/opt/data/skills' && cp -a '/olympus-init/2' '/opt/data/skills/.olympus-managed-files.next' && mv -f '/opt/data/skills/.olympus-managed-files.next' '/opt/data/skills/.olympus-managed-files'\n"
     image: nousresearch/hermes-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     labels:
       org.olympus.role: init
@@ -89,12 +87,16 @@ services:
       target: /opt/data
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-2bd8c9fb544a0176653e4998434b0b644a6a2b74f43024e85de3fb9b1032d3ac/files/opt/data/config.yaml
+      source: /var/lib/olympus/store/sha256-b282d770da91f2dbf4f1a7419d240223f27804c15da9b46b91898e1eaed46e8b/files/opt/data/config.yaml
       target: /olympus-init/0
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-2bd8c9fb544a0176653e4998434b0b644a6a2b74f43024e85de3fb9b1032d3ac/files/opt/data/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-b282d770da91f2dbf4f1a7419d240223f27804c15da9b46b91898e1eaed46e8b/files/opt/data/skills/deploy-checklist/SKILL.md
       target: /olympus-init/1
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-b282d770da91f2dbf4f1a7419d240223f27804c15da9b46b91898e1eaed46e8b/files/opt/data/skills/.olympus-managed-files
+      target: /olympus-init/2
       type: bind
   opencode:
     command:

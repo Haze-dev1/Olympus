@@ -47,6 +47,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 
 | [0040](#0040-resolve-optional-catalog-refs-to-locked-commits) | Resolve optional catalog refs to locked commits | Accepted |
 | [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted |
+| [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1096,7 +1097,7 @@ Skills are defined once and shared by every tool that accepts them. Codex and Op
 ### Consequences
 
 - Mounted skills cannot drift or be edited by the tool; copied skills can be edited by the agent but are restored from the stack on apply.
-- Copied skills add files to the init script, and deleted skills are not removed from the volume.
+- Copied skills add files to the init script. [ADR 0042](#0042-track-and-prune-only-previously-copied-skill-files) amends deletion behavior with an ownership ledger.
 - Each recipe states which mode it needs; a new tool does not require core changes.
 
 ### Alternatives considered
@@ -1211,6 +1212,52 @@ timestamp rewriting and an npm lockfile with integrity hashes) are a follow-up.
 - Rebuild on every activation: unnecessary work and risks image churn on rollback.
 - Publish to a new registry: adds credentials and infrastructure.
 
+
+## 0042. Track and prune only previously copied skill files
+
+- **Status:** Accepted
+- **Date:** 2026-10-22
+- **Amends:** [0038](#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)
+
+### Context
+
+OLY-29: removing a copied skill or one of its files leaves stale content in the
+project volume. The same directory can contain skills and files created by the
+agent, so clearing it recursively would destroy unrelated data.
+
+### Decision
+
+Copy-mode init services persist `.olympus-managed-files` under the recipe's skills
+directory. The generated ledger lists relative file paths copied by Olympus and
+participates in the tool hash. Every init validates the previous ledger and path
+ancestors, removes its recorded files, copies current files, then atomically replaces the
+ledger last through a checked `.next` sibling. The init service exists even for an empty selection. It fails on
+traversal, unsafe names or symlinks and uses `set -eu`. Shell dollar signs are
+escaped for Compose interpolation. Removal runs only inside the project tool
+volume, never on the server host.
+
+### Consequences
+
+Removed skills and obsolete files disappear on the next changed-generation init.
+Unrecorded files and directories survive, including files an agent added inside
+a managed skill. Rollback to a ledger-aware generation restores its selected
+files. Older generations without this protocol cannot maintain the ledger.
+Pre-upgrade copies without a ledger are left untouched because ownership cannot
+be established safely. An interrupted init can leave partially copied data; the
+old ledger remains until copying succeeds and reapplying retries the operation.
+Changing a recipe's skills directory or switching away from copy mode requires
+separate migration of old copies. Concurrent tool writes are not synchronized;
+the existing init protocol assumes the tool is not mutating these paths during
+initialization. A malicious concurrent writer could race path checks.
+
+### Alternatives considered
+
+- Clear the skills directory: deletes agent-created content.
+- Remove entire previously copied skill directories: deletes unrecorded files
+  inside them.
+- Infer ownership from the current stack: cannot identify removed skills.
+- Add host-side Docker volume inspection: expands privileges and duplicates
+  the existing container init path.
 
 ## Template
 
