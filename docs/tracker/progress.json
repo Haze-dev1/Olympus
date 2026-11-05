@@ -55,8 +55,8 @@
     "core-plan-apply": {
       "status": "done",
       "file": "features/core-plan-apply.md",
-      "updated": "2026-10-20",
-      "summary": "M1 full CLI cycle verified on reset Ubuntu lab in 77.902 s: pinned apply/no-op/selective changes, rollback, health failure, contention, real CLI kill, GC and scoped destroy."
+      "updated": "2026-11-05",
+      "summary": "M1 full CLI cycle verified on reset Ubuntu lab in 77.902 s: pinned apply/no-op/selective changes, rollback, health failure, contention, real CLI kill, GC and scoped destroy. OLY-30 closed the selective-recreation and revert gaps server-side; the lab was not re-run for it (no QEMU on the current host)."
     },
     "lock-file": {
       "status": "done",
@@ -75,7 +75,8 @@
     "activator": {
       "status": "done",
       "file": "features/activator.md",
-      "updated": "2026-10-20"
+      "updated": "2026-11-05",
+      "summary": "OLY-30: Recreate is a required Runner method with --no-build --pull never, a revert recreates the previous generation's restored tools, and a failed secret restoration takes the project down and reports exit 5. Offline tests green; lab not run (no QEMU on this host)."
     },
     "recipe-format": {
       "status": "done",
@@ -86,8 +87,8 @@
     "first-recipes": {
       "status": "done",
       "file": "features/first-recipes.md",
-      "updated": "2026-10-20",
-      "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
+      "updated": "2026-11-05",
+      "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown. Hermes pinned to v0.22.7."
     },
     "shared-mcps-skills": {
       "status": "done",
@@ -98,8 +99,8 @@
     "channels": {
       "status": "in_progress",
       "file": "features/channels.md",
-      "updated": "2026-10-20",
-      "summary": "Hermes Telegram renders as environment variables with a required allow-list; live bot test pending."
+      "updated": "2026-11-05",
+      "summary": "Hermes Telegram and Discord render as environment variables with a required allow-list; live bot test pending."
     },
     "recipe-catalog": {
       "status": "not_started",

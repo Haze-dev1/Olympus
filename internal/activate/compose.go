@@ -67,6 +67,13 @@ func (c Compose) Up(ctx context.Context, composeFile string) error {
 	return c.run(ctx, c.args(composeFile, "up", "-d", "--no-build", "--pull", "never", "--remove-orphans"))
 }
 
+// Recreate starts only the named services again, so a secret rotation leaves
+// every other container running. Images are already pulled and built, so it
+// behaves like Up: no build and no pull (A7).
+func (c Compose) Recreate(ctx context.Context, file string, tools []string) error {
+	return c.run(ctx, c.args(file, append([]string{"up", "-d", "--no-build", "--pull", "never", "--no-deps", "--force-recreate"}, tools...)...))
+}
+
 // Down stops the project's containers. Volumes are left alone.
 func (c Compose) Down(ctx context.Context, composeFile string) error {
 	return c.run(ctx, c.args(composeFile, "down"))
@@ -221,8 +228,3 @@ func (c Checker) client() *http.Client {
 
 // defaultClient bounds one attempt; the activator owns the overall timeout.
 var defaultClient = &http.Client{Timeout: 5 * time.Second}
-
-// Recreate selects only services whose secret fingerprints changed.
-func (c Compose) Recreate(ctx context.Context, file string, tools []string) error {
-	return c.run(ctx, c.args(file, append([]string{"up", "-d", "--no-deps", "--force-recreate"}, tools...)...))
-}

@@ -422,7 +422,7 @@ An exclusive `flock` on `/var/lib/olympus/lock`, held by the activator process f
 
 ### 8.3 Rollback
 
-- **Automatic** (health failure or confirm timeout): the activator runs steps 2–5 for the previous generation, with its manifest and secrets fingerprints, then exits with status 3. If there is no previous generation (first deploy), it runs `docker compose down` for the project and leaves no `current`.
+- **Automatic** (health failure or confirm timeout): the activator restores the secret values the failed transaction replaced, recreates exactly the previous generation's tools whose values it restored, then runs steps 4–5 for the previous generation, with its manifest and secrets fingerprints, and exits with status 3. If restoring the previous values fails, it takes the project down and exits with status 5 instead, because the failed generation may still hold the new values. If there is no previous generation (first deploy), it runs `docker compose down` for the project and leaves no `current`.
 - **`rollback` command:** the activator re-activates the generation before `current`, with the same health checks and the same confirm-or-revert protection.
 - Data volumes are never touched by a rollback.
 
@@ -434,7 +434,7 @@ An exclusive `flock` on `/var/lib/olympus/lock`, held by the activator process f
 4. Change detection: the activator stores `HMAC-SHA256(server key, value)` per secret. `plan` fetches the key over SSH (root-only file), computes the same HMACs locally and compares, so it can report "secret changed" for a tool without either side storing or sending a plain hash. The server key is random per server, so fingerprints cannot be compared across servers.
 5. Tools whose fingerprints changed are recreated with `--force-recreate`; others keep running.
 
-Fingerprints include both named secret and environment delivery targets, domain-separated by kind/name. They live in each tool's secrets directory and are backed up with the values. A partial installation restores earlier tools; a restoration failure returns exit 5. Explicit rollback uses current credentials, while an automatic revert restores the failed transaction's previous values. No historical secret archive is retained. See [ADR 0032](ADR.md#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs).
+Fingerprints include both named secret and environment delivery targets, domain-separated by kind/name. They live in each tool's secrets directory and are backed up with the values. A partial installation restores earlier tools; a restoration failure returns exit 5. Explicit rollback uses current credentials. An automatic revert restores the failed transaction's previous values and recreates only the previous generation's tools whose values it restored; if that restoration fails, the project is taken down and the run reports exit 5 rather than leaving the failed generation running. No historical secret archive is retained. See [ADR 0032](ADR.md#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs) and [ADR 0043](ADR.md#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert).
 
 ### 8.5 Health checks
 
@@ -548,6 +548,7 @@ Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)
 | Connection drops after activation began | Activator continues; rolls back at the confirm deadline | 3 on next contact |
 | New generation blocks SSH | CLI cannot confirm; server rolls back by itself | 3 |
 | Confirmation after the deadline | `confirm` reports the server already rolled back | 3 |
+| Rollback fails, or the previous secret values cannot be restored | Take the project down, record `rollback_failed`, say the server may be down | 5 |
 | Activator checksum or version mismatch | Re-upload; refuse to run a mismatched binary | 1 |
 | `rollback` with no previous generation | Refuse | 1 |
 | Rolling back to a generation removed by `gc` | Refuse; name missing store entries | 1 |

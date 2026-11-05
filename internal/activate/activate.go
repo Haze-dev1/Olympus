@@ -67,6 +67,11 @@ type Clock interface {
 type Runner interface {
 	Pull(ctx context.Context, composeFile string) error
 	Build(ctx context.Context, composeFile string) error
+	// Recreate starts the named services again with their secret files on
+	// disk, without touching the services it was not given. Activation calls
+	// it for exactly the tools whose secrets changed, so unrelated tools keep
+	// running (TRD 8.1).
+	Recreate(ctx context.Context, composeFile string, tools []string) error
 	Up(ctx context.Context, composeFile string) error
 	Down(ctx context.Context, composeFile string) error
 	Exec(ctx context.Context, composeFile, tool string, args []string) error
@@ -393,12 +398,9 @@ func (a *Activator) startWithSecrets(ctx context.Context, t target, changed []st
 		return fmt.Errorf("build images for %s: %w", t.id, err)
 	}
 	if len(changed) > 0 {
-		if r, ok := a.Runner.(interface {
-			Recreate(context.Context, string, []string) error
-		}); ok {
-			if err := r.Recreate(ctx, file, changed); err != nil {
-				return err
-			}
+		a.logf("recreating %s for changed secrets", strings.Join(changed, ", "))
+		if err := a.Runner.Recreate(ctx, file, changed); err != nil {
+			return fmt.Errorf("recreate %s: %w", strings.Join(changed, ", "), err)
 		}
 	}
 	if err := a.Runner.Up(ctx, file); err != nil {
@@ -424,10 +426,18 @@ func (a *Activator) revertDown(ctx context.Context, failed target, cause error) 
 // current points at, or takes the project down when the failed generation was
 // the first one. It reports RolledBackError only when that worked.
 func (a *Activator) revertOrDown(ctx context.Context, failed target, cause error, bk *secretsBackup) error {
-	restoreErr := a.restoreSecrets(bk)
-	if restoreErr != nil {
+	if restoreErr := a.restoreSecrets(bk); restoreErr != nil {
+		// The previous values are not back in place, so the failed generation
+		// may be running with the new ones. Take the project down rather than
+		// leave half a server up, but report that the rollback did not finish.
+		a.logf("generation %s failed: %v; restoring the previous secrets failed: %v", failed.id, cause, restoreErr)
+		rollback := restoreErr
+		if err := a.Runner.Down(ctx, failed.composeFile()); err != nil {
+			a.logf("taking the project down failed: %v", err)
+			rollback = errors.Join(restoreErr, fmt.Errorf("taking the project down: %w", err))
+		}
 		a.finish(failed.id, StatusRollbackFailed)
-		return &RollbackFailedError{Activation: cause, Rollback: restoreErr}
+		return &RollbackFailedError{Activation: cause, Rollback: rollback}
 	}
 	prev, _, ok, err := a.current()
 	if err != nil {
@@ -438,13 +448,32 @@ func (a *Activator) revertOrDown(ctx context.Context, failed target, cause error
 		return a.revertDown(ctx, failed, cause)
 	}
 	a.logf("generation %s failed: %v; re-activating %s", failed.id, cause, prev.id)
-	if err := a.start(ctx, prev); err != nil {
+	// The containers of the previous generation still hold the values the
+	// failed activation replaced, so recreate exactly those tools once their
+	// own secret files are back.
+	if err := a.startWithSecrets(ctx, prev, restoredTools(bk, prev)); err != nil {
 		a.logf("re-activating %s failed: %v", prev.id, err)
 		a.finish(failed.id, StatusRollbackFailed)
 		return &RollbackFailedError{Activation: cause, Rollback: err}
 	}
 	a.finish(failed.id, StatusRolledBack)
 	return &RolledBackError{Cause: cause}
+}
+
+// restoredTools lists the tools the previous generation declares whose secrets
+// an activation replaced. A tool the previous generation does not declare is
+// skipped: it is not a service in that Compose file.
+func restoredTools(bk *secretsBackup, prev target) []string {
+	if bk == nil {
+		return nil
+	}
+	var tools []string
+	for _, tool := range bk.changed {
+		if _, ok := prev.manifest.Tools[tool]; ok {
+			tools = append(tools, tool)
+		}
+	}
+	return tools
 }
 
 // healthy runs every declared health check in parallel, each with its own

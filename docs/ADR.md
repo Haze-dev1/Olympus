@@ -48,6 +48,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0040](#0040-resolve-optional-catalog-refs-to-locked-commits) | Resolve optional catalog refs to locked commits | Accepted |
 | [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted |
 | [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
+| [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032 |
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
@@ -788,7 +789,7 @@ Read optional `GITHUB_TOKEN` only at the CLI boundary and use it only on GitHub 
 
 ## 0027. Activate a generation from the store by manifest id
 
-- **Status:** Accepted, amended by [0028](#0028-store-health-checks-in-the-generation-manifest) and [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs)
+- **Status:** Accepted, amended by [0028](#0028-store-health-checks-in-the-generation-manifest), [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs) and [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert)
 - **Date:** 2026-10-20
 
 ### Context
@@ -942,7 +943,7 @@ Concurrent losers cannot overwrite the winning run's payload or confirm it. An i
 
 ## 0032. Fingerprint secrets with a server key and restore partial installs
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert)
 - **Date:** 2026-10-20
 
 ### Context
@@ -1259,6 +1260,37 @@ initialization. A malicious concurrent writer could race path checks.
 - Infer ownership from the current stack: cannot identify removed skills.
 - Add host-side Docker volume inspection: expands privileges and duplicates
   the existing container init path.
+
+## 0043. Recreate only the containers whose secrets changed, including on revert
+
+- **Status:** Accepted
+- **Date:** 2026-11-05
+- **Amends:** [0027](#0027-activate-a-generation-from-the-store-by-manifest-id), [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs)
+
+### Context
+
+OLY-30. A secret rotation must restart the container whose values changed and leave every other container running, and a failed first activation must leave a server the operator can retry. Three gaps remained in the implemented path. `Recreate` was an optional method asserted from the activator's `Runner`, so a runner that did not implement it silently skipped rotation instead of failing. The automatic revert called the plain `start`, which never recreated anything, so containers of the previous generation kept the values the failed activation had replaced. And when restoring the previous secret files failed, the revert returned early without taking the project down, leaving the failed generation running with the new values while `state.json` claimed a failed rollback.
+
+### Decision
+
+`Recreate(ctx, composeFile, tools)` becomes part of the `Runner` interface, so every runner must implement selective recreation and a rotation can never be skipped by omission. `Compose.Recreate` runs `up -d --no-build --pull never --no-deps --force-recreate <tools>`, matching `Up`: activation has already pulled and built the images, and rule A7 forbids pulling a moving tag on a deployment whose images are pinned by digest.
+
+The automatic revert recreates the tools whose secret files it restored, filtered to tools the previous generation's manifest declares, before running `Up` for that generation. A tool the previous generation does not declare is not a service in its Compose file and is skipped.
+
+When restoring the previous secret files fails, the activator runs `docker compose down` for the project anyway, records `rollback_failed`, and returns `RollbackFailedError` (exit 5). It does not claim a rollback it could not perform. `rolled-back` (exit 3) therefore still means the server came back and passed its health checks.
+
+### Consequences
+
+A rotation restarts exactly the tools whose fingerprints changed, on both the forward path and a revert. A server whose first activation failed ends with the project down, no `current`, and no leftover secret files or backups, so re-running apply behaves like any first apply. A runner that cannot recreate tools is a compile error rather than a silent no-op.
+
+Taking the project down on a restoration failure is deliberately conservative: data volumes are untouched, but a server that was serving the previous generation becomes unavailable until the operator fixes the secret directory and re-applies. The alternative, leaving the failed generation running with new credentials while reporting a failed rollback, was rejected because it hides which values the containers actually hold.
+
+### Alternatives considered
+
+- **Keep `Recreate` optional:** compatible with the old interface, but a runner that forgot it would silently keep stale credentials, which is the bug this ADR closes.
+- **Re-run secret installation during a revert instead of restoring the backup:** reads the payload again, which is deleted by design, and could lose values the CLI no longer has.
+- **Recreate every tool of the previous generation on revert:** restarts healthy containers whose values did not change, and makes the automatic path noisier than the forward one.
+- **Leave the failed generation running when restoration fails:** keeps a server up on values the operator cannot see and contradicts `rollback_failed`.
 
 ## 0044. Preflight the server before plan and apply
 

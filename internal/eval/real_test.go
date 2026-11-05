@@ -198,6 +198,21 @@ func TestRealStackCompose(t *testing.T) {
 	if env["TELEGRAM_ALLOWED_USERS"] != "@alice,@bob" {
 		t.Errorf("allow-list = %v", env["TELEGRAM_ALLOWED_USERS"])
 	}
+	if env["DISCORD_ALLOWED_USERS"] != "123456789" {
+		t.Errorf("discord allow-list = %v", env["DISCORD_ALLOWED_USERS"])
+	}
+	if env["DISCORD_ALLOWED_ROLES"] != "987654321" {
+		t.Errorf("discord roles = %v", env["DISCORD_ALLOWED_ROLES"])
+	}
+	if _, ok := env["DISCORD_BOT_TOKEN"]; ok {
+		t.Errorf("secret token DISCORD_BOT_TOKEN leaked into service environment")
+	}
+	if bytes.Contains(g.Files["compose.yaml"], []byte("DISCORD_BOT_TOKEN")) {
+		t.Errorf("secret token DISCORD_BOT_TOKEN leaked into compose.yaml")
+	}
+	if bytes.Contains(g.Files["manifest.json"], []byte("DISCORD_BOT_TOKEN")) {
+		t.Errorf("secret token DISCORD_BOT_TOKEN leaked into manifest.json")
+	}
 
 	for _, name := range []string{"hermes", "codex", "opencode"} {
 		init := object(t, services[name+"-init"], name+"-init service")
@@ -224,6 +239,16 @@ func TestRealStackEmptyTelegramAllowListFails(t *testing.T) {
 	in := realInputs(t)
 	tool := in.Stack.Agents["hermes"]
 	tool.Channels["telegram"] = stack.Channel{Token: "${TELEGRAM_BOT_TOKEN}"}
+	in.Stack.Agents["hermes"] = tool
+	if _, err := Build(in); err == nil || !strings.Contains(err.Error(), "allow-list") {
+		t.Fatalf("error = %v, want allow-list rejection", err)
+	}
+}
+
+func TestRealStackEmptyDiscordAllowListFails(t *testing.T) {
+	in := realInputs(t)
+	tool := in.Stack.Agents["hermes"]
+	tool.Channels["discord"] = stack.Channel{Token: "${DISCORD_BOT_TOKEN}"}
 	in.Stack.Agents["hermes"] = tool
 	if _, err := Build(in); err == nil || !strings.Contains(err.Error(), "allow-list") {
 		t.Fatalf("error = %v, want allow-list rejection", err)
