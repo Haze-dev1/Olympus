@@ -360,6 +360,13 @@ func Build(in Inputs) (*generation.Generation, error) {
 			if allowEnv := support.Env["allow"]; allowEnv != "" {
 				service.Environment[allowEnv] = strings.Join(c.Allow, ",")
 			}
+			if len(c.Roles) > 0 {
+				rolesEnv := support.Env["roles"]
+				if rolesEnv == "" {
+					return nil, fmt.Errorf("%s: channel %q does not support roles", name, channel)
+				}
+				service.Environment[rolesEnv] = strings.Join(c.Roles, ",")
+			}
 		}
 		var skillCopies []string
 		selected := in.Stack.Skills

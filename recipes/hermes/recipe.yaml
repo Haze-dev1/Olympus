@@ -20,6 +20,8 @@ secrets:
     env: ANTHROPIC_API_KEY
   telegram-token:
     env: TELEGRAM_BOT_TOKEN
+  discord-token:
+    env: DISCORD_BOT_TOKEN
   github-token:
     env: GITHUB_TOKEN
 supports:
@@ -36,6 +38,11 @@ supports:
       env:
         token: TELEGRAM_BOT_TOKEN
         allow: TELEGRAM_ALLOWED_USERS
+    discord:
+      env:
+        token: DISCORD_BOT_TOKEN
+        allow: DISCORD_ALLOWED_USERS
+        roles: DISCORD_ALLOWED_ROLES
 writable:
   - /opt/data/config.yaml
 templates:
