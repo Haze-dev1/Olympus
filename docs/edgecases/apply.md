@@ -63,7 +63,7 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Activator binary fails its checksum | Refuse to run it; re-upload |
 | Another `apply`, `rollback` or `gc` is running | Fail with who holds the lock and since when |
 | Someone edited a tool's config file on the server | `plan` reports drift (store file no longer matches its hash); `apply` writes a fresh store entry |
-| First `apply` on a server (no generations yet) | A failure leaves no current generation; containers that started are removed |
+| First `apply` on a server (no generations yet) | A failure leaves no current generation; containers that started are removed, even when restoring the previous secret files also fails (then the project is taken down and the run reports exit 5) |
 | Tool needs an interactive login (Claude Code, Codex) | Recipe takes a token secret; if none is given, `plan` warns that the tool will start logged out |
 | Telegram token valid but `allow` is empty | Fail; an open bot lets anyone run the agent |
 
@@ -75,7 +75,8 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | `rollback` to a generation whose store entries `gc` deleted | Fail; name the missing entries; suggest re-applying from that generation's `stack.lock` in git |
 | `gc` | Never deletes entries used by `current` or the previous kept generations; reports space freed |
 | Two runs render the same stack | Byte-identical generation and hashes (test for purity) |
-| Only a secret value changed in `.env` | Hash unchanged; `plan` reports a secret change for that tool and `apply` restarts only it |
+| Only a secret value changed in `.env` | Hash unchanged; `plan` reports a secret change for that tool and `apply` restarts only it; a failed revert recreates the previous generation's tools whose values it restored |
+| Restoring the previous secret values fails during a revert | Take the project down, record `rollback_failed`, report that the server may be down, exit 5; never claim a rollback |
 
 ## Destroy
 

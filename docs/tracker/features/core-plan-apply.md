@@ -193,3 +193,7 @@ Security: A1 values remain outside evaluated/saved artifacts, logs and argv; A2 
 - The canonical VM was shut down with its lab.sh down after verification. The final delete-data step removed Olympus state and project volumes; unrelated test resources were explicitly cleaned up after their survival checks.
 
 This final section supersedes the historical offline/read-only scope statements above. M1 is complete at the requested lab acceptance scope, with the release limits listed above retained explicitly.
+
+## OLY-30 follow-up, 2026-11-05
+
+`apply` with only a secret value changed still reaches the activator through the CLI's fingerprint diff (`Diff.SecretChanges` adds a change, so `len(diff.Changes) != 0`) and the activator recreates only the affected tools. This follow-up closed three server-side gaps in that path: `Recreate` is now a required `Runner` method, `Compose.Recreate` uses `--no-build --pull never`, and an automatic revert recreates the previous generation's tools whose restored secrets it re-installs. A failed secret restoration now takes the project down and reports exit 5 instead of leaving the failed generation running. Offline evidence and the skipped lab run are recorded in [activator.md](activator.md#oly-30-selective-recreation-and-failed-first-activation-cleanup-2026-11-05); ADR 0043 amends 0027 and 0032. The lab is still **not run** for this branch: this host has no QEMU.
