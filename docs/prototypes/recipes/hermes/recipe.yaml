@@ -2,7 +2,7 @@
 # See docs/specs/recipe.md.
 name: hermes
 kind: harness
-image: nousresearch/hermes-agent:latest   # default tag; stack.lock pins the digest
+image: nousresearch/hermes-agent:v0.22.7   # default tag; stack.lock pins the digest
 resources: { min_ram: 4GB }
 volumes:
   data: /opt/data
