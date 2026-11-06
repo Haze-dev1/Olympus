@@ -52,3 +52,8 @@ Adds user-facing documentation for Olympus (OLY-35): a Quickstart in `README.md`
 
 5. **Disagreements Noted:**
    - The CLI parser in `internal/cli/cli.go` accepts additional flags (`-activator`, `-out`, `-yes`, `-keep`, `-delete-data`, `-json`) and accepts the `version` command, but its help string (`olym help`) and flag validation string (`olym <command> -h`) exclusively print `-f`, `-recipes`, `-o`, `-known-hosts`, and `--detailed-exitcode`. Per task instructions, the CLI printed output wins in `docs/usage/commands.md` and Go code is left untouched.
+
+## Merge review, 2026-11-06
+
+- `docs/usage/commands.md` listed only the flags in the CLI's invalid-flag message. Added the flags `internal/cli/cli.go` also accepts (`-activator`, `-out`, `-yes`, `-keep`, `-json`, `-delete-data`) to the overview and per-command sections, and described the saved-plan staleness check.
+- `examples/full-stack/stack.yaml` passed `olym check -recipes recipes` with fake sentinel values in a temporary `.env` (deleted). Whether Hermes accepts `@username` or needs numeric Telegram IDs in `allow` is not verified; it matches the stack spec's own example and is left to the OLY-16 live test.

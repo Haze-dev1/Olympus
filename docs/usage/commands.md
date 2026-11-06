@@ -8,18 +8,21 @@ The root help output printed by `olym help` (or `olym` with no arguments) is:
 usage: olym {check|build|update|plan|apply|status|rollback|gc|destroy} [-f stack.yaml] [-recipes recipes] [-o .olympus/build]
 ```
 
-When invoking any command with `-h`, the CLI prints the supported flags:
+An unknown flag prints `invalid flags; use -f, -recipes, -o, -known-hosts and --detailed-exitcode`. That message lists only the common flags. Every flag the CLI accepts (from `internal/cli/cli.go`) is:
 
-```
-invalid flags; use -f, -recipes, -o, -known-hosts and --detailed-exitcode
-```
-
-The flags printed by the CLI are:
 - `-f <file>`: path to the stack file (defaults to `stack.yaml`).
-- `-recipes <directory>`: local recipe directory override (defaults to remote catalog).
-- `-o <directory>`: output build directory (defaults to `.olympus/build`).
+- `-recipes <directory>`: local recipe directory override (defaults to the locked catalog).
+- `-o <directory>`: output build directory for `build` (defaults to `.olympus/build`).
 - `-known-hosts <file>`: custom SSH `known_hosts` file.
-- `--detailed-exitcode`: exit code 2 when `plan` finds changes.
+- `-activator <file>`: explicit Linux activator binary for server commands. Release builds verify it against their embedded checksum; development builds print a warning.
+- `-out <file>`: `plan` only; save the plan so `apply <file>` can refuse to run if anything changed since.
+- `-yes`: `apply` only; skip the confirmation prompt.
+- `-keep <n>`: `gc` only; generations to keep (defaults to `server.keep` in the stack, then 5).
+- `-json`: `status` only; print status as JSON.
+- `-delete-data`: `destroy` only; also delete the project's volumes and data.
+- `--detailed-exitcode`: `plan` only; exit 2 when the plan finds changes.
+
+Single and double dashes are interchangeable (`-yes` and `--yes`).
 
 ---
 
@@ -83,7 +86,7 @@ When `--detailed-exitcode` is passed, `olym plan` exits with status code `2` if 
 ### Usage
 
 ```sh
-olym plan [-f stack.yaml] [-recipes recipes] [-known-hosts known_hosts] [--detailed-exitcode]
+olym plan [-f stack.yaml] [-recipes recipes] [-known-hosts known_hosts] [-activator file] [-out plan.json] [--detailed-exitcode]
 ```
 
 ### Flags
@@ -91,6 +94,8 @@ olym plan [-f stack.yaml] [-recipes recipes] [-known-hosts known_hosts] [--detai
 - `-f`: path to stack file
 - `-recipes`: path to local recipe directory override
 - `-known-hosts`: path to custom SSH `known_hosts` file
+- `-activator`: explicit Linux activator binary
+- `-out`: save the plan (mode 0600) for a later `olym apply plan.json`
 - `--detailed-exitcode`: exit code 2 when changes are present
 
 ---
@@ -99,12 +104,12 @@ olym plan [-f stack.yaml] [-recipes recipes] [-known-hosts known_hosts] [--detai
 
 Deploys the evaluated generation to the target server over SSH. Runs preflight checks, uploads the generation manifest and container files, uploads the server activator, passes secret values securely over standard input, and activates the new generation. If health checks fail or the CLI does not confirm, the activator rolls back to the previous generation.
 
-An optional saved plan file positional argument may be supplied.
+An optional saved plan (from `olym plan -out plan.json`) may be supplied. Apply refuses it if the generation, the server's current generation or the secrets changed since the plan was saved.
 
 ### Usage
 
 ```sh
-olym apply [plan.json] [-f stack.yaml] [-recipes recipes] [-known-hosts known_hosts]
+olym apply [plan.json] [-f stack.yaml] [-recipes recipes] [-known-hosts known_hosts] [-activator file] [-yes]
 ```
 
 ### Flags
@@ -112,6 +117,8 @@ olym apply [plan.json] [-f stack.yaml] [-recipes recipes] [-known-hosts known_ho
 - `-f`: path to stack file
 - `-recipes`: path to local recipe directory override
 - `-known-hosts`: path to custom SSH `known_hosts` file
+- `-activator`: explicit Linux activator binary
+- `-yes`: skip the confirmation prompt
 
 ---
 
@@ -122,13 +129,15 @@ Queries the target server over SSH to report the operational state, health statu
 ### Usage
 
 ```sh
-olym status [-f stack.yaml] [-known-hosts known_hosts]
+olym status [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-json]
 ```
 
 ### Flags
 
 - `-f`: path to stack file
 - `-known-hosts`: path to custom SSH `known_hosts` file
+- `-activator`: explicit Linux activator binary
+- `-json`: print status as JSON
 
 ---
 
@@ -139,13 +148,14 @@ Instructs the server activator over SSH to revert the active generation to the p
 ### Usage
 
 ```sh
-olym rollback [-f stack.yaml] [-known-hosts known_hosts]
+olym rollback [-f stack.yaml] [-known-hosts known_hosts] [-activator file]
 ```
 
 ### Flags
 
 - `-f`: path to stack file
 - `-known-hosts`: path to custom SSH `known_hosts` file
+- `-activator`: explicit Linux activator binary
 
 ---
 
@@ -156,13 +166,15 @@ Executes garbage collection on the target server over SSH. Cleans up older inact
 ### Usage
 
 ```sh
-olym gc [-f stack.yaml] [-known-hosts known_hosts]
+olym gc [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-keep n]
 ```
 
 ### Flags
 
 - `-f`: path to stack file
 - `-known-hosts`: path to custom SSH `known_hosts` file
+- `-activator`: explicit Linux activator binary
+- `-keep`: generations to keep (defaults to `server.keep`, then 5)
 
 ---
 
@@ -173,10 +185,12 @@ Tears down the deployed Olympus Compose project and stops all containers on the 
 ### Usage
 
 ```sh
-olym destroy [-f stack.yaml] [-known-hosts known_hosts]
+olym destroy [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-delete-data]
 ```
 
 ### Flags
 
 - `-f`: path to stack file
 - `-known-hosts`: path to custom SSH `known_hosts` file
+- `-activator`: explicit Linux activator binary
+- `-delete-data`: also delete the project's volumes and data
