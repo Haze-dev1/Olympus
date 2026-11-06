@@ -14,7 +14,9 @@
         "test-lab",
         "activator",
         "deploy",
-        "preflight"
+        "preflight",
+        "release-pipeline",
+        "user-docs"
       ]
     },
     {
@@ -128,6 +130,12 @@
       "file": "features/release-pipeline.md",
       "updated": "2026-11-06",
       "summary": "Cross-compile CLI (darwin/linux, amd64/arm64) and Linux activator (amd64/arm64), SHA256SUMS file, activator checksum verification against release (A12), and tag-triggered GitHub Actions release workflow."
+    },
+    "user-docs": {
+      "status": "done",
+      "file": "features/user-docs.md",
+      "updated": "2026-11-06",
+      "summary": "OLY-35: user-facing documentation including Quickstart in README.md, command-by-command reference in docs/usage/commands.md derived strictly from CLI output, stack.yaml reference in docs/usage/stack-reference.md derived from JSON Schema and spec, and complete full-stack example in examples/full-stack/stack.yaml."
     }
   },
   "decisions": [
