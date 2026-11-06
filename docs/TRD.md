@@ -571,7 +571,7 @@ Every case in [edgecases/apply.md](edgecases/apply.md) becomes a test at one of 
 ## 13. Build and release
 
 - Targets: `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`, built with `CGO_ENABLED=0`.
-- Each release publishes the binaries and a `SHA256SUMS` file. The CLI embeds the checksums of its own Linux builds at build time, so it can verify the activator it uploads (rule A12).
+- Each release publishes the binaries and a `SHA256SUMS` file. Each CLI archive bundles both Linux activator architectures beside the CLI. The CLI embeds their checksums at build time, selects the server architecture and verifies the activator (rule A12); release clients missing checksums refuse server commands.
 - A CLI running on macOS downloads the matching Linux build of its own version, verifies it against the embedded checksum, and caches it. A CLI on Linux with the server's architecture uploads itself.
 - Development builds take `--activator <path>` and skip the release check with a visible warning.
 - Release tooling uses a native cross-compilation pipeline (`scripts/build-release.sh` and GitHub Actions `.github/workflows/release.yml`) using official `actions/*` and standard Go toolchain, embedding activator checksums via `-ldflags` ([ADR 0048](ADR.md#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build)).

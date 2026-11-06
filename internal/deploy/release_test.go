@@ -46,7 +46,7 @@ func TestUploadActivatorReleaseChecksumVerification(t *testing.T) {
 				return okOutput(fmt.Sprintf("%x  binary", sha256.Sum256(uploaded)))
 			}
 			if strings.HasPrefix(a[0], root) {
-				return okOutput("1.0.0")
+				return okOutput("0.1.0-dev")
 			}
 			return okOutput("")
 		}}
@@ -56,7 +56,7 @@ func TestUploadActivatorReleaseChecksumVerification(t *testing.T) {
 		f := makeConn()
 		c := Client{
 			Conn:             f,
-			Version:          "1.0.0",
+			Version:          "0.1.0-dev",
 			ReleaseChecksums: map[string]string{"x86_64": expectedHash},
 		}
 		if err := c.UploadActivator(context.Background(), binPath); err != nil {
@@ -68,7 +68,7 @@ func TestUploadActivatorReleaseChecksumVerification(t *testing.T) {
 		f := makeConn()
 		c := Client{
 			Conn:             f,
-			Version:          "1.0.0",
+			Version:          "0.1.0-dev",
 			ReleaseChecksums: map[string]string{"x86_64": wrongHash},
 		}
 		err := c.UploadActivator(context.Background(), binPath)
@@ -84,7 +84,7 @@ func TestUploadActivatorReleaseChecksumVerification(t *testing.T) {
 		f := makeConn()
 		c := Client{
 			Conn:    f,
-			Version: "1.0.0",
+			Version: "0.1.0-dev",
 		}
 		if err := c.UploadActivator(context.Background(), binPath); err != nil {
 			t.Fatalf("expected dev build to succeed when expected checksum is empty, got %v", err)
@@ -165,4 +165,69 @@ func TestExpectedChecksum(t *testing.T) {
 	if got := ExpectedChecksum("unknown"); got != "" {
 		t.Fatalf("got %q, want empty", got)
 	}
+}
+
+func TestMissingReleaseChecksumFailsClosed(t *testing.T) {
+	c := Client{Version: "1.0.0", Conn: &fakeConn{run: func(a []string, _ io.Reader) ([]byte, []byte, error) { return okOutput("x86_64") }}}
+	if err := c.UploadActivator(context.Background(), ""); err == nil {
+		t.Fatal("upload accepted missing checksum")
+	}
+	if err := c.VerifyActivator(context.Background(), ""); err == nil {
+		t.Fatal("verify accepted missing checksum")
+	}
+	if err := CheckReleaseBuild("1.0.0"); err == nil {
+		t.Fatal("release accepted missing checksums")
+	}
+	if err := CheckReleaseBuild("0.1.0-dev"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBundledActivatorSelectionAndChecksum(t *testing.T) {
+	path, err := bundledActivator("x86_64")
+	if err != nil || filepath.Base(path) != "olym-activator_linux_amd64" {
+		t.Fatalf("unexpected bundle path %q: %v", path, err)
+	}
+	path, err = bundledActivator("aarch64")
+	if err != nil || filepath.Base(path) != "olym-activator_linux_arm64" {
+		t.Fatalf("unexpected bundle path %q: %v", path, err)
+	}
+	if _, err = bundledActivator("unknown"); err == nil {
+		t.Fatal("accepted unsupported architecture")
+	}
+}
+
+// Run with a test executable next to release artifacts and their embedded checksum.
+func TestReleaseBundle(t *testing.T) {
+	if os.Getenv("OLYM_TEST_RELEASE_BUNDLE") != "1" {
+		t.Skip("requires built release bundle")
+	}
+	var uploaded []byte
+	c := Client{Version: "9.9.9", Conn: &fakeConn{run: func(a []string, in io.Reader) ([]byte, []byte, error) {
+		switch a[0] {
+		case "uname":
+			return okOutput("x86_64")
+		case "install":
+			uploaded, _ = io.ReadAll(in)
+		case "sha256sum":
+			return okOutput(fmt.Sprintf("%x  binary", sha256.Sum256(uploaded)))
+		}
+		if strings.HasPrefix(a[0], root) {
+			return okOutput("9.9.9")
+		}
+		return okOutput("")
+	}}}
+	if err := c.UploadActivator(context.Background(), ""); err != nil {
+		t.Fatalf("bundled activator rejected: %v", err)
+	}
+	b := append([]byte(nil), uploaded...)
+	b[4096] ^= 1
+	modified := filepath.Join(t.TempDir(), "modified")
+	if err := os.WriteFile(modified, b, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.UploadActivator(context.Background(), modified); err == nil || !strings.Contains(err.Error(), "checksum does not match") {
+		t.Fatalf("modified activator accepted: %v", err)
+	}
+	t.Log("bundled activator accepted; modified activator rejected")
 }

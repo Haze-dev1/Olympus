@@ -1478,8 +1478,8 @@ We will:
 1. Cross-compile Olympus CLI (`darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64`) and Linux activator (`linux/amd64`, `linux/arm64`) binaries using standard Go toolchain (`CGO_ENABLED=0`) in a tag-triggered GitHub Actions workflow (`.github/workflows/release.yml`) and `scripts/build-release.sh`.
 2. Sequence release builds so Linux activator binaries are compiled first, their SHA-256 digests computed, and then embedded into the CLI binaries via linker flags (`-ldflags "-X ..."`).
 3. In `internal/deploy`, check the activator's SHA-256 against the embedded release checksum (`ExpectedReleaseChecksum(arch)`) before uploading to or activating on the remote server. Mismatches fail closed with `deploy: activator checksum does not match release build`.
-4. In `internal/cli`, when a development build runs with `--activator <path>` and no embedded release checksum is present, print a visible warning to stderr (`Warning: using custom activator; skipping release checksum verification`) while permitting local testing.
-5. Package tarball archives (`olym_<version>_<os>_<arch>.tar.gz` and `olym-activator_<version>_linux_<arch>.tar.gz`), emit a `SHA256SUMS` manifest, and publish releases using `gh release create`.
+4. Reject server commands in release builds missing either embedded checksum; development builds retain a visible warning. Select the matching Linux activator alongside the CLI for uploads, including on macOS.
+5. Bundle both Linux activator architectures alongside each CLI in its archive. Package tarball archives (`olym_<version>_<os>_<arch>.tar.gz` and `olym-activator_<version>_linux_<arch>.tar.gz`), emit a `SHA256SUMS` manifest, and publish releases using `gh release create`.
 
 ### Consequences
 

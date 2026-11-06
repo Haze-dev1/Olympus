@@ -62,7 +62,8 @@ for os in darwin linux; do
     mkdir -p "${TMP_ARCHIVE}"
     cp "${DIST_DIR}/olym_${os}_${arch}" "${TMP_ARCHIVE}/olym"
     chmod 0755 "${TMP_ARCHIVE}/olym"
-    tar -czf "${DIST_DIR}/olym_${VERSION}_${os}_${arch}.tar.gz" -C "${TMP_ARCHIVE}" olym
+    cp "${DIST_DIR}/olym-activator_linux_amd64" "${DIST_DIR}/olym-activator_linux_arm64" "${TMP_ARCHIVE}/"
+    tar -czf "${DIST_DIR}/olym_${VERSION}_${os}_${arch}.tar.gz" -C "${TMP_ARCHIVE}" olym olym-activator_linux_amd64 olym-activator_linux_arm64
     rm -rf "${TMP_ARCHIVE}"
   done
 done

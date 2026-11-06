@@ -77,6 +77,9 @@ func (c *Client) VerifyActivator(ctx context.Context, local string) error {
 		return err
 	}
 	arch := strings.TrimSpace(string(machine))
+	if err := c.checkReleaseChecksum(arch); err != nil {
+		return err
+	}
 	expected := c.ExpectedReleaseChecksum(arch)
 	if local == "" {
 		if expected != "" {
@@ -84,7 +87,7 @@ func (c *Client) VerifyActivator(ctx context.Context, local string) error {
 			c.checksum = expected
 			return c.verifyActivator(ctx)
 		}
-		local, err = os.Executable()
+		local, err = bundledActivator(arch)
 		if err != nil {
 			return err
 		}

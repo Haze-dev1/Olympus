@@ -37,6 +37,7 @@ Follow these steps to create a release:
    - It will build Linux activator binaries for `amd64` and `arm64`.
    - It computes the SHA-256 checksums of the activator binaries.
    - It cross-compiles the CLI binaries (`darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64`), injecting the activator checksums via `-ldflags` (rule A12).
+   - Each CLI archive bundles both Linux activators next to `olym`; release clients reject missing embedded checksums.
    - It packages `olym_${VERSION}_${OS}_${ARCH}.tar.gz` and `olym-activator_${VERSION}_linux_${ARCH}.tar.gz`.
    - It emits `SHA256SUMS`.
    - It publishes the GitHub Release with the tarballs, standalone binaries, and `SHA256SUMS`.

@@ -36,6 +36,13 @@ func ask(prompt string, stderr io.Writer) bool {
 }
 
 func manageGeneration(command string, in eval.Inputs, g *generation.Generation, file, known, activator, saved, output string, yes, detailed bool, out, stderr io.Writer) int {
+	if err := deploy.CheckReleaseBuild(eval.Version); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if eval.Version == eval.DevelopmentVersion {
+		fmt.Fprintln(stderr, "Warning: development build; skipping release checksum verification")
+	}
 	secrets, err := toolSecrets(in, file)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -138,9 +145,6 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 	if err = c.UploadGeneration(ctx, g); err != nil {
 		return fail(err)
 	}
-	if activator != "" && deploy.ExpectedChecksum("amd64") == "" {
-		fmt.Fprintln(stderr, "Warning: using custom activator; skipping release checksum verification")
-	}
 	if err = c.UploadActivator(ctx, activator); err != nil {
 		return fail(err)
 	}
@@ -159,6 +163,13 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 }
 
 func serverCommand(command string, s *stack.Stack, known, activator string, keep int, data, jsonOutput bool, out, stderr io.Writer) int {
+	if err := deploy.CheckReleaseBuild(eval.Version); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if eval.Version == eval.DevelopmentVersion {
+		fmt.Fprintln(stderr, "Warning: development build; skipping release checksum verification")
+	}
 	if command == "destroy" && !ask("Destroy the Olympus project?", stderr) {
 		fmt.Fprintln(out, "Cancelled.")
 		return 1
@@ -177,9 +188,6 @@ func serverCommand(command string, s *stack.Stack, known, activator string, keep
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	fail := func(e error) int { fmt.Fprintln(stderr, e); return deploy.ExitCode(e) }
-	if activator != "" && deploy.ExpectedChecksum("amd64") == "" {
-		fmt.Fprintln(stderr, "Warning: using custom activator; skipping release checksum verification")
-	}
 	if err = c.UseServer(ctx); err != nil {
 		return fail(err)
 	}

@@ -25,7 +25,7 @@ fi
 
 # Extract and install binary to PATH
 tar -xzf "olym_${VERSION}_${OS}_${ARCH}.tar.gz"
-sudo install -m 0755 olym /usr/local/bin/olym
+sudo install -m 0755 olym olym-activator_linux_amd64 olym-activator_linux_arm64 /usr/local/bin/
 ```
 
 Verify the installation:
@@ -56,8 +56,7 @@ Release artifacts and `SHA256SUMS` will be placed in `dist/`.
 
 Olympus evaluates your stack locally and manages the target Linux host over SSH using a server-side activator binary (`/var/lib/olympus/bin/olym-<version>`).
 
-- **On Linux:** The running CLI matches the target Linux environment, so it can upload itself as the activator.
-- **On macOS:** To deploy to a remote Linux server, the CLI verifies the uploaded Linux activator against embedded official release checksums (rule A12). In development builds, you can provide an explicit Linux binary with `--activator <path-to-linux-binary>` (e.g. `./dist/olym-activator_linux_amd64`), which will print a visible development warning.
+Each CLI archive, for both Linux and macOS, includes Linux activators for amd64 and arm64. Keep both `olym-activator_linux_amd64` and `olym-activator_linux_arm64` beside `olym`; Olympus selects the server architecture and checks its embedded release checksum. An explicit `--activator <path>` is also checked. Development builds permit an explicit Linux activator with a visible warning.
 
 ## 4. Planned Package Managers
 
