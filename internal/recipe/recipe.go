@@ -160,6 +160,9 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 		if c.Env["token"] == "" {
 			d.Add(schema.Child("/supports/channels", k)+"/env", "channel requires a token environment variable")
 		}
+		if c.Env["allow"] == "" {
+			d.Add(schema.Child("/supports/channels", k)+"/env", "channel requires an allow environment variable")
+		}
 	}
 	if r.Supports.Skills != nil {
 		if !r.Confined(r.Supports.Skills.Dir) {
