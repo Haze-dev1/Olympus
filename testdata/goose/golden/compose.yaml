@@ -4,14 +4,16 @@ services:
     build:
       args:
         BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-      context: /var/lib/olympus/store/sha256-33af90cacdf5501ed0b705fca6673d49756411c0a6d1e49ebcb6dd32f705393a/files/root/.olympus-build
+      context: /var/lib/olympus/store/sha256-c3f926dbde5bc448e0b8fc22125aecf7d60c48aa2c92d4fa2c4ecb274057de6d/files/root/.olympus-build
       dockerfile: Dockerfile
     command:
     - sleep
     - infinity
     env_file:
     - /var/lib/olympus/secrets/goose/environment
-    image: olympus/goose:sha256-68817bd8d551
+    environment:
+      GOOSE_PROVIDER: openai
+    image: olympus/goose:sha256-2a8394d1a6fe
     labels:
       org.olympus.tool: goose
     restart: unless-stopped
@@ -20,11 +22,11 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-33af90cacdf5501ed0b705fca6673d49756411c0a6d1e49ebcb6dd32f705393a/files/root/.agents/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-c3f926dbde5bc448e0b8fc22125aecf7d60c48aa2c92d4fa2c4ecb274057de6d/files/root/.agents/skills/deploy-checklist/SKILL.md
       target: /root/.agents/skills/deploy-checklist/SKILL.md
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-33af90cacdf5501ed0b705fca6673d49756411c0a6d1e49ebcb6dd32f705393a/files/root/.olympus-build/Dockerfile
+      source: /var/lib/olympus/store/sha256-c3f926dbde5bc448e0b8fc22125aecf7d60c48aa2c92d4fa2c4ecb274057de6d/files/root/.olympus-build/Dockerfile
       target: /root/.olympus-build/Dockerfile
       type: bind
 volumes:

@@ -17,7 +17,10 @@ documentation and repository releases.
   releases from GitHub Releases (<https://goose-docs.ai/docs/getting-started/installation/>).
   The Dockerfile downloads the exact-version static binary tarball
   (`goose-<arch>-unknown-linux-musl.tar.gz`) from GitHub Releases for `amd64`
-  (`x86_64`) and `arm64` (`aarch64`) and installs it to `/usr/local/bin/goose`.
+  (`x86_64`) and `arm64` (`aarch64`), verifies the SHA-256 digest
+  (`6c3a05e30e1a425dc06a410dbe24b3f3697c9721b1ea2340434ddda6b64267ae` for `amd64`,
+  `00a32522f0421ed72fc06f36bfc44c8e51cffefb4daf22a81bb84ccd29d1a1ce` for `arm64`)
+  against GitHub Releases assets, and installs it to `/usr/local/bin/goose`.
 - **Version pin.** `v1.57.0`, published 2026-10-28 on GitHub Releases.
   Verified with:
   `curl -sL https://api.github.com/repos/aaif-goose/goose/releases/tags/v1.57.0 | jq -r .tag_name` → `v1.57.0`.
@@ -27,12 +30,17 @@ documentation and repository releases.
 - **Health.** `goose --version` prints the version (`goose 1.57.0`) and exits 0
   without requiring credentials or network access. There is no HTTP endpoint for
   the CLI, so the recipe declares a command health check.
-- **Model key.** Goose supports multiple providers (OpenAI, Anthropic, Databricks,
-  Ollama, etc.). Provider credentials and model selection are read from
-  environment variables: `GOOSE_PROVIDER` (default `openai`), `GOOSE_MODEL`
-  (e.g., `gpt-4o`), and provider API keys such as `OPENAI_API_KEY`
-  (<https://goose-docs.ai/docs/getting-started/installation/>). Declared as the
-  `model-key` secret delivered as `OPENAI_API_KEY`.
+- **Model key and provider.** Goose supports multiple providers (OpenAI, Anthropic,
+  Databricks, Ollama, etc.). In Goose, `GOOSE_PROVIDER` and `GOOSE_MODEL` have no
+  default and "must be configured" (see `documentation/docs/guides/environment-variables.md`
+  at tag `v1.57.0`, <https://github.com/aaif-goose/goose/blob/v1.57.0/documentation/docs/guides/environment-variables.md>).
+  Because the recipe's `model-key` secret is delivered as `OPENAI_API_KEY`, the
+  recipe sets `env: GOOSE_PROVIDER: openai` in `recipe.yaml`. Users configure
+  the model choice by setting `GOOSE_MODEL` (e.g., `gpt-4o`) in the environment
+  or by running `goose configure` interactively inside the container
+  (`documentation/docs/guides/environment-variables.md` at tag `v1.57.0` and
+  <https://goose-docs.ai/docs/getting-started/providers#configure-provider-and-model>),
+  which persists configuration to `~/.config/goose/config.yaml` in the `home` volume.
 - **Skills.** Global skills are discovered from `~/.agents/skills/<name>/SKILL.md`
   (`crates/goose/src/skills/mod.rs` at `v1.57.0` sets `global_skills_dir()` to
   `~/.agents/skills`). The recipe mounts shared skills read-only at

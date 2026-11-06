@@ -1,16 +1,16 @@
 {
-  "id": "sha256-5083a9a96e6e459fa6214b5a7e20354ac009acd7be3fdf6bf07d3965dd343f2a",
+  "id": "sha256-5ad4e8445a2b99e3df2026d9b0c903163b321c7945df85f465379ec8ca9a0c90",
   "inputs": {
-    "recipes": "sha256-ac40a16e0cf47b935e64eaf484030da40cf35b56292fe7bbf7b6b418b4a73b11"
+    "recipes": "sha256-48988d62f91adae1e263f6570094fe65382beed77a00a79d18dee720e08b8137"
   },
   "olym": "0.1.0-dev",
   "tools": {
     "goose": {
       "files": {
         "/root/.agents/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0",
-        "/root/.olympus-build/Dockerfile": "sha256-9b66d7b78f175701303a94a5f8c2856283ce9094780a5c379b9960276a7a5bb0"
+        "/root/.olympus-build/Dockerfile": "sha256-208fdbbce94654d06833b843fa06e442736af28093263d3f3dba05ea046b25e2"
       },
-      "hash": "sha256-33af90cacdf5501ed0b705fca6673d49756411c0a6d1e49ebcb6dd32f705393a",
+      "hash": "sha256-c3f926dbde5bc448e0b8fc22125aecf7d60c48aa2c92d4fa2c4ecb274057de6d",
       "health": {
         "command": [
           "goose",
@@ -18,7 +18,7 @@
         ],
         "timeout": "60s"
       },
-      "image": "olympus/goose:sha256-68817bd8d551",
+      "image": "olympus/goose:sha256-2a8394d1a6fe",
       "secrets": [
         "model-key"
       ]

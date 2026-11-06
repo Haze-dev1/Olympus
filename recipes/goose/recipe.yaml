@@ -5,6 +5,8 @@ resources:
   min_ram: 4GB
 volumes:
   home: /root
+env:
+  GOOSE_PROVIDER: openai
 command: [sleep, infinity]
 build:
   src: Dockerfile

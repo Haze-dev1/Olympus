@@ -12,12 +12,20 @@ ARG SOURCE_DATE_EPOCH=0
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
  && ARCH="$(dpkg --print-architecture)" \
  && case "${ARCH}" in \
-      amd64) GOOSE_ARCH="x86_64" ;; \
-      arm64) GOOSE_ARCH="aarch64" ;; \
+      amd64) \
+        GOOSE_ARCH="x86_64" \
+        GOOSE_SHA256="6c3a05e30e1a425dc06a410dbe24b3f3697c9721b1ea2340434ddda6b64267ae" \
+        ;; \
+      arm64) \
+        GOOSE_ARCH="aarch64" \
+        GOOSE_SHA256="00a32522f0421ed72fc06f36bfc44c8e51cffefb4daf22a81bb84ccd29d1a1ce" \
+        ;; \
       *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
     esac \
- && curl -fsSL "https://github.com/aaif-goose/goose/releases/download/v${GOOSE_VERSION}/goose-${GOOSE_ARCH}-unknown-linux-musl.tar.gz" \
-    | tar -xz -C /usr/local/bin \
+ && curl -fsSLo goose.tar.gz "https://github.com/aaif-goose/goose/releases/download/v${GOOSE_VERSION}/goose-${GOOSE_ARCH}-unknown-linux-musl.tar.gz" \
+ && echo "${GOOSE_SHA256}  goose.tar.gz" | sha256sum -c - \
+ && tar -xzf goose.tar.gz -C /usr/local/bin \
+ && rm goose.tar.gz \
  && chmod 0755 /usr/local/bin/goose \
  && rm -rf /var/lib/apt/lists/* \
  && touch -d @0 /usr/local/bin/goose

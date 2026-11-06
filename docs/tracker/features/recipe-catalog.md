@@ -242,12 +242,18 @@ Decisions:
   existing `build` mechanism (ADR 0035) on `node:22-bookworm-slim`.
 - Pin: `v1.57.0`, published 2026-10-28 on GitHub Releases, verified with
   `curl -sL https://api.github.com/repos/aaif-goose/goose/releases/tags/v1.57.0 | jq -r .tag_name` → `v1.57.0`.
-  Assets `goose-<arch>-unknown-linux-musl.tar.gz` verified for both `amd64` and `arm64`.
+  Assets `goose-<arch>-unknown-linux-musl.tar.gz` verified for both `amd64`
+  (`sha256:6c3a05e30e1a425dc06a410dbe24b3f3697c9721b1ea2340434ddda6b64267ae`) and `arm64`
+  (`sha256:00a32522f0421ed72fc06f36bfc44c8e51cffefb4daf22a81bb84ccd29d1a1ce`), checked with
+  `sha256sum -c` during image build.
 - Skills: mounted read-only at `/root/.agents/skills` (`mode: mount`), the
   canonical global user skills directory (`global_skills_dir()` in
   `crates/goose/src/skills/mod.rs` at `v1.57.0`).
-- Secret: `model-key` → `OPENAI_API_KEY` (A1, A5), the documented default
-  provider environment variable.
+- Secret and provider: `model-key` → `OPENAI_API_KEY` (A1, A5). Upstream
+  `GOOSE_PROVIDER` and `GOOSE_MODEL` have no default and must be configured
+  (`documentation/docs/guides/environment-variables.md` at tag `v1.57.0`), so the
+  recipe sets `env: GOOSE_PROVIDER: openai`. Model selection is via `GOOSE_MODEL`
+  or interactive `goose configure` inside the container.
 - Health: `goose --version` (60 s), which prints `goose 1.57.0` and exits 0.
   Container command stays `sleep infinity` so the CLI can be exec'd.
 - `resources.min_ram: 4GB`.
@@ -261,9 +267,9 @@ Verification (offline, 2026-11-06):
   sentinel `.env` → "Stack is valid." (exit 0).
 - Rendered generation for `testdata/goose/stack.yaml` via `TestRecipeGoldens`:
   - `compose.yaml` binds `/root/.agents/skills/deploy-checklist/SKILL.md` and the
-    Dockerfile read-only, mounts the `goose_home` volume at `/root`, sets
-    `BASE_IMAGE` from the locked digest and uses content-addressed
-    `olympus/goose:<hash>` tag.
+    Dockerfile read-only, sets `GOOSE_PROVIDER: openai` in the environment,
+    mounts the `goose_home` volume at `/root`, sets `BASE_IMAGE` from the locked
+    digest and uses content-addressed `olympus/goose:<hash>` tag.
   - `manifest.json` and `compose.yaml` contain no secret value and no sentinel;
     the manifest lists `model-key` only.
 
