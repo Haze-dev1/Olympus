@@ -1,0 +1,31 @@
+inputs:
+  recipes: github:Haze-dev1/Olympus/recipes
+
+server:
+  host: offline.example.test
+
+# stdio and SSE are both documented Gemini CLI shapes. Streamable HTTP needs the
+# separate "httpUrl" field, which no MCP style emits; see
+# recipes/gemini-cli/README.md.
+mcps:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ${GH_TOKEN}
+  docs:
+    url: https://mcp.example.test/sse
+    headers:
+      Authorization: Bearer ${GH_TOKEN}
+
+skills:
+  - ./skills/deploy-checklist
+
+agents:
+  gemini:
+    recipe: gemini-cli
+    mcps: [github, docs]
+    skills: all
+    secrets:
+      model-key: ${GEMINI_API_KEY}
+      github-token: ${GH_TOKEN}

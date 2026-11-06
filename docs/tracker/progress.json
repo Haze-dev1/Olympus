@@ -106,7 +106,7 @@
       "status": "in_progress",
       "file": "features/recipe-catalog.md",
       "updated": "2026-11-06",
-      "summary": "OLY-56 adds recipes/openbot (ghcr.io/nightly-labs/openbot:0.62.0, vendored seccomp, runtime limits, /data volume, no port; TestOpenBotGolden). OLY-19 adds recipes/claude-code (npm 2.1.318, built image, /root/.mcp.json stdio MCP via the hermes style, mounted skills). Offline render verified; remote url MCP servers are a Claude Code format gap; no lab run (no QEMU)."
+      "summary": "OLY-56 adds recipes/openbot (ghcr.io/nightly-labs/openbot:0.62.0, vendored seccomp, runtime limits, /data volume, no port). OLY-19 adds recipes/claude-code (npm 2.1.318, /root/.mcp.json stdio MCP). OLY-20 adds recipes/gemini-cli (npm 0.67.0, writable settings.json MCP, mounted skills). Golden tests cover all three; remote MCP gaps: Claude Code needs type, Gemini streamable HTTP needs httpUrl. No lab run (no QEMU)."
     },
     "test-lab": {
       "status": "done",

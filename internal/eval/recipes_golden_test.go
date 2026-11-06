@@ -16,6 +16,7 @@ func TestRecipeGoldens(t *testing.T) {
 	const base = "node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 	for _, tc := range []struct{ dir, tool string }{
 		{"claude-code", "claude"},
+		{"gemini-cli", "gemini"},
 	} {
 		t.Run(tc.dir, func(t *testing.T) {
 			dir := filepath.Join("../../testdata", tc.dir)

@@ -1,0 +1,23 @@
+{
+  "general": {
+    "enableAutoUpdate": false
+  },
+  "mcpServers": {
+    "docs": {
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
+      },
+      "url": "https://mcp.example.test/sse"
+    },
+    "github": {
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "command": "npx",
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}

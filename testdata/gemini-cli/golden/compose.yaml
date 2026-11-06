@@ -1,0 +1,59 @@
+name: olympus
+services:
+  gemini:
+    build:
+      args:
+        BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+      context: /var/lib/olympus/store/sha256-17d074319fed2d4af2a68c6be65a05552a2135f8e24a75f400712454138f9ad4/files/root/.olympus-build
+      dockerfile: Dockerfile
+    command:
+    - sleep
+    - infinity
+    depends_on:
+      gemini-init:
+        condition: service_completed_successfully
+    env_file:
+    - /var/lib/olympus/secrets/gemini/environment
+    image: olympus/gemini:sha256-53f40b9436ca
+    labels:
+      org.olympus.tool: gemini
+    restart: unless-stopped
+    volumes:
+    - source: gemini_home
+      target: /root
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-17d074319fed2d4af2a68c6be65a05552a2135f8e24a75f400712454138f9ad4/files/root/.gemini/skills/deploy-checklist/SKILL.md
+      target: /root/.gemini/skills/deploy-checklist/SKILL.md
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-17d074319fed2d4af2a68c6be65a05552a2135f8e24a75f400712454138f9ad4/files/root/.olympus-build/Dockerfile
+      target: /root/.olympus-build/Dockerfile
+      type: bind
+  gemini-init:
+    build:
+      args:
+        BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+      context: /var/lib/olympus/store/sha256-17d074319fed2d4af2a68c6be65a05552a2135f8e24a75f400712454138f9ad4/files/root/.olympus-build
+      dockerfile: Dockerfile
+    entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      mkdir -p '/root/.gemini' && cp -a '/olympus-init/0' '/root/.gemini/settings.json'
+    image: olympus/gemini:sha256-53f40b9436ca
+    labels:
+      org.olympus.role: init
+      org.olympus.tool: gemini
+    restart: "no"
+    volumes:
+    - source: gemini_home
+      target: /root
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-17d074319fed2d4af2a68c6be65a05552a2135f8e24a75f400712454138f9ad4/files/root/.gemini/settings.json
+      target: /olympus-init/0
+      type: bind
+volumes:
+  gemini_home:
+    name: olympus_gemini_home

@@ -1,0 +1,35 @@
+name: gemini-cli
+kind: coding-agent
+image: node:22-bookworm-slim
+resources:
+  min_ram: 4GB
+volumes:
+  home: /root
+command: [sleep, infinity]
+build:
+  src: Dockerfile
+  dst: /root/.olympus-build/Dockerfile
+health:
+  command: [gemini, --version]
+  timeout: 60s
+secrets:
+  model-key:
+    env: GEMINI_API_KEY
+  github-token:
+    env: GITHUB_TOKEN
+supports:
+  mcps:
+    file: /root/.gemini/settings.json
+    format: json
+    style: hermes
+    key: mcpServers
+  skills:
+    dir: /root/.gemini/skills
+    mode: mount
+# settings.json is delivered through an init service so the CLI can persist
+# `/settings` changes and its selected auth type into the home volume.
+writable:
+  - /root/.gemini/settings.json
+templates:
+  - src: settings.json.tmpl
+    dst: /root/.gemini/settings.json
