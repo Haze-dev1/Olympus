@@ -1,0 +1,31 @@
+name: oh-my-pi
+kind: coding-agent
+image: node:22-bookworm-slim
+resources:
+  min_ram: 4GB
+volumes:
+  home: /root
+env:
+  OMP_SKIP_VERSION_CHECK: "1"
+  OMP_TELEMETRY: "0"
+command: [sleep, infinity]
+build:
+  src: Dockerfile
+  dst: /root/.olympus-build/Dockerfile
+health:
+  command: [omp, --version]
+  timeout: 60s
+secrets:
+  model-key:
+    env: ANTHROPIC_API_KEY
+  github-token:
+    env: GITHUB_TOKEN
+supports:
+  mcps:
+    file: /root/.omp/agent/mcp.json
+    format: json
+    style: claude-code
+    key: mcpServers
+  skills:
+    dir: /root/.omp/agent/skills
+    mode: mount

@@ -1,0 +1,30 @@
+{
+  "id": "sha256-c44203ed60f1259bd2b65d8e1dec1095a436870037cf65bdbe1074fdfd95b9f2",
+  "inputs": {
+    "recipes": "sha256-d6a532013c27cf4b11dfacc1ed03083d42edf179ee4e693161f13dd611394ed4"
+  },
+  "olym": "0.1.0-dev",
+  "tools": {
+    "pi": {
+      "files": {
+        "/root/.olympus-build/Dockerfile": "sha256-f256d56414728754588e4703d41402494077689f05c7db14f8ab9c5827e142d6",
+        "/root/.pi/agent/mcp.json": "sha256-cb25d562f30323513dfad7dec91bba1a638dd9d286fcfbb609a29512f60c5775",
+        "/root/.pi/agent/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
+      },
+      "hash": "sha256-93090ef29ea63402c6c70e24bc321f574588ace89d2e2ad6fb9166315de05fce",
+      "health": {
+        "command": [
+          "pi",
+          "--version"
+        ],
+        "timeout": "60s"
+      },
+      "image": "olympus/pi:sha256-383520e7f744",
+      "secrets": [
+        "github-token",
+        "model-key"
+      ]
+    }
+  },
+  "version": 1
+}

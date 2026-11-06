@@ -1,0 +1,39 @@
+name: olympus
+services:
+  oh-my-pi:
+    build:
+      args:
+        BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+      context: /var/lib/olympus/store/sha256-a759c2d4d18ce216e3c4ba72bc3af5fe2286be0e092fd3c2a01accc65c3c3524/files/root/.olympus-build
+      dockerfile: Dockerfile
+    command:
+    - sleep
+    - infinity
+    env_file:
+    - /var/lib/olympus/secrets/oh-my-pi/environment
+    environment:
+      OMP_SKIP_VERSION_CHECK: "1"
+      OMP_TELEMETRY: "0"
+    image: olympus/oh-my-pi:sha256-dbf8cde5a489
+    labels:
+      org.olympus.tool: oh-my-pi
+    restart: unless-stopped
+    volumes:
+    - source: oh-my-pi_home
+      target: /root
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-a759c2d4d18ce216e3c4ba72bc3af5fe2286be0e092fd3c2a01accc65c3c3524/files/root/.olympus-build/Dockerfile
+      target: /root/.olympus-build/Dockerfile
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-a759c2d4d18ce216e3c4ba72bc3af5fe2286be0e092fd3c2a01accc65c3c3524/files/root/.omp/agent/mcp.json
+      target: /root/.omp/agent/mcp.json
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-a759c2d4d18ce216e3c4ba72bc3af5fe2286be0e092fd3c2a01accc65c3c3524/files/root/.omp/agent/skills/deploy-checklist/SKILL.md
+      target: /root/.omp/agent/skills/deploy-checklist/SKILL.md
+      type: bind
+volumes:
+  oh-my-pi_home:
+    name: olympus_oh-my-pi_home

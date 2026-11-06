@@ -1,0 +1,31 @@
+name: pi
+kind: coding-agent
+image: node:22-bookworm-slim
+resources:
+  min_ram: 4GB
+volumes:
+  home: /root
+env:
+  PI_SKIP_VERSION_CHECK: "1"
+  PI_TELEMETRY: "0"
+command: [sleep, infinity]
+build:
+  src: Dockerfile
+  dst: /root/.olympus-build/Dockerfile
+health:
+  command: [pi, --version]
+  timeout: 60s
+secrets:
+  model-key:
+    env: ANTHROPIC_API_KEY
+  github-token:
+    env: GITHUB_TOKEN
+supports:
+  mcps:
+    file: /root/.pi/agent/mcp.json
+    format: json
+    style: hermes
+    key: mcpServers
+  skills:
+    dir: /root/.pi/agent/skills
+    mode: mount
