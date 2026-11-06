@@ -122,6 +122,12 @@
       "file": "features/preflight.md",
       "updated": "2026-11-05",
       "summary": "Read-only preflight in plan/apply: OS, arch vs locked image platforms, RAM, disk and occupied ports (ignoring the current olympus generation). Offline tests only; lab not run (no QEMU on this host)."
+    },
+    "release-pipeline": {
+      "status": "done",
+      "file": "features/release-pipeline.md",
+      "updated": "2026-11-06",
+      "summary": "Cross-compile CLI (darwin/linux, amd64/arm64) and Linux activator (amd64/arm64), SHA256SUMS file, activator checksum verification against release (A12), and tag-triggered GitHub Actions release workflow."
     }
   },
   "decisions": [
@@ -155,6 +161,7 @@
     "ADR 0042 track and prune only previously copied skill files",
     "ADR 0044 preflight the server before plan and apply",
     "ADR 0045 recipe runtime limits as fixed Compose keys",
-    "ADR 0046 vendor OpenBot's seccomp profile and pin an exact release"
+    "ADR 0046 vendor OpenBot's seccomp profile and pin an exact release",
+    "ADR 0048 cross-compile release binaries and verify activator checksum against release build"
   ]
 }

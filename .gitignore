@@ -15,3 +15,6 @@ references/
 
 # Test lab VM files (see lab/README.md)
 .lab/
+
+# Release build artifacts
+dist/

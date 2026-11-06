@@ -15,12 +15,14 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/Haze-dev1/Olympus/internal/activate"
 	"github.com/Haze-dev1/Olympus/internal/encode"
+	"github.com/Haze-dev1/Olympus/internal/eval"
 	"github.com/Haze-dev1/Olympus/internal/generation"
 	"github.com/Haze-dev1/Olympus/internal/remote"
 	"github.com/Haze-dev1/Olympus/internal/schema"
@@ -41,16 +43,17 @@ type Connection interface {
 // Client owns one deployment connection. Reconnect must open a fresh SSH
 // connection using the same verified host-key policy.
 type Client struct {
-	Conn            Connection
-	Reconnect       func() (Connection, error)
-	Version         string
-	PollInterval    time.Duration
-	sudo            bool
-	binary          string
-	checksum        string
-	payload         string
-	ExpectedCurrent *string
-	ConfirmTimeout  string
+	Conn             Connection
+	Reconnect        func() (Connection, error)
+	Version          string
+	PollInterval     time.Duration
+	sudo             bool
+	binary           string
+	checksum         string
+	payload          string
+	ExpectedCurrent  *string
+	ConfirmTimeout   string
+	ReleaseChecksums map[string]string
 }
 
 // Dial uses remote's host-key verification for both initial and confirm SSH.
@@ -232,15 +235,81 @@ func (c *Client) verifyFiles(ctx context.Context, dir string, files map[string][
 	return nil
 }
 
+// Release checksums for the Linux activator (amd64 and arm64), embedded at build time via -ldflags.
+var (
+	ReleaseChecksumLinuxAmd64 = ""
+	ReleaseChecksumLinuxArm64 = ""
+)
+
+// ExpectedChecksum returns the package-level expected release checksum for an architecture.
+func ExpectedChecksum(arch string) string {
+	switch arch {
+	case "x86_64", "amd64":
+		return ReleaseChecksumLinuxAmd64
+	case "aarch64", "arm64":
+		return ReleaseChecksumLinuxArm64
+	default:
+		return ""
+	}
+}
+
+// ExpectedReleaseChecksum returns the release checksum for the given server architecture.
+func (c *Client) ExpectedReleaseChecksum(arch string) string {
+	if c.ReleaseChecksums != nil {
+		if sum, ok := c.ReleaseChecksums[arch]; ok {
+			return sum
+		}
+	}
+	return ExpectedChecksum(arch)
+}
+
+// CheckReleaseBuild rejects release clients without their embedded checksums.
+func CheckReleaseBuild(version string) error {
+	if version != eval.DevelopmentVersion && (ExpectedChecksum("amd64") == "" || ExpectedChecksum("arm64") == "") {
+		return errors.New("deploy: release build missing activator checksums")
+	}
+	return nil
+}
+
+func (c *Client) checkReleaseChecksum(arch string) error {
+	if c.Version != eval.DevelopmentVersion && c.ExpectedReleaseChecksum(arch) == "" {
+		return errors.New("deploy: release build missing activator checksum for server architecture")
+	}
+	return nil
+}
+
+func bundledActivator(arch string) (string, error) {
+	switch arch {
+	case "x86_64":
+		arch = "amd64"
+	case "aarch64":
+		arch = "arm64"
+	default:
+		return "", errors.New("deploy: unsupported server architecture")
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(exe), "olym-activator_linux_"+arch), nil
+}
+
 // UploadActivator accepts a local Linux binary, including an explicit development
-// build. Release-checksum embedding and downloading are deliberately deferred.
+// build, and verifies it against the release checksum if available (rule A12).
 func (c *Client) UploadActivator(ctx context.Context, localPath string) (result error) {
 	if !versionRE.MatchString(c.Version) {
 		return errors.New("deploy: invalid activator version")
 	}
+	machine, err := c.run(ctx, []string{"uname", "-m"}, nil)
+	if err != nil {
+		return err
+	}
+	arch := strings.TrimSpace(string(machine))
+	if err := c.checkReleaseChecksum(arch); err != nil {
+		return err
+	}
 	if localPath == "" {
-		var err error
-		localPath, err = os.Executable()
+		localPath, err = bundledActivator(arch)
 		if err != nil {
 			return err
 		}
@@ -254,13 +323,13 @@ func (c *Client) UploadActivator(ctx context.Context, localPath string) (result 
 		return errors.New("deploy: activator must be a Linux ELF binary")
 	}
 	defer file.Close()
-	machine, err := c.run(ctx, []string{"uname", "-m"}, nil)
-	if err != nil {
-		return err
-	}
-	arch := strings.TrimSpace(string(machine))
 	if !(arch == "x86_64" && file.Machine == elf.EM_X86_64 || arch == "aarch64" && file.Machine == elf.EM_AARCH64) {
 		return errors.New("deploy: activator architecture mismatch")
+	}
+	actualChecksum := fmt.Sprintf("%x", sha256.Sum256(data))
+	expected := c.ExpectedReleaseChecksum(arch)
+	if expected != "" && actualChecksum != expected {
+		return errors.New("deploy: activator checksum does not match release build")
 	}
 	suffix, err := randomName()
 	if err != nil {
@@ -294,7 +363,7 @@ func (c *Client) UploadActivator(ctx context.Context, localPath string) (result 
 		return err
 	}
 	c.binary = dest
-	c.checksum = fmt.Sprintf("%x", sha256.Sum256(data))
+	c.checksum = actualChecksum
 	return nil
 }
 

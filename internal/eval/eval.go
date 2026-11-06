@@ -19,7 +19,9 @@ import (
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
-const Version = "0.1.0-dev"
+const DevelopmentVersion = "0.1.0-dev"
+
+var Version = DevelopmentVersion
 
 type Service struct {
 	Image       string             `json:"image"`
