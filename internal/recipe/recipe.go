@@ -20,11 +20,18 @@ type Skills struct{ Dir, Mode string }
 type Channel struct{ Env map[string]string }
 type Build struct{ Src, Dst string }
 type Template struct{ Src, Dst string }
+type Runtime struct {
+	ShmSize         string `json:"shm_size"`
+	StopGracePeriod string `json:"stop_grace_period"`
+	NoNewPrivileges bool   `json:"no_new_privileges"`
+	Seccomp         string
+}
 type Recipe struct {
 	Name, Kind, Image, User string
 	Resources               struct {
 		MinRAM string `json:"min_ram"`
 	}
+	Runtime  *Runtime `json:"runtime,omitempty"`
 	Volumes  map[string]string
 	Ports    []int
 	Command  []string
@@ -176,6 +183,26 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 			d.Add("/resources/min_ram", "expected a size such as 4GB or 512MiB")
 		}
 	}
+	if rt := r.RuntimeOptions(); rt.ShmSize != "" {
+		if n, err := ParseSize(rt.ShmSize); err != nil || n == 0 {
+			d.Add("/runtime/shm_size", "expected a positive size such as 1GB or 64MiB")
+		}
+	}
+	if rt := r.RuntimeOptions(); rt.StopGracePeriod != "" {
+		if t, err := time.ParseDuration(rt.StopGracePeriod); err != nil || t <= 0 {
+			d.Add("/runtime/stop_grace_period", "expected a positive duration such as 60s")
+		}
+	}
+	if rt := r.RuntimeOptions(); rt.Seccomp != "" {
+		switch {
+		case !SafeRelative(rt.Seccomp):
+			d.Add("/runtime/seccomp", "seccomp profile must be a confined relative path")
+		case schemeRe.MatchString(rt.Seccomp):
+			d.Add("/runtime/seccomp", "seccomp profile must be a file in the recipe folder, not a URL")
+		case len(r.Volumes) == 0:
+			d.Add("/runtime/seccomp", "seccomp profile requires a tool volume")
+		}
+	}
 	if !validImage(r.Image) {
 		d.Add("/image", "image must have an explicit tag or sha256 digest")
 	}
@@ -194,6 +221,15 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 	}
 	return &r, d
 }
+
+// RuntimeOptions returns the recipe's runtime block, or zero values when the
+// recipe has none, so callers need no nil checks.
+func (r *Recipe) RuntimeOptions() Runtime {
+	if r.Runtime == nil {
+		return Runtime{}
+	}
+	return *r.Runtime
+}
 func CleanAbsolute(p string) bool {
 	return strings.HasPrefix(p, "/") && !strings.Contains(p, "\\") && path.Clean(p) == p && !hasDotDot(p)
 }
@@ -206,6 +242,10 @@ func SafeRelative(p string) bool {
 func ShellSafe(p string) bool { return shellSafeRe.MatchString(p) }
 
 var shellSafeRe = regexp.MustCompile(`^/[A-Za-z0-9._@+-]+(/[A-Za-z0-9._@+-]+)*$`)
+
+// schemeRe matches a URL scheme such as https: in a path that must name a file
+// inside the recipe folder.
+var schemeRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
 
 func hasDotDot(p string) bool {
 	for _, c := range strings.Split(p, "/") {

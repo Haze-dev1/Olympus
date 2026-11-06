@@ -31,6 +31,28 @@
       "required": [],
       "additionalProperties": false
     },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "shm_size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stop_grace_period": {
+          "type": "string",
+          "minLength": 1
+        },
+        "no_new_privileges": {
+          "type": "boolean"
+        },
+        "seccomp": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
     "user": {
       "type": "string",
       "minLength": 1

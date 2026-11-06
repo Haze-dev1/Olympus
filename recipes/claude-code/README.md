@@ -25,6 +25,12 @@ the npm registry.
   Source: <https://registry.npmjs.org/@anthropic-ai/claude-code/2.1.318>.
 - **Resources.** 4 GB+ RAM, x64 or ARM64 CPU
   (<https://code.claude.com/docs/en/setup>). `resources.min_ram: 4GB`.
+- **npm install egress.** The native binary is an npm optional dependency
+  (`@anthropic-ai/claude-code-linux-x64`, `-linux-arm64` and musl variants), and
+  `install.cjs`, the package's `postinstall` script, only links it into place;
+  it does not download from another host. The build therefore needs only the
+  npm registry. Checked in the 2.1.318 tarball on 2026-11-06. Do not add
+  `--omit=optional` to the install.
 - **Health.** `claude --version` prints the installed version
   (<https://code.claude.com/docs/en/setup>). There is no documented HTTP
   endpoint for the CLI, so the recipe uses a command check.
@@ -41,7 +47,10 @@ the npm registry.
 - **MCP config file and scope.** Claude Code reads project-scope servers from
   `.mcp.json` at the project root under the `mcpServers` key; local and user
   scope live in `~/.claude.json`. The container's working directory is `/root`
-  (`WORKDIR`), so the managed file is `/root/.mcp.json`.
+  (`WORKDIR`), so the managed file is `/root/.mcp.json`. The docs place
+  `.mcp.json` at the project root and do not say Claude Code reads a parent
+  folder's file, so start `claude` in `/root` to get the shared servers. A
+  session started inside a cloned repository may not see them (UNVERIFIED).
   Source: <https://code.claude.com/docs/en/mcp> ("MCP installation scopes",
   "Project scope").
 - **MCP entry shape (stdio).** `command`, `args`, `env`
@@ -105,11 +114,6 @@ pull request that added the recipe; it is not worked around in Go.
   available for this change, so `docker build`, `claude --version` and the
   `.mcp.json` approval flow were not run against the built image. Only offline
   rendering was verified.
-- **npm install egress.** The npm package "downloads a native binary that
-  doesn't use your Node.js at runtime"
-  (<https://code.claude.com/docs/en/setup>). It is not documented whether that
-  download uses the npm registry or a separate host, so the build may need
-  egress beyond the registry. Not observed.
 - **`DISABLE_AUTOUPDATER` inside the image.** The variable is documented; its
   effect on this exact pinned release inside a container was not observed.
 
@@ -119,5 +123,5 @@ Builds are reproducible in their inputs (base digest, package version,
 Dockerfile content), not byte-identical: the Codex recipe found that a clean
 rebuild produced a different image ID even with `SOURCE_DATE_EPOCH=0` and
 normalized timestamps, and this Dockerfile uses the same approach. On a server,
-the content-addressed tag (`olympus/claude-code:sha256-…`) means one generation
+the content-addressed tag (`olympus/<tool name>:sha256-…`) means one generation
 reuses one image for activation and rollback.

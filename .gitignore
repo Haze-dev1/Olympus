@@ -10,5 +10,8 @@ references/
 .olympus/
 /olym
 
+# Golden fixtures keep the generated seccomp profile under a tool's .olympus folder
+!testdata/golden-openbot/**/.olympus/
+
 # Test lab VM files (see lab/README.md)
 .lab/

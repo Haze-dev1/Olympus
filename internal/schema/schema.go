@@ -192,6 +192,8 @@ func (d *Document) validate(v any, r map[string]any, path string) {
 		case float64:
 			valid = math.Trunc(v) == v
 		}
+	case "boolean":
+		_, valid = v.(bool)
 	}
 	if !valid {
 		d.Add(path, "expected "+typ)

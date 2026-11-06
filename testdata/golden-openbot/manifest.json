@@ -1,0 +1,29 @@
+{
+  "id": "sha256-af4edf2776ad823378800911a20a6bae17ee7e0ef435e71178a8e409b9fb1731",
+  "inputs": {
+    "recipes": "sha256-64e5f7a3e637bc965aa08fc6cb2cf54c06cfda9f551e583390d0907f5eae1795"
+  },
+  "olym": "0.1.0-dev",
+  "tools": {
+    "openbot": {
+      "files": {
+        "/data/.olympus/seccomp.json": "sha256-665289e6a1c41045f55166d0b01993c929f71df78e3a3b264f3252bb8e0b3d9e"
+      },
+      "hash": "sha256-3b0528d4f24742062b51b1b5c93e66779001ce3c31c7f425a0810b964539ae55",
+      "health": {
+        "command": [
+          "openbot",
+          "status"
+        ],
+        "timeout": "60s"
+      },
+      "image": "ghcr.io/nightly-labs/openbot:0.62.0",
+      "secrets": [
+        "cline-key",
+        "cursor-key",
+        "xai-key"
+      ]
+    }
+  },
+  "version": 1
+}
