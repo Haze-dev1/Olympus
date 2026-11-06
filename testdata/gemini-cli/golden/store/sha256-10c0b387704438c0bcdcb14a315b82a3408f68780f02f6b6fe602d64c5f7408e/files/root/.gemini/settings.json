@@ -18,6 +18,12 @@
       "env": {
         "GITHUB_TOKEN": "${GITHUB_TOKEN}"
       }
+    },
+    "search": {
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
+      },
+      "httpUrl": "https://mcp.example.test/mcp"
     }
   }
 }

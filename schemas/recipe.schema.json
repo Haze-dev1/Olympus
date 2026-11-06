@@ -192,7 +192,9 @@
               "enum": [
                 "hermes",
                 "codex",
-                "opencode"
+                "opencode",
+                "claude-code",
+                "gemini-cli"
               ]
             },
             "key": {

@@ -35,7 +35,7 @@ The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-cu
 | --- | --- |
 | `mcps.file` | Path of the config file that holds MCP servers |
 | `mcps.format` | `yaml`, `toml` or `json` |
-| `mcps.style` | Tool's secret syntax: `hermes`, `codex` or `opencode` ([ADR 0037](../ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references)) |
+| `mcps.style` | Tool's shape and secret syntax: `hermes`, `codex`, `opencode`, `claude-code` or `gemini-cli` ([ADR 0037](../ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references), [0047](../ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers)) |
 | `mcps.key` | Key under which servers are listed, such as `mcp_servers` |
 | `skills.dir` | Folder the tool reads skills from |
 | `skills.mode` | `mount` for a read-only bind, or `copy` for the init service ([ADR 0038](../ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)) |
@@ -71,6 +71,10 @@ The stack defines each MCP server once. The core rewrites its `${NAME}` referenc
 - **Hermes:** `command`, `args`, `env` with `${VAR}`, or `url`, `headers`.
 - **Codex:** `command`, `args`, `env_vars` (variable names only), or `url`, `bearer_token_env_var` / `env_http_headers`. Codex has no interpolation, so anything that is neither a whole variable reference nor an HTTP header reference fails closed.
 - **OpenCode:** `{type: local, command: [...], environment: {VAR: "{env:VAR}"}}`, or `{type: remote, url, headers: {H: "{env:VAR}"}}`.
+- **Claude Code:** `command`, `args`, `env` with `${VAR}`, or `type`, `url`, `headers`, where `type` is `http` for the default transport or `sse` when the stack asks for it. Claude Code rejects a remote entry without `type`.
+- **Gemini CLI:** `command`, `args`, `env` with `${VAR}`, or `httpUrl` and `headers` for the default transport, or `url` and `headers` for `sse`. Exactly one of the two URL keys is written, because Gemini CLI prefers `httpUrl` and would otherwise ignore the other.
+
+`transport` is meaningless for stdio servers and for tools that only accept one remote form; those recipes ignore it. Only Claude Code and Gemini CLI render it ([ADR 0047](../ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers)).
 
 Compose delivers the actual values as environment variables through `/var/lib/olympus/secrets/<tool>/environment`.
 

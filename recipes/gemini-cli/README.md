@@ -80,12 +80,21 @@ apply. Other files under `/root` (sessions, history) do.
 ## MCP servers
 
 `supports.mcps` points at `/root/.gemini/settings.json` with `format: json`,
-`style: hermes` and `key: mcpServers`. The `hermes` style emits exactly the
-stdio entry shape Gemini CLI documents:
+`style: gemini-cli` and `key: mcpServers`. The `gemini-cli` style emits the
+stdio and remote entry shapes documented by Gemini CLI
+(`docs/reference/configuration.md` and `docs/tools/mcp-server.md` at tag `v0.67.0`):
+
+- **stdio entries:** `command`, `args`, `env` with `${VAR}` references.
+- **Remote streamable-HTTP entries (`transport: http`, the default):** `httpUrl`
+  and `headers` ([ADR 0047](../../docs/ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers)).
+- **Remote SSE entries (`transport: sse`):** `url` and `headers`.
 
 ```json
-{"mcpServers":{"github":{"args":["-y","@modelcontextprotocol/server-github"],
-  "command":"npx","env":{"GITHUB_TOKEN":"${GITHUB_TOKEN}"}}}}
+{"mcpServers":{
+  "github":{"args":["-y","@modelcontextprotocol/server-github"],"command":"npx","env":{"GITHUB_TOKEN":"${GITHUB_TOKEN}"}},
+  "docs":{"headers":{"Authorization":"Bearer ${GITHUB_TOKEN}"},"url":"https://mcp.example.test/sse"},
+  "search":{"headers":{"Authorization":"Bearer ${GITHUB_TOKEN}"},"httpUrl":"https://mcp.example.test/mcp"}
+}}
 ```
 
 `${GITHUB_TOKEN}` is a reference in the file; Gemini CLI expands it when it
@@ -93,14 +102,9 @@ spawns the server, and the value is only in that server's environment because
 the recipe lists it in `env`. Without that explicit listing the CLI would
 redact `GITHUB_TOKEN` (it matches `*TOKEN*`) from the inherited environment.
 
-**Gap — streamable-HTTP remotes cannot be expressed.** `hermes` can emit
-`url`, which Gemini CLI reads as an **SSE** endpoint, so SSE remotes work.
-Streamable HTTP needs the separate `httpUrl` field, and no MCP style emits it.
-Until a style exists (a Go change, outside this recipe's scope), a stack's
-`url` server is treated by Gemini CLI as SSE; hosts that only expose
-streamable HTTP do not connect. This is recorded in
-`docs/tracker/features/recipe-catalog.md`. stdio servers are unaffected and are
-what `testdata/gemini-cli/stack.yaml` covers.
+`testdata/gemini-cli/stack.yaml` covers stdio, SSE (`transport: sse`) and
+streamable HTTP (`transport: http`) remotes, and its golden files verify the
+rendered JSON.
 
 ## Secrets
 

@@ -4,9 +4,8 @@ inputs:
 server:
   host: offline.example.test
 
-# stdio and SSE are both documented Gemini CLI shapes. Streamable HTTP needs the
-# separate "httpUrl" field, which no MCP style emits; see
-# recipes/gemini-cli/README.md.
+# stdio, SSE and streamable HTTP are all documented Gemini CLI shapes: SSE uses
+# "url", streamable HTTP uses "httpUrl". See recipes/gemini-cli/README.md.
 mcps:
   github:
     command: npx
@@ -15,6 +14,12 @@ mcps:
       GITHUB_TOKEN: ${GH_TOKEN}
   docs:
     url: https://mcp.example.test/sse
+    transport: sse
+    headers:
+      Authorization: Bearer ${GH_TOKEN}
+  search:
+    url: https://mcp.example.test/mcp
+    transport: http
     headers:
       Authorization: Bearer ${GH_TOKEN}
 
@@ -24,7 +29,7 @@ skills:
 agents:
   gemini:
     recipe: gemini-cli
-    mcps: [github, docs]
+    mcps: [github, docs, search]
     skills: all
     secrets:
       model-key: ${GEMINI_API_KEY}
