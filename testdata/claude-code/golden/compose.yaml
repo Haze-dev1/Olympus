@@ -1,0 +1,38 @@
+name: olympus
+services:
+  claude:
+    build:
+      args:
+        BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+      context: /var/lib/olympus/store/sha256-7c15f8e6acffe4ed61addc6fec2ab6821225649e003e01a820a77dd3c5e0413a/files/root/.olympus-build
+      dockerfile: Dockerfile
+    command:
+    - sleep
+    - infinity
+    env_file:
+    - /var/lib/olympus/secrets/claude/environment
+    environment:
+      DISABLE_AUTOUPDATER: "1"
+    image: olympus/claude:sha256-ca7650213b13
+    labels:
+      org.olympus.tool: claude
+    restart: unless-stopped
+    volumes:
+    - source: claude_home
+      target: /root
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-7c15f8e6acffe4ed61addc6fec2ab6821225649e003e01a820a77dd3c5e0413a/files/root/.claude/skills/deploy-checklist/SKILL.md
+      target: /root/.claude/skills/deploy-checklist/SKILL.md
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-7c15f8e6acffe4ed61addc6fec2ab6821225649e003e01a820a77dd3c5e0413a/files/root/.mcp.json
+      target: /root/.mcp.json
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-7c15f8e6acffe4ed61addc6fec2ab6821225649e003e01a820a77dd3c5e0413a/files/root/.olympus-build/Dockerfile
+      target: /root/.olympus-build/Dockerfile
+      type: bind
+volumes:
+  claude_home:
+    name: olympus_claude_home

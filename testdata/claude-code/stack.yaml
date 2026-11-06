@@ -1,0 +1,26 @@
+inputs:
+  recipes: github:Haze-dev1/Olympus/recipes
+
+server:
+  host: offline.example.test
+
+# stdio only: Claude Code rejects an entry that has a url but no "type", and the
+# recipe format has no style that emits "type". See recipes/claude-code/README.md.
+mcps:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ${GH_TOKEN}
+
+skills:
+  - ./skills/deploy-checklist
+
+agents:
+  claude:
+    recipe: claude-code
+    mcps: [github]
+    skills: all
+    secrets:
+      model-key: ${ANTHROPIC_API_KEY}
+      github-token: ${GH_TOKEN}

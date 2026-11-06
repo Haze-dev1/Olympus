@@ -1,0 +1,30 @@
+{
+  "id": "sha256-4dc2f01bb3de8280e0f3657d715e984ca606b553932243981555703de6b55fb6",
+  "inputs": {
+    "recipes": "sha256-17138abdf985ce3e7072c418a5d7d93e106b78c7eb071f489148a70c7e1383a4"
+  },
+  "olym": "0.1.0-dev",
+  "tools": {
+    "claude": {
+      "files": {
+        "/root/.claude/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0",
+        "/root/.mcp.json": "sha256-685c76c2640c55f1592fe483b6c34e910a57228e4abb6446bea0854a4d58a8e5",
+        "/root/.olympus-build/Dockerfile": "sha256-60e6108f932518385035989894fd67b3172358bd15c4d5aa7c9acb776ac9188e"
+      },
+      "hash": "sha256-7c15f8e6acffe4ed61addc6fec2ab6821225649e003e01a820a77dd3c5e0413a",
+      "health": {
+        "command": [
+          "claude",
+          "--version"
+        ],
+        "timeout": "60s"
+      },
+      "image": "olympus/claude:sha256-ca7650213b13",
+      "secrets": [
+        "github-token",
+        "model-key"
+      ]
+    }
+  },
+  "version": 1
+}
