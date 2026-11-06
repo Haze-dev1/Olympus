@@ -31,9 +31,8 @@ jobs:
       - name: Attest release archives and checksums
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
-          subject-path: |
-            dist/*.tar.gz
-            dist/SHA256SUMS
+          # Attest every file the release publishes (archives, standalone binaries, SHA256SUMS).
+          subject-path: dist/*
 
       - name: Publish GitHub Release
         env:
