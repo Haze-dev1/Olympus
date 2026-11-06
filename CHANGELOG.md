@@ -2,6 +2,7 @@
 
 ## Development
 
+- OLY-59: attest release archives and SHA256SUMS with GitHub build provenance and document verification. At merge review the attestation subject was widened from archives and `SHA256SUMS` to every file the release publishes, including the standalone binaries.
 - OLY-33: documented a pre-release security review and ranked findings; no product fixes or live server testing.
 
 - OLY-24: add an Aider recipe (`recipes/aider`) for the Aider coding agent. Uses base multi-architecture container image `paulgauthier/aider:v0.86.2` (`linux/amd64` and `linux/arm64`, index digest `sha256:0d54037f6c97c85a926ebc3c903e27446f5bca96823d9f68902f1e623289b556`), matching PyPI release `aider-chat==0.86.2`. Uses the `build` mechanism (ADR 0035) with `recipes/aider/Dockerfile` on `${BASE_IMAGE}` resetting `ENTRYPOINT []` so `command: [sleep, infinity]` runs cleanly detached without starting an interactive session. Health check is `aider --version` (60 s). State is stored in a single `/app` volume (`WORKDIR /app`, `USER appuser`, `HOME=/app`), which Docker initializes with image ownership (`appuser:appuser`, UID 1000) and permissions. Aider supports neither MCP servers nor skills directories natively, so no `supports` block is declared. Adds `testdata/aider/` with a stack and golden generation fixtures. Added one row to `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go`. No other Go code changed; no live lab run (no QEMU on this host). No ADR: reuses ADR 0035 and existing recipe format.

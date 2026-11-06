@@ -16,6 +16,10 @@ VERSION="0.1.0" # or desired version
 curl -fsSL -O "https://github.com/Haze-dev1/Olympus/releases/download/v${VERSION}/olym_${VERSION}_${OS}_${ARCH}.tar.gz"
 curl -fsSL -O "https://github.com/Haze-dev1/Olympus/releases/download/v${VERSION}/SHA256SUMS"
 
+# Verify GitHub build provenance before trusting either file (requires gh authentication).
+gh attestation verify "olym_${VERSION}_${OS}_${ARCH}.tar.gz" --repo Haze-dev1/Olympus
+gh attestation verify SHA256SUMS --repo Haze-dev1/Olympus
+
 # Verify checksum
 if command -v sha256sum >/dev/null 2>&1; then
   sha256sum --ignore-missing -c SHA256SUMS
