@@ -1,0 +1,30 @@
+inputs:
+  recipes: github:Haze-dev1/Olympus/recipes
+
+server:
+  host: offline.example.test
+
+# The remote server omits transport, so it defaults to http and renders with
+# Claude Code / OMP's required "type": "http".
+mcps:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ${GH_TOKEN}
+  docs:
+    url: https://mcp.example.test/mcp
+    headers:
+      Authorization: Bearer ${GH_TOKEN}
+
+skills:
+  - ./skills/deploy-checklist
+
+agents:
+  oh-my-pi:
+    recipe: oh-my-pi
+    mcps: [github, docs]
+    skills: all
+    secrets:
+      model-key: ${ANTHROPIC_API_KEY}
+      github-token: ${GH_TOKEN}
