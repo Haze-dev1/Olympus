@@ -1,6 +1,6 @@
 # Recipe catalog
 
-- **Status:** In progress: OpenBot, Claude Code and Gemini CLI recipes added and rendered offline; none lab-verified.
+- **Status:** In progress: OpenBot, Claude Code, Gemini CLI and Goose recipes added and rendered offline; none lab-verified.
 - **Milestone:** M5
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -224,4 +224,64 @@ Known gaps:
 ADR: none added. The recipe reuses ADRs 0035 (built images), 0036 (writable
 init delivery), 0037 (MCP translation styles) and 0038 (skills mounting); no
 format, durable behaviour or architecture changed.
+
+## Goose (OLY-23)
+
+**Status:** implemented offline; live-server verification not run.
+
+Files: `recipes/goose/{recipe.yaml,Dockerfile,README.md}`,
+`testdata/goose/stack.yaml`, `testdata/goose/skills/deploy-checklist/SKILL.md`,
+`testdata/goose/golden/` (rendered fixture).
+
+Decisions:
+
+- Built image, no maintained upstream container: Goose documentation describes
+  Docker usage as building from source via `documentation/docs/docker/Dockerfile`
+  and Compose. Legacy registry tags on `ghcr.io/block/goose` stopped at `1.9.0`
+  and `ghcr.io/aaif-goose/goose` stopped at `1.30.0`. The recipe uses the
+  existing `build` mechanism (ADR 0035) on `node:22-bookworm-slim`.
+- Pin: `v1.57.0`, published 2026-10-28 on GitHub Releases, verified with
+  `curl -sL https://api.github.com/repos/aaif-goose/goose/releases/tags/v1.57.0 | jq -r .tag_name` → `v1.57.0`.
+  Assets `goose-<arch>-unknown-linux-musl.tar.gz` verified for both `amd64` and `arm64`.
+- Skills: mounted read-only at `/root/.agents/skills` (`mode: mount`), the
+  canonical global user skills directory (`global_skills_dir()` in
+  `crates/goose/src/skills/mod.rs` at `v1.57.0`).
+- Secret: `model-key` → `OPENAI_API_KEY` (A1, A5), the documented default
+  provider environment variable.
+- Health: `goose --version` (60 s), which prints `goose 1.57.0` and exits 0.
+  Container command stays `sleep infinity` so the CLI can be exec'd.
+- `resources.min_ram: 4GB`.
+
+Verification (offline, 2026-11-06):
+
+- `go build`, `go vet`, `gofmt -l .` clean; `go test ./...` green except the
+  three macOS-only `internal/deploy` failures listed in AGENTS.md (unrelated,
+  untouched).
+- `olym check -f testdata/goose/stack.yaml -recipes recipes` with a temporary
+  sentinel `.env` → "Stack is valid." (exit 0).
+- Rendered generation for `testdata/goose/stack.yaml` via `TestRecipeGoldens`:
+  - `compose.yaml` binds `/root/.agents/skills/deploy-checklist/SKILL.md` and the
+    Dockerfile read-only, mounts the `goose_home` volume at `/root`, sets
+    `BASE_IMAGE` from the locked digest and uses content-addressed
+    `olympus/goose:<hash>` tag.
+  - `manifest.json` and `compose.yaml` contain no secret value and no sentinel;
+    the manifest lists `model-key` only.
+
+Known gaps:
+
+- **MCP servers (extensions) do not work.** In Goose, extensions require
+  `type: stdio` (tagged enum `#[serde(tag = "type")]`) and `cmd: string` (and
+  `uri` for remote streamable_http); Olympus `translateMCP` has no style that
+  emits `type: stdio`, `cmd`, or `uri`. Because Goose skips entries missing
+  `type`/`cmd` as malformed, `supports.mcps` is omitted per the project STOP
+  rule rather than worked around.
+- **Golden test.** `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go`
+  renders `testdata/goose/stack.yaml` and compares it with `testdata/goose/golden/`.
+- **No live lab run.** No QEMU on the host, so `docker build`,
+  `goose --version`, and live model sessions were not exercised.
+- **UNVERIFIED:** live model session execution against an active API key.
+
+ADR: none added. Reuses ADRs 0035 (built images) and 0038 (skills mounting); no
+format, durable behaviour or architecture changed.
+
 

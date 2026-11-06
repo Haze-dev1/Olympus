@@ -1,0 +1,32 @@
+name: olympus
+services:
+  goose:
+    build:
+      args:
+        BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+      context: /var/lib/olympus/store/sha256-33af90cacdf5501ed0b705fca6673d49756411c0a6d1e49ebcb6dd32f705393a/files/root/.olympus-build
+      dockerfile: Dockerfile
+    command:
+    - sleep
+    - infinity
+    env_file:
+    - /var/lib/olympus/secrets/goose/environment
+    image: olympus/goose:sha256-68817bd8d551
+    labels:
+      org.olympus.tool: goose
+    restart: unless-stopped
+    volumes:
+    - source: goose_home
+      target: /root
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-33af90cacdf5501ed0b705fca6673d49756411c0a6d1e49ebcb6dd32f705393a/files/root/.agents/skills/deploy-checklist/SKILL.md
+      target: /root/.agents/skills/deploy-checklist/SKILL.md
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-33af90cacdf5501ed0b705fca6673d49756411c0a6d1e49ebcb6dd32f705393a/files/root/.olympus-build/Dockerfile
+      target: /root/.olympus-build/Dockerfile
+      type: bind
+volumes:
+  goose_home:
+    name: olympus_goose_home
