@@ -597,6 +597,8 @@ Every case in [edgecases/apply.md](edgecases/apply.md) becomes a test at one of 
 
 Before the first release, check that `olym` is not already taken in Homebrew and the AUR (**open**).
 
+Release archives and `SHA256SUMS` carry GitHub build provenance attestations; consumers can verify each file with `gh attestation verify <file> --repo Haze-dev1/Olympus`.
+
 ## 14. Performance budget
 
 | Operation | Budget | Main cost |

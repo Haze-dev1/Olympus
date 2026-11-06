@@ -428,3 +428,5 @@ Known gaps:
 
 ADR: none added. Reuses existing recipe format, ADR 0038 (skills mounting) and ADR 0045 (runtime options);
 no format, durable behaviour or architecture changed.
+
+- **Merge review, 2026-11-06:** verified the repo (not a fork), the `v2026.11.1` release, the GHCR image config (tini entrypoint that takes `command` as arguments, `User node`, `WorkingDir /app`) and the Dockerfile's `node:node 0700` state directories. Added `--allow-unconfigured` because the gateway refuses to start on a fresh volume without `gateway.mode=local`, which would have failed the first health check and rolled back. Added an `auth` volume for `/home/node/.config/openclaw`, which upstream persists separately. Regenerated the golden. Container start is still unverified (no lab).

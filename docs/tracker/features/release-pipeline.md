@@ -1,6 +1,6 @@
 # Release pipeline
 
-- **Status:** Done offline (CI and release script ready; tag/release not pushed; artifacts checksummed, not signed)
+- **Status:** Done offline (CI and release script ready; tag/release not pushed; artifact attestation configured; live release not verified)
 - **Updated:** 2026-11-06
 - **Milestone:** M1
 
@@ -29,3 +29,7 @@ Cross-compiles the Olympus CLI (`darwin/amd64`, `darwin/arm64`, `linux/amd64`, `
 
 - Amended ADR 0048: release archives bundle both Linux activators; clients select the server architecture and reject release builds missing checksums. Development builds warn. The linker can now set the version, and workflow actions are pinned to verified commit SHAs.
 - `go build`, `go vet`, and `gofmt -l .` passed. `go test ./...` failed on the three reported macOS baseline cases: `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, and `TestToolEntryReuseAndVerification`. The second briefly failed at the new release checksum guard because its fixture used version `test` without a checksum, which would also fail on Linux; at merge review its client was given the binary's release checksum, so on macOS it again fails only for the known non-ELF reason. Focused release tests passed. The 9.9.9 release build reported version 9.9.9; a test using the built amd64 activator and embedded digest accepted it and rejected a modified copy. An initial modification damaged ELF metadata and was rejected earlier; the final test altered a payload byte and reached the checksum rejection. No QEMU lab, actual server deployment, or live release was run.
+
+## Release provenance, 2026-11-06
+
+OLY-59 configures the official `actions/attest-build-provenance` action, pinned to the commit behind v3, for every archive and `SHA256SUMS`; the release job requests only contents, OIDC and attestation write permissions. Install and release instructions describe `gh attestation verify`. ADR 0048 was amended. No release or tag was created, so live attestation and verification remain untested. Build and vet passed, gofmt printed nothing, documentation links and tracker JSON validated. Full tests failed only the known macOS deploy cases: `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, and `TestToolEntryReuseAndVerification`. No QEMU lab was available.

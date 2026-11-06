@@ -1,0 +1,38 @@
+inputs:
+  recipes: github:Haze-dev1/Olympus/recipes
+
+server:
+  host: 192.0.2.1
+  user: root
+
+mcps:
+  github:
+    command: npx
+    args: ["@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ${GH_TOKEN}
+
+agents:
+  hermes:
+    recipe: hermes
+    mcps: [github]
+    secrets:
+      model-key: ${HERMES_MODEL_KEY}
+      telegram-token: ${TELEGRAM_BOT_TOKEN}
+      github-token: ${GH_TOKEN}
+    channels:
+      telegram:
+        token: ${TELEGRAM_BOT_TOKEN}
+        allow: ["@admin_user"]
+  codex:
+    recipe: codex
+    mcps: [github]
+    secrets:
+      api-key: ${CODEX_API_KEY}
+      github-token: ${GH_TOKEN}
+  opencode:
+    recipe: opencode
+    mcps: [github]
+    secrets:
+      model-key: ${OPENCODE_MODEL_KEY}
+      github-token: ${GH_TOKEN}

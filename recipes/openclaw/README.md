@@ -54,7 +54,19 @@ Sources checked **2026-11-06** against OpenClaw's official repository at
   - Configuration (`openclaw.json`), SQLite state database (`state/openclaw.sqlite`), agent databases
     (`agents/<agentId>/agent/openclaw-agent.sqlite`), credentials (`credentials/`), and workspace
     (`workspace/`) all reside inside `/home/node/.openclaw`.
-  - The recipe mounts a single named volume `data` at `/home/node/.openclaw`.
+  - The recipe mounts the named volume `data` at `/home/node/.openclaw` and a second volume `auth`
+    at `/home/node/.config/openclaw`, where upstream keeps auth-profile secrets
+    (`docker-compose.yml` mounts it as `OPENCLAW_AUTH_PROFILE_SECRET_DIR`). The Dockerfile
+    pre-creates both as `node:node 0700` (`Dockerfile` at `v2026.11.1`, the `install -d` step), so
+    the empty named volumes inherit that ownership.
+- **First start without onboarding.** A fresh state volume has no `openclaw.json`, and the gateway
+  refuses to start unless `gateway.mode=local` is configured. `--allow-unconfigured` "Start[s]
+  without enforcing `gateway.mode=local`" (`docs/cli/gateway/running.md` at `v2026.11.1`), and
+  upstream's own Render blueprint runs `node openclaw.mjs gateway --allow-unconfigured`
+  (`docs/install/render.mdx`). It does not waive the shared-secret requirement for a non-loopback
+  bind, which `OPENCLAW_GATEWAY_TOKEN` satisfies. After the first apply, configure OpenClaw inside
+  the container, e.g. `docker exec -it <container> node dist/index.js onboard --mode local
+  --no-install-daemon`; the config persists in the `data` volume. Checked 2026-11-06.
 - **Runtime options.** `runtime.no_new_privileges: true` reproduces upstream's
   `security_opt: [no-new-privileges:true]` from `docker-compose.yml` (ADR 0045).
 - **Health check.** Upstream's container health check probes `GET /healthz` on port 18789

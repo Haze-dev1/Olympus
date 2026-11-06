@@ -5,6 +5,7 @@ services:
     - node
     - openclaw.mjs
     - gateway
+    - --allow-unconfigured
     - --bind
     - lan
     - --port
@@ -20,13 +21,18 @@ services:
     security_opt:
     - no-new-privileges:true
     volumes:
+    - source: openclaw_auth
+      target: /home/node/.config/openclaw
+      type: volume
     - source: openclaw_data
       target: /home/node/.openclaw
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-e0ba2959a1bdd64584529d89a7b75f03c2ad23a36a06706b372badeff53be9a8/files/home/node/.openclaw/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-d5f81f34dde0d75402f490e7eccc120b0d4b131def237709439a87d34156d1c8/files/home/node/.openclaw/skills/deploy-checklist/SKILL.md
       target: /home/node/.openclaw/skills/deploy-checklist/SKILL.md
       type: bind
 volumes:
+  openclaw_auth:
+    name: olympus_openclaw_auth
   openclaw_data:
     name: olympus_openclaw_data
