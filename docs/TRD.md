@@ -574,7 +574,7 @@ Every case in [edgecases/apply.md](edgecases/apply.md) becomes a test at one of 
 - Each release publishes the binaries and a `SHA256SUMS` file. The CLI embeds the checksums of its own Linux builds at build time, so it can verify the activator it uploads (rule A12).
 - A CLI running on macOS downloads the matching Linux build of its own version, verifies it against the embedded checksum, and caches it. A CLI on Linux with the server's architecture uploads itself.
 - Development builds take `--activator <path>` and skip the release check with a visible warning.
-- Release tooling (**proposed:** GoReleaser) is chosen in M1; it can build the archives, `SHA256SUMS`, the Homebrew formula and the AUR package from one config.
+- Release tooling uses a native cross-compilation pipeline (`scripts/build-release.sh` and GitHub Actions `.github/workflows/release.yml`) using official `actions/*` and standard Go toolchain, embedding activator checksums via `-ldflags` ([ADR 0048](ADR.md#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build)).
 
 ### 13.1 Names and paths
 

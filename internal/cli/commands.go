@@ -138,6 +138,9 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 	if err = c.UploadGeneration(ctx, g); err != nil {
 		return fail(err)
 	}
+	if activator != "" && deploy.ExpectedChecksum("amd64") == "" {
+		fmt.Fprintln(stderr, "Warning: using custom activator; skipping release checksum verification")
+	}
 	if err = c.UploadActivator(ctx, activator); err != nil {
 		return fail(err)
 	}
@@ -174,6 +177,9 @@ func serverCommand(command string, s *stack.Stack, known, activator string, keep
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	fail := func(e error) int { fmt.Fprintln(stderr, e); return deploy.ExitCode(e) }
+	if activator != "" && deploy.ExpectedChecksum("amd64") == "" {
+		fmt.Fprintln(stderr, "Warning: using custom activator; skipping release checksum verification")
+	}
 	if err = c.UseServer(ctx); err != nil {
 		return fail(err)
 	}

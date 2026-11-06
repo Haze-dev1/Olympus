@@ -52,6 +52,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
 | [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
 | [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
+| [0048](#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build) | Cross-compile release binaries and verify activator checksum against release build | Accepted, amends 0029 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1459,6 +1460,39 @@ The recipe declares no `supports` block. The pinned docs define OpenBot's own lo
 - **Use Docker's default profile instead of upstream's:** the container stops, because the Electron sandbox cannot create user namespaces.
 - **Set `seccomp=unconfined`, `--privileged` or `--no-sandbox`:** upstream explicitly rules these out; each one removes either the sandbox or the syscall filter.
 - **Declare `supports` for OpenBot's own skills folder:** the pinned docs document no stable on-disk MCP config or shared-skills folder that Olympus could write, so a guess would break on upgrade.
+
+## 0048. Cross-compile release binaries and verify activator checksum against release build
+
+- **Status:** Accepted, amends 0029
+- **Date:** 2026-11-06
+
+### Context
+
+ADR 0029 established deployment verification of the activator binary on the server, but deferred release-checksum embedding: in the M1 offline slice, `UploadActivator` and `VerifyActivator` computed the SHA-256 of whatever local binary was selected and verified the server matched that binary, without asserting trust against an official release build.
+
+Rule A12 requires: "Run the activator on the server only after checking its checksum matches the CLI's release build, and never a different version from the CLI." TRD section 13 specifies cross-compiling the CLI and Linux activator for darwin/linux on amd64/arm64 and publishing a `SHA256SUMS` file.
+
+### Decision
+
+We will:
+1. Cross-compile Olympus CLI (`darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64`) and Linux activator (`linux/amd64`, `linux/arm64`) binaries using standard Go toolchain (`CGO_ENABLED=0`) in a tag-triggered GitHub Actions workflow (`.github/workflows/release.yml`) and `scripts/build-release.sh`.
+2. Sequence release builds so Linux activator binaries are compiled first, their SHA-256 digests computed, and then embedded into the CLI binaries via linker flags (`-ldflags "-X ..."`).
+3. In `internal/deploy`, check the activator's SHA-256 against the embedded release checksum (`ExpectedReleaseChecksum(arch)`) before uploading to or activating on the remote server. Mismatches fail closed with `deploy: activator checksum does not match release build`.
+4. In `internal/cli`, when a development build runs with `--activator <path>` and no embedded release checksum is present, print a visible warning to stderr (`Warning: using custom activator; skipping release checksum verification`) while permitting local testing.
+5. Package tarball archives (`olym_<version>_<os>_<arch>.tar.gz` and `olym-activator_<version>_linux_<arch>.tar.gz`), emit a `SHA256SUMS` manifest, and publish releases using `gh release create`.
+
+### Consequences
+
+- Rule A12 is enforced cryptographically: release CLI builds will only execute verified release activators on target servers.
+- The build pipeline requires zero third-party GitHub Actions or release dependencies, relying exclusively on official `actions/*` and standard Go tooling.
+- Developers can continue testing custom Linux activator builds in local dev environments using `--activator` with clear warning transparency.
+- Activator and CLI binaries are decoupled in build order to avoid circular hash embedding.
+
+### Alternatives considered
+
+- **GoReleaser or third-party release Action:** Adds external dependencies and non-official actions, which violates the repo guideline to prefer native tools and requires approval.
+- **Download and verify activator at runtime over HTTPS:** Introduces runtime network dependencies and external failure modes during deployment. Embedding release digests directly at build time is offline-first, deterministic, and self-contained.
+- **Single binary without separate activator artifact:** Activator on Linux is the `olym` binary running server commands; building activator artifacts first allows deterministic checksum calculation prior to CLI linking.
 
 ## Template
 

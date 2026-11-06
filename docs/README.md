@@ -16,6 +16,8 @@ Start with [PRD.md](PRD.md) for what Olympus is for, then [TRD.md](TRD.md) for h
 | [plans/](plans/) | Implementation plans, one per release ([v1](plans/v1.md)) |
 | [prototypes/](prototypes/) | Draft example files: a stack file, `.env.example`, a Hermes recipe |
 | [tracker/](tracker/) | [progress.json](tracker/progress.json) for milestone and feature status, and one file per feature in [features/](tracker/features/) |
+| [install.md](install.md) | Installation guide: binary download, verification, building from source |
+| [release.md](release.md) | Release workflow: cross-compilation, checksum embedding (A12) and tagging |
 | [Sources/](Sources/) | External research: [landscape.md](Sources/landscape.md) on existing tools and what was checked |
 
 The design doc also has a live version at https://claude.ai/code/artifact/ceba9b3f-01ae-4774-bcf0-740b16516722. The copy in this repo is current and the one to edit; the live version predates ADRs 0013–0016.

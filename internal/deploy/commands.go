@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // UseServer checks privilege without installing anything, for read and cleanup commands.
@@ -69,10 +70,20 @@ func (c *Client) Status(ctx context.Context) ([]byte, error) {
 }
 
 // VerifyActivator permits read-only commands without uploading a binary. It
-// applies the same local-byte checksum and version checks as deployment.
+// applies the same checksum and version checks as deployment (rule A12).
 func (c *Client) VerifyActivator(ctx context.Context, local string) error {
+	machine, err := c.run(ctx, []string{"uname", "-m"}, nil)
+	if err != nil {
+		return err
+	}
+	arch := strings.TrimSpace(string(machine))
+	expected := c.ExpectedReleaseChecksum(arch)
 	if local == "" {
-		var err error
+		if expected != "" {
+			c.binary = root + "/bin/olym-" + c.Version
+			c.checksum = expected
+			return c.verifyActivator(ctx)
+		}
 		local, err = os.Executable()
 		if err != nil {
 			return err
@@ -82,7 +93,11 @@ func (c *Client) VerifyActivator(ctx context.Context, local string) error {
 	if err != nil {
 		return errors.New("deploy: cannot read activator")
 	}
+	actual := fmt.Sprintf("%x", sha256.Sum256(b))
+	if expected != "" && actual != expected {
+		return errors.New("deploy: activator checksum does not match release build")
+	}
 	c.binary = root + "/bin/olym-" + c.Version
-	c.checksum = fmt.Sprintf("%x", sha256.Sum256(b))
+	c.checksum = actual
 	return c.verifyActivator(ctx)
 }

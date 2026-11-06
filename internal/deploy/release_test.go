@@ -1,0 +1,168 @@
+package deploy
+
+import (
+	"context"
+	"crypto/sha256"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func dummyELF64x86() []byte {
+	hdr := make([]byte, 64)
+	copy(hdr[0:4], []byte{0x7f, 'E', 'L', 'F'})
+	hdr[4] = 2     // 64-bit
+	hdr[5] = 1     // little-endian
+	hdr[6] = 1     // version
+	hdr[16] = 2    // ET_EXEC
+	hdr[18] = 0x3e // EM_X86_64
+	hdr[20] = 1    // version
+	return hdr
+}
+
+func TestUploadActivatorReleaseChecksumVerification(t *testing.T) {
+	elfData := dummyELF64x86()
+	expectedHash := fmt.Sprintf("%x", sha256.Sum256(elfData))
+	wrongHash := strings.Repeat("0", 64)
+
+	tmpDir := t.TempDir()
+	binPath := filepath.Join(tmpDir, "olym-linux-amd64")
+	if err := os.WriteFile(binPath, elfData, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	makeConn := func() *fakeConn {
+		var uploaded []byte
+		return &fakeConn{run: func(a []string, in io.Reader) ([]byte, []byte, error) {
+			switch a[0] {
+			case "uname":
+				return okOutput("x86_64")
+			case "install":
+				uploaded, _ = io.ReadAll(in)
+			case "sha256sum":
+				return okOutput(fmt.Sprintf("%x  binary", sha256.Sum256(uploaded)))
+			}
+			if strings.HasPrefix(a[0], root) {
+				return okOutput("1.0.0")
+			}
+			return okOutput("")
+		}}
+	}
+
+	t.Run("matching release checksum succeeds", func(t *testing.T) {
+		f := makeConn()
+		c := Client{
+			Conn:             f,
+			Version:          "1.0.0",
+			ReleaseChecksums: map[string]string{"x86_64": expectedHash},
+		}
+		if err := c.UploadActivator(context.Background(), binPath); err != nil {
+			t.Fatalf("expected success, got %v", err)
+		}
+	})
+
+	t.Run("mismatched release checksum fails closed", func(t *testing.T) {
+		f := makeConn()
+		c := Client{
+			Conn:             f,
+			Version:          "1.0.0",
+			ReleaseChecksums: map[string]string{"x86_64": wrongHash},
+		}
+		err := c.UploadActivator(context.Background(), binPath)
+		if err == nil {
+			t.Fatal("expected failure on mismatched release checksum, got nil")
+		}
+		if !strings.Contains(err.Error(), "activator checksum does not match release build") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("empty release checksum allows dev build", func(t *testing.T) {
+		f := makeConn()
+		c := Client{
+			Conn:    f,
+			Version: "1.0.0",
+		}
+		if err := c.UploadActivator(context.Background(), binPath); err != nil {
+			t.Fatalf("expected dev build to succeed when expected checksum is empty, got %v", err)
+		}
+	})
+}
+
+func TestVerifyActivatorReleaseChecksum(t *testing.T) {
+	expectedHash := strings.Repeat("a", 64)
+
+	makeConn := func(remoteHash string) *fakeConn {
+		return &fakeConn{run: func(a []string, in io.Reader) ([]byte, []byte, error) {
+			switch a[0] {
+			case "uname":
+				return okOutput("x86_64")
+			case "sha256sum":
+				return okOutput(fmt.Sprintf("%s  binary", remoteHash))
+			}
+			if strings.HasPrefix(a[0], root) {
+				return okOutput("1.0.0")
+			}
+			return okOutput("")
+		}}
+	}
+
+	t.Run("remote matches release checksum without local binary", func(t *testing.T) {
+		f := makeConn(expectedHash)
+		c := Client{
+			Conn:             f,
+			Version:          "1.0.0",
+			ReleaseChecksums: map[string]string{"x86_64": expectedHash},
+		}
+		if err := c.VerifyActivator(context.Background(), ""); err != nil {
+			t.Fatalf("expected verify success, got %v", err)
+		}
+	})
+
+	t.Run("remote mismatch fails", func(t *testing.T) {
+		f := makeConn(strings.Repeat("b", 64))
+		c := Client{
+			Conn:             f,
+			Version:          "1.0.0",
+			ReleaseChecksums: map[string]string{"x86_64": expectedHash},
+		}
+		err := c.VerifyActivator(context.Background(), "")
+		if err == nil {
+			t.Fatal("expected verify failure, got nil")
+		}
+		if !strings.Contains(err.Error(), "checksum mismatch") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestExpectedChecksum(t *testing.T) {
+	origAmd64 := ReleaseChecksumLinuxAmd64
+	origArm64 := ReleaseChecksumLinuxArm64
+	defer func() {
+		ReleaseChecksumLinuxAmd64 = origAmd64
+		ReleaseChecksumLinuxArm64 = origArm64
+	}()
+
+	ReleaseChecksumLinuxAmd64 = "hash-amd64"
+	ReleaseChecksumLinuxArm64 = "hash-arm64"
+
+	if got := ExpectedChecksum("x86_64"); got != "hash-amd64" {
+		t.Fatalf("got %q, want hash-amd64", got)
+	}
+	if got := ExpectedChecksum("amd64"); got != "hash-amd64" {
+		t.Fatalf("got %q, want hash-amd64", got)
+	}
+	if got := ExpectedChecksum("aarch64"); got != "hash-arm64" {
+		t.Fatalf("got %q, want hash-arm64", got)
+	}
+	if got := ExpectedChecksum("arm64"); got != "hash-arm64" {
+		t.Fatalf("got %q, want hash-arm64", got)
+	}
+	if got := ExpectedChecksum("unknown"); got != "" {
+		t.Fatalf("got %q, want empty", got)
+	}
+}
