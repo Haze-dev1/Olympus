@@ -24,3 +24,18 @@ Load declarative recipes and render their templates ([spec](../../specs/recipe.m
   prior failures and authentication limits are in [first-recipes](first-recipes.md).
   ADRs 0040–0041 cover this run's changed catalog/build behavior; no additional
   format decision was needed for native MCP or skill delivery.
+
+- 2026-11-06 — OLY-55 adds the optional `runtime` block (`shm_size`,
+  `stop_grace_period`, `no_new_privileges`, `seccomp`). `internal/recipe` validates
+  positive sizes and durations, a boolean flag and a confined recipe-folder
+  profile (URLs, absolute paths, traversal and recipes without a volume are
+  rejected); `internal/eval` renders `shm_size`, `stop_grace_period` and
+  `security_opt`. The profile becomes a generated file at
+  `<first volume>/.olympus/seccomp.json`, so it is hashed into the tool hash and
+  manifest, shown by `plan` as a config change, uploaded under
+  `/var/lib/olympus/store/<tool hash>/files/…` and referenced by its host store
+  path. Offline tests cover the valid render and every rejection; the existing
+  golden generation is unchanged because an absent `runtime` block serializes
+  away. No lab run: this host has no QEMU, so container start with the profile is
+  unverified. ADR 0045 records the decision and why `no_new_privileges` stays
+  opt-in.
