@@ -1,0 +1,24 @@
+name: openbot
+kind: harness
+image: ghcr.io/nightly-labs/openbot:0.62.0
+volumes:
+  data: /data
+runtime:
+  # Chromium uses shared memory; the Docker default of 64 MB is too small.
+  shm_size: 1g
+  # OpenBot stops its agents and closes the database before it exits.
+  stop_grace_period: 60s
+  no_new_privileges: true
+  # The Docker default profile with one extra rule, so the Electron sandbox
+  # keeps its user namespaces. See README.md and upstream docker/seccomp.json.
+  seccomp: seccomp.json
+health:
+  command: [openbot, status]
+  timeout: 60s
+secrets:
+  xai-key:
+    env: XAI_API_KEY
+  cursor-key:
+    env: CURSOR_API_KEY
+  cline-key:
+    env: CLINE_API_KEY

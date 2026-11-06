@@ -45,7 +45,7 @@
     {
       "id": "M5",
       "name": "Recipe catalog",
-      "status": "not_started",
+      "status": "in_progress",
       "features": [
         "recipe-catalog"
       ]
@@ -103,8 +103,10 @@
       "summary": "Hermes Telegram and Discord render as environment variables with a required allow-list; live bot test pending."
     },
     "recipe-catalog": {
-      "status": "not_started",
-      "file": "features/recipe-catalog.md"
+      "status": "in_progress",
+      "file": "features/recipe-catalog.md",
+      "updated": "2026-11-06",
+      "summary": "OLY-56 adds recipes/openbot for ghcr.io/nightly-labs/openbot:0.62.0 with the upstream seccomp profile vendored, runtime limits, one /data volume, no published port and optional XAI/CURSOR/CLINE keys; covered by testdata/openbot and TestOpenBotGolden. Offline checks green; lab and container not run (no QEMU, no Docker)."
     },
     "test-lab": {
       "status": "done",
@@ -152,6 +154,7 @@
     "ADR 0041 prepare and reuse content-addressed built images",
     "ADR 0042 track and prune only previously copied skill files",
     "ADR 0044 preflight the server before plan and apply",
-    "ADR 0045 recipe runtime limits as fixed Compose keys"
+    "ADR 0045 recipe runtime limits as fixed Compose keys",
+    "ADR 0046 vendor OpenBot's seccomp profile and pin an exact release"
   ]
 }

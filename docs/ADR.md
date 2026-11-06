@@ -51,6 +51,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032 |
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
 | [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
+| [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1426,6 +1427,38 @@ Only these four keys exist; there is no passthrough. `no_new_privileges` stays o
 - **Put the seccomp profile in the image:** a custom image is not available for every tool, and the profile would no longer be visible to `plan`.
 - **Store the profile outside the tool's store entry:** would need a new content-addressed upload path, verification and garbage-collection rules in `deploy`.
 - **Make `no_new_privileges` the default:** a silent behaviour change for three unverified images and every future recipe, with no evidence the images still start.
+
+## 0046. Vendor OpenBot's seccomp profile and pin an exact release
+
+- **Status:** Accepted
+- **Date:** 2026-11-06
+
+### Context
+
+OLY-56 adds the OpenBot recipe. Upstream publishes a container image and three files that must agree: `docker/compose.yaml`, `docker/seccomp.json` and the `docs/docker.md` example. The seccomp profile is not optional: it is Docker's default profile plus one rule that lets `clone` and `unshare` create user, PID and network namespaces, which the Electron sandbox needs. Without it the container stops. Upstream warns that the files can change between releases and asks an operator to diff them before an upgrade.
+
+OpenBot also refuses to open a database that a newer release migrated, so an image-tag rollback of a live volume does not start. A moving tag would therefore turn an ordinary `apply` into a one-way upgrade.
+
+### Decision
+
+We will vendor the profile at `recipes/openbot/seccomp.json`, copied verbatim from `docker/seccomp.json` at release `v0.62.0`, and record its SHA-256 and source in the recipe README. The recipe names the exact image `ghcr.io/nightly-labs/openbot:0.62.0`, never `latest`; the lock file pins the digest (A7). The profile reaches the daemon through the OLY-55 `runtime.seccomp` path: a hashed tool file under the `/data` volume's `.olympus` folder, uploaded under `/var/lib/olympus` and bind-mounted read-only.
+
+The recipe declares no `supports` block. The pinned docs define OpenBot's own local skills library and channel chats inside the app, but no file or folder where Olympus could install shared MCP servers or skills and no channel environment variables.
+
+### Consequences
+
+- The profile is part of the recipe set and therefore part of the recipes hash; a changed profile changes the generation and shows up in `plan`.
+- Upgrading OpenBot is a manual recipe update: copy the new `docker/seccomp.json`, update the image tag, the README dates and the SHA-256, and diff `docker/compose.yaml`. There is no automation, matching upstream's own upgrade guidance.
+- The vendored file is a derivative of Docker's Apache-2.0 default profile; upstream's notice and the PolyForm Noncommercial 1.0.0 licence of OpenBot itself are recorded in the recipe README, and the README states that commercial use needs a vendor licence.
+- The recipe is not lab-verified, because the QEMU lab is unavailable here; the golden test covers rendering only.
+
+### Alternatives considered
+
+- **Fetch the profile from GitHub at `plan` or `apply`:** adds a network dependency and a mutable remote input to an otherwise offline generation, is invisible in `plan`, and enlarges the supply-chain surface (A1, A12).
+- **Use `latest` or a floating `<minor>` tag:** OpenBot publishes no floating minor tag, evades review of runtime option changes, and makes an unintended one-way database migration likely.
+- **Use Docker's default profile instead of upstream's:** the container stops, because the Electron sandbox cannot create user namespaces.
+- **Set `seccomp=unconfined`, `--privileged` or `--no-sandbox`:** upstream explicitly rules these out; each one removes either the sandbox or the syscall filter.
+- **Declare `supports` for OpenBot's own skills folder:** the pinned docs document no stable on-disk MCP config or shared-skills folder that Olympus could write, so a guess would break on upgrade.
 
 ## Template
 
