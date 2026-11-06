@@ -1518,6 +1518,7 @@ We will:
 3. In `internal/deploy`, check the activator's SHA-256 against the embedded release checksum (`ExpectedReleaseChecksum(arch)`) before uploading to or activating on the remote server. Mismatches fail closed with `deploy: activator checksum does not match release build`.
 4. Reject server commands in release builds missing either embedded checksum; development builds retain a visible warning. Select the matching Linux activator alongside the CLI for uploads, including on macOS.
 5. Bundle both Linux activator architectures alongside each CLI in its archive. Package tarball archives (`olym_<version>_<os>_<arch>.tar.gz` and `olym-activator_<version>_linux_<arch>.tar.gz`), emit a `SHA256SUMS` manifest, and publish releases using `gh release create`.
+6. Attest each release archive and `SHA256SUMS` using the official GitHub build provenance action pinned to a full commit; users verify artifacts with `gh attestation verify`.
 
 ### Consequences
 
@@ -1525,11 +1526,13 @@ We will:
 - The build pipeline requires zero third-party GitHub Actions or release dependencies, relying exclusively on official `actions/*` and standard Go tooling.
 - Developers can continue testing custom Linux activator builds in local dev environments using `--activator` with clear warning transparency.
 - Activator and CLI binaries are decoupled in build order to avoid circular hash embedding.
+- GitHub provenance binds artifact digests to the workflow identity; verification depends on GitHub attestation services and does not independently prove that build inputs are safe.
 
 ### Alternatives considered
 
 - **GoReleaser or third-party release Action:** Adds external dependencies and non-official actions, which violates the repo guideline to prefer native tools and requires approval.
 - **Download and verify activator at runtime over HTTPS:** Introduces runtime network dependencies and external failure modes during deployment. Embedding release digests directly at build time is offline-first, deterministic, and self-contained.
+- **Checksums only:** An attacker able to replace both an archive and its checksum could make a substituted artifact pass verification.
 - **Single binary without separate activator artifact:** Activator on Linux is the `olym` binary running server commands; building activator artifacts first allows deterministic checksum calculation prior to CLI linking.
 
 ## Template

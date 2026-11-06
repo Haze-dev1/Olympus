@@ -127,7 +127,7 @@
       "status": "done",
       "file": "features/release-pipeline.md",
       "updated": "2026-11-06",
-      "summary": "Cross-compile CLI (darwin/linux, amd64/arm64) and Linux activator (amd64/arm64), SHA256SUMS file, activator checksum verification against release (A12), and tag-triggered GitHub Actions release workflow."
+      "summary": "Cross-compile CLI (darwin/linux, amd64/arm64) and Linux activator (amd64/arm64), SHA256SUMS file, activator checksum verification against release (A12), and tag-triggered GitHub Actions release workflow. OLY-59 configures GitHub build provenance for archives and SHA256SUMS; live release verification remains pending."
     }
   },
   "decisions": [

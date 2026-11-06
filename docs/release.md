@@ -39,9 +39,15 @@ Follow these steps to create a release:
    - It cross-compiles the CLI binaries (`darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64`), injecting the activator checksums via `-ldflags` (rule A12).
    - Each CLI archive bundles both Linux activators next to `olym`; release clients reject missing embedded checksums.
    - It packages `olym_${VERSION}_${OS}_${ARCH}.tar.gz` and `olym-activator_${VERSION}_linux_${ARCH}.tar.gz`.
-   - It emits `SHA256SUMS`.
+   - It emits `SHA256SUMS` and attests each archive and the checksum file using GitHub build provenance.
    - It publishes the GitHub Release with the tarballs, standalone binaries, and `SHA256SUMS`.
 
 7. **Verify the published release:**
    - Browse to `https://github.com/Haze-dev1/Olympus/releases/tag/v0.1.0`.
    - Check that `SHA256SUMS` and all archives are attached.
+
+   - Download each archive and `SHA256SUMS`, then verify each file with the GitHub CLI (authentication required):
+     ```sh
+     gh attestation verify <file> --repo Haze-dev1/Olympus
+     ```
+   - Also check the archive against the verified `SHA256SUMS`.
