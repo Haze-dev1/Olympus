@@ -1,0 +1,25 @@
+{
+  "id": "sha256-1f2ff72517be47b49b764fa7f29905dabb0392f32703a231fb9a8d56045c6d23",
+  "inputs": {
+    "recipes": "sha256-459f082b31115e04ada08c9f0a458c3eb8a15787ee0476393c38029bc23322ec"
+  },
+  "olym": "0.1.0-dev",
+  "tools": {
+    "aider": {
+      "files": {},
+      "hash": "sha256-741934b512b7d16685e9f0acf58b8abf0149fc9c4c847fb25502e49fd11f5eb0",
+      "health": {
+        "command": [
+          "aider",
+          "--version"
+        ],
+        "timeout": "60s"
+      },
+      "image": "node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "secrets": [
+        "model-key"
+      ]
+    }
+  },
+  "version": 1
+}

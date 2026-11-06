@@ -1,0 +1,19 @@
+name: olympus
+services:
+  aider:
+    command:
+    - sleep
+    - infinity
+    env_file:
+    - /var/lib/olympus/secrets/aider/environment
+    image: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+    labels:
+      org.olympus.tool: aider
+    restart: unless-stopped
+    volumes:
+    - source: aider_app
+      target: /app
+      type: volume
+volumes:
+  aider_app:
+    name: olympus_aider_app

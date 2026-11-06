@@ -1,0 +1,14 @@
+name: aider
+kind: coding-agent
+image: paulgauthier/aider:v0.86.2
+resources:
+  min_ram: 4GB
+volumes:
+  app: /app
+command: [sleep, infinity]
+health:
+  command: [aider, --version]
+  timeout: 60s
+secrets:
+  model-key:
+    env: OPENAI_API_KEY
