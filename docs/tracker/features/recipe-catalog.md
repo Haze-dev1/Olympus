@@ -1,6 +1,6 @@
 # Recipe catalog
 
-- **Status:** In progress: OpenBot, Claude Code, Gemini CLI and Goose recipes added and rendered offline; none lab-verified.
+- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose and Aider recipes added and rendered offline; none lab-verified.
 - **Milestone:** M5
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -290,3 +290,63 @@ ADR: none added. Reuses ADRs 0035 (built images) and 0038 (skills mounting); no
 format, durable behaviour or architecture changed.
 
 - **Merge review, 2026-11-06:** the release tarball has a `./` entry owned by uid 1001, so the Dockerfile now extracts only `./goose` with `--no-same-owner` and `/usr/local/bin` keeps root ownership. Asset digests re-checked against the GitHub API; the amd64 tarball was downloaded and verified. The golden was regenerated.
+
+## Aider (OLY-24)
+
+**Status:** implemented offline; live-server verification not run.
+
+Files: `recipes/aider/{recipe.yaml,Dockerfile,README.md}`,
+`testdata/aider/stack.yaml`, `testdata/aider/golden/` (rendered fixture).
+
+Decisions:
+
+- Base container image: `paulgauthier/aider:v0.86.2` on Docker Hub, verified
+  via Docker Hub registry API (index digest
+  `sha256:0d54037f6c97c85a926ebc3c903e27446f5bca96823d9f68902f1e623289b556`,
+  covering `linux/amd64` and `linux/arm64`). PyPI package `aider-chat==0.86.2`
+  verified via PyPI API.
+- Built image (ADR 0035): upstream sets `ENTRYPOINT ["/venv/bin/aider"]`, causing
+  `command: [sleep, infinity]` to be passed as file arguments to aider, which
+  exits immediately without a TTY. A derived `Dockerfile` builds on `${BASE_IMAGE}`
+  and resets `ENTRYPOINT []`, allowing detached sleep execution.
+- No `supports` block: Aider natively supports neither MCP client connections nor
+  skills directories. As instructed by the recipe checklist and project guidance,
+  no `supports` block is declared.
+- State: `/app` volume (`WORKDIR /app`, `USER appuser` in upstream image, and
+  `ENV HOME=/app`). All config (`.aider.conf.yml`), chat/input history
+  (`.aider.*.history`), repo map cache (`.aider.tags.cache.v*`), and `~/.aider/`
+  resolve inside `/app`. Docker volume initialization preserves image ownership
+  (`appuser:appuser`, UID 1000) and permissions, making `/app` writable by `appuser`.
+- Secret: `model-key` → `OPENAI_API_KEY` (A1, A5).
+- Health: `aider --version` (60 s).
+- `resources.min_ram: 4GB`.
+
+Verification (offline, 2026-11-06):
+
+- `go build`, `go vet`, `gofmt -l .` clean; `go test ./...` green except the
+  three macOS-only `internal/deploy` failures listed in AGENTS.md (unrelated,
+  untouched).
+- `olym check -f testdata/aider/stack.yaml -recipes recipes` with a temporary
+  sentinel `.env` → "Stack is valid." (exit 0).
+- Rendered generation for `testdata/aider/stack.yaml` via `TestRecipeGoldens`:
+  - `compose.yaml` declares service `aider` with `build:` block on `${BASE_IMAGE}`,
+    `image: olympus/aider:sha256-...`, mounts `aider_app` volume at `/app`,
+    bind-mounts `/app/.olympus-build/Dockerfile`, command `[sleep, infinity]`, and
+    delivers secret `env_file`.
+  - `manifest.json` tracks file hash `/app/.olympus-build/Dockerfile` and tool hash,
+    and lists `model-key` secret only.
+- `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go` renders and
+  passes against `testdata/aider/golden/`.
+
+Known gaps:
+
+- **No live lab run.** No QEMU on the host, so `docker build`, `docker pull`,
+  `aider --version`, and container execution were not exercised against a live daemon.
+- **UNVERIFIED:** live model session execution against an active API key; runtime
+  Playwright browser installation under `/home/appuser/pw-browsers` if `--browser`
+  is used on the core image.
+
+ADR: none added. Reuses ADR 0035 (built images) and existing recipe format; no
+format, durable behaviour or architecture changed.
+
+- **Merge review, 2026-11-06:** the entrypoint fix and the `HOME=/app`, appuser and `/app` ownership facts were checked against the image config in the registry and upstream `docker/Dockerfile` at v0.86.2. `TestRecipeGoldens` now pins each recipe's own image with a fake digest, so the Aider golden shows `paulgauthier/aider:v0.86.2` as the build base instead of a placeholder Node image; the other goldens are unchanged.
