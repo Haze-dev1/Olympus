@@ -1,5 +1,12 @@
 {
   "mcpServers": {
+    "docs": {
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
+      },
+      "type": "http",
+      "url": "https://mcp.example.test/mcp"
+    },
     "github": {
       "args": [
         "-y",

@@ -201,14 +201,14 @@ Verification (offline, 2026-11-06):
   - `manifest.json` and `compose.yaml` contain no secret value and no sentinel;
     the manifest lists the two secret names only.
 
-Known gaps:
-
-- **Streamable-HTTP remote MCP servers do not work.** `hermes` can emit `url`,
-  which Gemini CLI reads as an **SSE** endpoint; streamable HTTP needs the
-  separate `httpUrl` field, and no MCP style emits it. SSE remotes and stdio
-  servers are unaffected. Closing this needs a new MCP style (Go change), so it
-  is reported here and in the PR rather than worked around. This is narrower
-  than the Claude Code gap: Gemini CLI accepts `url` without a `type` field.
+- **Remote MCP servers (OLY-57, 2026-11-06):** Resolved the remote MCP format
+  gaps for Claude Code and Gemini CLI. Added `transport: http | sse` (default
+  `http`) to the stack specification and added `claude-code` (`type: http|sse`)
+  and `gemini-cli` (`httpUrl` for http, `url` for sse) translation styles in
+  `internal/eval`. Switched `recipes/claude-code` and `recipes/gemini-cli` to their
+  respective styles. Stacks in `testdata/claude-code` and `testdata/gemini-cli`
+  exercise remote servers and their goldens are regenerated. Golden-real output
+  remains byte-identical. ADR 0047 amends ADR 0037.
 - **Golden test (added at merge review, 2026-11-06).** `TestRecipeGoldens`
   also renders `testdata/gemini-cli/stack.yaml` and compares it with
   `testdata/gemini-cli/golden/`.
@@ -221,7 +221,6 @@ Known gaps:
   whether a user-level `mcpServers` entry still prompts for approval on first
   run. All three are recorded in `recipes/gemini-cli/README.md`.
 
-ADR: none added. The recipe reuses ADRs 0035 (built images), 0036 (writable
-init delivery), 0037 (MCP translation styles) and 0038 (skills mounting); no
-format, durable behaviour or architecture changed.
+ADRs: ADR 0046 (vendored seccomp and pinned release for OpenBot); ADR 0047 (explicit remote MCP transport and tool styles for Claude Code and Gemini CLI, amending 0037).
+
 
