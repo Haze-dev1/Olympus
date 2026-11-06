@@ -4,14 +4,18 @@ inputs:
 server:
   host: offline.example.test
 
-# stdio only: Claude Code rejects an entry that has a url but no "type", and the
-# recipe format has no style that emits "type". See recipes/claude-code/README.md.
+# The remote server omits transport, so it defaults to http and renders with
+# Claude Code's required "type": "http". See recipes/claude-code/README.md.
 mcps:
   github:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-github"]
     env:
       GITHUB_TOKEN: ${GH_TOKEN}
+  docs:
+    url: https://mcp.example.test/mcp
+    headers:
+      Authorization: Bearer ${GH_TOKEN}
 
 skills:
   - ./skills/deploy-checklist
@@ -19,7 +23,7 @@ skills:
 agents:
   claude:
     recipe: claude-code
-    mcps: [github]
+    mcps: [github, docs]
     skills: all
     secrets:
       model-key: ${ANTHROPIC_API_KEY}

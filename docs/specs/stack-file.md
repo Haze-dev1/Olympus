@@ -80,8 +80,11 @@ Either a local command (stdio) or a remote URL (HTTP), not both.
 | Key | Meaning |
 | --- | --- |
 | `command`, `args` | Program to start for a stdio MCP server |
-| `url`, `headers` | Endpoint for an HTTP MCP server |
+| `url`, `headers` | Endpoint for a remote MCP server |
+| `transport` | Remote wire protocol: `http` (streamable HTTP, the default) or `sse`. Only valid with `url`; any other value is rejected. |
 | `env` | Environment variables for the server; values may be `${NAME}` |
+
+Tools differ in how they name the two remote transports, so recipes translate `transport` per tool ([ADR 0047](../ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers)): Claude Code writes `type: http|sse`, Gemini CLI writes `httpUrl` for `http` and `url` for `sse`, and a tool whose only remote form is streamable HTTP (such as Hermes Agent) ignores the field.
 
 ## `agents.<name>` and `apps.<name>`
 

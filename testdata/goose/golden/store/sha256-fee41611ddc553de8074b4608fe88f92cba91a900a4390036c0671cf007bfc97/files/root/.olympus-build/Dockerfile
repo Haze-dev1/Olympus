@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     esac \
  && curl -fsSLo goose.tar.gz "https://github.com/aaif-goose/goose/releases/download/v${GOOSE_VERSION}/goose-${GOOSE_ARCH}-unknown-linux-musl.tar.gz" \
  && echo "${GOOSE_SHA256}  goose.tar.gz" | sha256sum -c - \
- && tar -xzf goose.tar.gz -C /usr/local/bin \
+ && tar -xzf goose.tar.gz --no-same-owner -C /usr/local/bin ./goose \
  && rm goose.tar.gz \
  && chmod 0755 /usr/local/bin/goose \
  && rm -rf /var/lib/apt/lists/* \

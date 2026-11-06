@@ -291,6 +291,12 @@ func TestUploadActivatorVersionAndPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	data, err := os.ReadFile(binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A non-development version needs its release checksum (rule A12).
+	sums := map[string]string{"x86_64": fmt.Sprintf("%x", sha256.Sum256(data))}
 	for _, version := range []string{"test", "wrong"} {
 		t.Run(version, func(t *testing.T) {
 			var uploaded []byte
@@ -308,7 +314,7 @@ func TestUploadActivatorVersionAndPublication(t *testing.T) {
 				}
 				return okOutput("")
 			}}
-			c := Client{Conn: f, Version: "test"}
+			c := Client{Conn: f, Version: "test", ReleaseChecksums: sums}
 			err = c.UploadActivator(context.Background(), binary)
 			if (err == nil) != (version == "test") {
 				t.Fatal(err)

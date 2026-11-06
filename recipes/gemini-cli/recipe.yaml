@@ -21,7 +21,7 @@ supports:
   mcps:
     file: /root/.gemini/settings.json
     format: json
-    style: hermes
+    style: gemini-cli
     key: mcpServers
   skills:
     dir: /root/.gemini/skills
