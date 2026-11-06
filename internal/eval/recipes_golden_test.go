@@ -17,6 +17,7 @@ func TestRecipeGoldens(t *testing.T) {
 	for _, tc := range []struct{ dir, tool string }{
 		{"claude-code", "claude"},
 		{"gemini-cli", "gemini"},
+		{"goose", "goose"},
 	} {
 		t.Run(tc.dir, func(t *testing.T) {
 			dir := filepath.Join("../../testdata", tc.dir)
