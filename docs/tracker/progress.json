@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-05",
+  "updated": "2026-11-06",
   "phase": "implementation",
   "milestones": [
     {
@@ -81,8 +81,8 @@
     "recipe-format": {
       "status": "done",
       "file": "features/recipe-format.md",
-      "updated": "2026-10-20",
-      "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
+      "updated": "2026-11-06",
+      "summary": "OLY-55 adds a validated runtime block (shm_size, stop_grace_period, no_new_privileges, seccomp) rendering fixed Compose keys; the seccomp profile is a hashed store file. Offline tests green; lab not run (no QEMU). Real three-tool lab lifecycle passed earlier: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
     },
     "first-recipes": {
       "status": "done",
@@ -151,6 +151,7 @@
     "ADR 0040 optional catalog refs resolved to immutable commits",
     "ADR 0041 prepare and reuse content-addressed built images",
     "ADR 0042 track and prune only previously copied skill files",
-    "ADR 0044 preflight the server before plan and apply"
+    "ADR 0044 preflight the server before plan and apply",
+    "ADR 0045 recipe runtime limits as fixed Compose keys"
   ]
 }

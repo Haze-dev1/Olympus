@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Haze-dev1/Olympus/internal/encode"
+	"github.com/Haze-dev1/Olympus/internal/generation"
 	"github.com/Haze-dev1/Olympus/internal/recipe"
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
@@ -341,5 +342,40 @@ func TestUnchangedToolKeepsMountSource(t *testing.T) {
 	hash := first.Manifest.Tools["research"].Hash
 	if !bytes.Contains(first.Files["compose.yaml"], []byte("/var/lib/olympus/store/"+hash+"/files/")) {
 		t.Fatal("mount is not content addressed")
+	}
+}
+
+func TestRuntimeOptions(t *testing.T) {
+	in := sample(t)
+	r := in.Recipes["observatory"]
+	r.Runtime = &recipe.Runtime{ShmSize: "1g", StopGracePeriod: "60s", NoNewPrivileges: true, Seccomp: "profile.json"}
+	in.Templates["observatory"][r.Runtime.Seccomp] = []byte(`{"defaultAction":"SCMP_ACT_ERRNO"}`)
+	g, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := g.Manifest.Tools["research"]
+	target := "/opt/observatory/.olympus/seccomp.json"
+	if tool.Files[target] != generation.Hash(in.Templates["observatory"][r.Runtime.Seccomp]) {
+		t.Fatal("seccomp profile is not a hashed tool file")
+	}
+	store := "store/" + tool.Hash + "/files" + target
+	if !bytes.Equal(g.Files[store], in.Templates["observatory"][r.Runtime.Seccomp]) {
+		t.Fatal("seccomp profile is not in the content-addressed store")
+	}
+	compose := string(g.Files["compose.yaml"])
+	for _, want := range []string{"shm_size: 1g", "stop_grace_period: 60s", "no-new-privileges:true", "seccomp=/var/lib/olympus/" + store} {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("compose lacks %q:\n%s", want, compose)
+		}
+	}
+
+	in.Templates["observatory"][r.Runtime.Seccomp] = []byte(`{"defaultAction":"SCMP_ACT_ALLOW"}`)
+	changed, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed.Manifest.Tools["research"].Hash == tool.Hash {
+		t.Fatal("changed seccomp profile did not change the tool hash")
 	}
 }

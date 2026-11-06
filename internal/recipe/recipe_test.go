@@ -26,6 +26,16 @@ func TestRecipeValidation(t *testing.T) {
 		{"variable in image", strings.Replace(base, "example/demo:1", "${IMAGE}", 1), "secret-capable"},
 		{"valid min ram", base + "resources: {min_ram: 4GB}\n", ""},
 		{"bad min ram", base + "resources: {min_ram: lots}\n", "expected a size"},
+		{"valid runtime", base + "runtime: {shm_size: 1g, stop_grace_period: 60s, no_new_privileges: true, seccomp: profile.json}\n", ""},
+		{"bad shm size", base + "runtime: {shm_size: 1 litre}\n", "positive size"},
+		{"zero shm size", base + "runtime: {shm_size: '0'}\n", "positive size"},
+		{"bad grace", base + "runtime: {stop_grace_period: soon}\n", "positive duration"},
+		{"negative grace", base + "runtime: {stop_grace_period: -1s}\n", "positive duration"},
+		{"bad bool", base + "runtime: {no_new_privileges: maybe}\n", "expected boolean"},
+		{"seccomp url", base + "runtime: {seccomp: 'https://example.test/profile.json'}\n", "not a URL"},
+		{"seccomp absolute", base + "runtime: {seccomp: /etc/profile.json}\n", "confined relative"},
+		{"seccomp traversal", base + "runtime: {seccomp: ../profile.json}\n", "confined relative"},
+		{"seccomp no volume", "name: demo\nkind: harness\nimage: example/demo:1\nruntime: {seccomp: profile.json}\n", "requires a tool volume"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

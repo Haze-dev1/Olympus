@@ -50,6 +50,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
 | [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032 |
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
+| [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1387,6 +1388,44 @@ index, so it records nothing and warns.
   confirmation; servers are also shared, so the user decides.
 - **Inspect `/proc/net/tcp` instead of `ss`:** gives no process name, and the
   edge case requires naming the process.
+
+## 0045. Render recipe runtime limits as fixed Compose keys
+
+- **Status:** Accepted
+- **Date:** 2026-11-06
+
+### Context
+
+OLY-55. Some tools need limits Compose can already express: a larger `/dev/shm` than Docker's 64 MiB default (browser automation and in-process models), a longer grace period before SIGKILL, blocking setuid escalation, or a seccomp profile narrower than Docker's default. Recipes had no way to declare any of them, so a tool with those requirements could not be described without hand-editing Compose, which no command does. A generic passthrough of arbitrary Compose keys would make the recipe format unlimited and untestable, and could override the keys the evaluator already owns (image, ports, volumes, environment).
+
+### Decision
+
+Add one optional `runtime` block to the recipe:
+
+| Key | Validation | Compose output |
+| --- | --- | --- |
+| `shm_size` | `recipe.ParseSize`, greater than zero | `shm_size` |
+| `stop_grace_period` | `time.ParseDuration`, greater than zero | `stop_grace_period` |
+| `no_new_privileges` | boolean, default `false` | `security_opt: ["no-new-privileges:true"]` |
+| `seccomp` | relative regular file inside the recipe folder; no scheme, absolute path or `..` | `security_opt: ["seccomp=/var/lib/olympus/store/<tool hash>/files/<path>"]` |
+
+Only these four keys exist; there is no passthrough. `no_new_privileges` stays opt-in instead of becoming the default for every tool. The seccomp profile is read with `recipe.ReadFile`, becomes a generated tool file at `<first volume>/.olympus/seccomp.json`, and follows the existing rule that every generated file is a read-only store bind. Its bytes are part of the tool hash and its manifest file hash, so a changed profile changes the generation and `plan` prints the path as a config change. Its host copy is `store/<tool hash>/files/…` under `/var/lib/olympus` (A11), and the bind's source gives Compose the host path the Docker daemon needs, with no second path layout.
+
+### Consequences
+
+- A recipe needs one volume for `seccomp`; the destination is fixed and cannot collide with a template, managed file or writable path.
+- The profile also appears read-only inside the container at that path. It is policy, not secret, and the alternative (a host-only path outside the tool entry) would need a new upload and verification path in `deploy`.
+- Olympus does not validate the profile's JSON or syscall list; Docker rejects a malformed profile when the container starts. The generation records exactly the file the recipe shipped.
+- `no_new_privileges` remains off by default because Olympus cannot verify that every shipped image starts without setuid or file capabilities, and enabling it globally would change every tool's service and require a lab run per tool. New recipes should set it to `true` when their image does not need setuid; whether to flip the default is reconsidered after the lab verifies each image.
+- Fixed names mean a future Compose key needs a new field and ADR, not a recipe free-for-all.
+
+### Alternatives considered
+
+- **Generic Compose passthrough:** unbounded format, untestable, can override evaluator-owned keys, and bypasses size and duration validation.
+- **Wrap the tool in a shell entrypoint that applies limits:** cannot set cgroup or seccomp settings from inside a container.
+- **Put the seccomp profile in the image:** a custom image is not available for every tool, and the profile would no longer be visible to `plan`.
+- **Store the profile outside the tool's store entry:** would need a new content-addressed upload path, verification and garbage-collection rules in `deploy`.
+- **Make `no_new_privileges` the default:** a silent behaviour change for three unverified images and every future recipe, with no evidence the images still start.
 
 ## Template
 

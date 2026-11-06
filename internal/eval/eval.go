@@ -33,6 +33,9 @@ type Service struct {
 	EnvFile     []string           `json:"env_file,omitempty"`
 	Build       *ServiceBuild      `json:"build,omitempty"`
 	DependsOn   map[string]Depends `json:"depends_on,omitempty"`
+	ShmSize     string             `json:"shm_size,omitempty"`
+	StopGrace   string             `json:"stop_grace_period,omitempty"`
+	SecurityOpt []string           `json:"security_opt,omitempty"`
 	Labels      map[string]string  `json:"labels"`
 }
 type ServiceBuild struct {
@@ -98,6 +101,14 @@ func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 				d.Add("/build/src", "cannot read confined build source")
 			} else {
 				in.Templates[t.Recipe][r.Build.Src] = b
+			}
+		}
+		if rt := r.RuntimeOptions(); rt.Seccomp != "" {
+			b, e := recipe.ReadFile(r.Dir, rt.Seccomp)
+			if e != nil {
+				d.Add("/runtime/seccomp", "cannot read confined seccomp profile")
+			} else {
+				in.Templates[t.Recipe][rt.Seccomp] = b
 			}
 		}
 		errors = append(errors, d.Errors...)
@@ -170,7 +181,11 @@ func Build(in Inputs) (*generation.Generation, error) {
 		for k, v := range r.Env {
 			environment[k] = v
 		}
-		service := Service{Image: r.Image, User: r.User, Restart: "unless-stopped", Command: r.Command, Environment: environment, Labels: map[string]string{"org.olympus.tool": name}}
+		opts := r.RuntimeOptions()
+		service := Service{Image: r.Image, User: r.User, Restart: "unless-stopped", Command: r.Command, Environment: environment, Labels: map[string]string{"org.olympus.tool": name}, ShmSize: opts.ShmSize, StopGrace: opts.StopGracePeriod}
+		if opts.NoNewPrivileges {
+			service.SecurityOpt = append(service.SecurityOpt, "no-new-privileges:true")
+		}
 		if in.Images != nil {
 			pinned, ok := in.Images[name]
 			if !ok {
@@ -425,6 +440,29 @@ func Build(in Inputs) (*generation.Generation, error) {
 			files[ledger] = []byte(owned.String())
 			skillCopies = append(skillCopies, ledger)
 		}
+		// The seccomp profile is a generated file like any other, so it is
+		// hashed, uploaded under the tool entry and shown by plan. Its read-only
+		// bind also gives Compose the host path the daemon needs.
+		seccompDst := ""
+		if opts.Seccomp != "" {
+			if len(r.Volumes) == 0 {
+				return nil, fmt.Errorf("%s: seccomp profile requires a tool volume", name)
+			}
+			seccompDst = path.Join(r.Volumes[schema.Keys(r.Volumes)[0]], ".olympus/seccomp.json")
+			profile, ok := in.Templates[entry.Recipe][opts.Seccomp]
+			if !ok {
+				return nil, fmt.Errorf("%s: missing seccomp profile", name)
+			}
+			for _, p := range r.Writable {
+				if p == seccompDst {
+					return nil, fmt.Errorf("%s: seccomp profile cannot be writable", name)
+				}
+			}
+			if files[seccompDst] != nil || managed[seccompDst] != nil {
+				return nil, fmt.Errorf("%s: seccomp profile collides with a generated file", name)
+			}
+			files[seccompDst] = profile
+		}
 		for _, p := range schema.Keys(managed) {
 			files[p], err = encode.Marshal(formats[p], managed[p])
 			if err != nil {
@@ -452,6 +490,19 @@ func Build(in Inputs) (*generation.Generation, error) {
 			rel := path.Join("store", tool.Hash, "files", strings.TrimPrefix(p, "/"))
 			g.Files[rel] = files[p]
 			service.Volumes = append(service.Volumes, Mount{Type: "bind", Source: "/var/lib/olympus/" + rel, Target: p, ReadOnly: true})
+		}
+		if seccompDst != "" {
+			found := false
+			for _, m := range service.Volumes {
+				if m.Target == seccompDst {
+					service.SecurityOpt = append(service.SecurityOpt, "seccomp="+m.Source)
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, fmt.Errorf("%s: seccomp profile was not mounted", name)
+			}
 		}
 		// Compose build derives its context from the bind mount just created for
 		// the Dockerfile, so it follows the store layout without depending on it.

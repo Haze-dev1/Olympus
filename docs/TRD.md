@@ -200,12 +200,13 @@ The Hermes recipe above is the shipped `recipes/hermes` shape. The recipe README
 Rules:
 
 - `image` has a default tag; the lock pins its digest. With `build`, `image` is the registry-resolvable base and the lock pins the base digest.
-- Every `supports.*.file`, template `dst`, `writable` path and `build.dst` must be inside one of the recipe's `volumes` paths (rule A3, section 9.2).
+- Every `supports.*.file`, template `dst`, `writable` path, `build.dst` and generated seccomp path must be inside one of the recipe's `volumes` paths (rule A3, section 9.2). A `runtime.seccomp` source is a relative path inside the recipe folder, never a URL.
 - `hooks.post_install` is an argument list, never a shell string, and runs inside the tool's container (rule A8).
 - `command` replaces the image command as an argument list; it is never a shell string.
 - `supports.mcps.style` selects the tool's secret syntax; `supports.skills.mode` selects a read-only mount or a copy into the volume ([ADR 0037](ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references), [0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
 - `writable` files are copied into the tool volume by a one-shot init service ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
 - `build` names a Dockerfile in the recipe folder and a path inside a volume; Compose builds the image on the server ([ADR 0035](ADR.md#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile)).
+- `runtime` renders only fixed Compose keys: `shm_size`, `stop_grace_period`, and `security_opt` entries for `no_new_privileges` and a seccomp profile from the recipe folder. The profile is a hashed store file, so a change appears in `plan`; it is uploaded under `/var/lib/olympus` and passed to the daemon by its store path ([ADR 0045](ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)). There is no generic Compose passthrough.
 - Recipes have no version field: the whole catalog is versioned by its git revision.
 
 ### 5.3 Lock file (`stack.lock`)
@@ -378,6 +379,7 @@ One project named `olympus`, one service per tool:
 - `volumes:` the recipe's named volumes as `olympus_<tool>_<name>`; rendered files bind-mounted read-only from `store/<tool hash>/files/…`.
 - `secrets:` file-based Compose secrets from `secrets/<tool>/`, mounted at `/run/secrets/<name>`; or `env_file` for secrets the recipe delivers as environment variables.
 - `restart: unless-stopped`; `labels:` tool name. For built and copied files, a one-shot `<tool>-init` service runs first and the tool depends on `service_completed_successfully` ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
+- `shm_size:`, `stop_grace_period:` and `security_opt:` come only from the recipe's `runtime` block; `no-new-privileges:true` is opt-in and a seccomp profile is referenced by its `/var/lib/olympus/store/…` path ([ADR 0045](ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)).
 - One project network; tools reach each other by service name. No host networking.
 
 A file a tool rewrites at runtime cannot be a read-only bind. Recipes list it under `writable`; the evaluator removes the bind, and the init service copies the rendered file into the tool's named volume before the tool starts. The stack file remains the source of truth, so tool edits are overwritten on the next apply. This replaces the former open question in [section 16](#16-open-technical-questions).
