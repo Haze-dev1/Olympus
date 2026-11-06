@@ -17,6 +17,7 @@ Start with [PRD.md](PRD.md) for what Olympus is for, then [TRD.md](TRD.md) for h
 | [prototypes/](prototypes/) | Draft example files: a stack file, `.env.example`, a Hermes recipe |
 | [tracker/](tracker/) | [progress.json](tracker/progress.json) for milestone and feature status, and one file per feature in [features/](tracker/features/) |
 | [install.md](install.md) | Installation guide: binary download, verification, building from source |
+| [usage/](usage/) | User documentation: [commands.md](usage/commands.md) and [stack-reference.md](usage/stack-reference.md) |
 | [release.md](release.md) | Release workflow: cross-compilation, checksum embedding (A12) and tagging |
 | [Sources/](Sources/) | External research: [landscape.md](Sources/landscape.md) on existing tools and what was checked |
 

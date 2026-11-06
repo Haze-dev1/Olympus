@@ -14,7 +14,9 @@
         "test-lab",
         "activator",
         "deploy",
-        "preflight"
+        "preflight",
+        "release-pipeline",
+        "user-docs"
       ]
     },
     {
@@ -134,6 +136,12 @@
       "file": "features/security-review.md",
       "updated": "2026-11-06",
       "summary": "OLY-33 source review documented; findings and live verification remain open."
+    },
+    "user-docs": {
+      "status": "done",
+      "file": "features/user-docs.md",
+      "updated": "2026-11-06",
+      "summary": "OLY-35: user-facing documentation including Quickstart in README.md, command-by-command reference in docs/usage/commands.md derived strictly from CLI output, stack.yaml reference in docs/usage/stack-reference.md derived from JSON Schema and spec, and complete full-stack example in examples/full-stack/stack.yaml."
     }
   },
   "decisions": [

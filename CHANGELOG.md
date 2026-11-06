@@ -2,6 +2,7 @@
 
 ## Development
 
+- OLY-35: user-facing documentation. Added a Quickstart at the top of README.md with verified release installation and check → plan → apply workflow; added command-by-command reference in docs/usage/commands.md derived strictly from compiled CLI output (/tmp/olym help and /tmp/olym <cmd> -h); added field-by-field stack.yaml reference in docs/usage/stack-reference.md based on schemas/stack.schema.json and docs/specs/stack-file.md; added reference full-stack example in examples/full-stack/stack.yaml configuring Hermes, Codex, OpenCode, a GitHub MCP server and a Telegram channel with an allow-list using variable references for all secrets. Verified offline with /tmp/olym check. No Go code, schemas, recipes or ADRs modified.
 - OLY-59: attest release archives and SHA256SUMS with GitHub build provenance and document verification. At merge review the attestation subject was widened from archives and `SHA256SUMS` to every file the release publishes, including the standalone binaries.
 - OLY-33: documented a pre-release security review and ranked findings; no product fixes or live server testing.
 
