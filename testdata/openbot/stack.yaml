@@ -1,0 +1,9 @@
+server:
+  host: offline.example.test
+agents:
+  openbot:
+    recipe: openbot
+    secrets:
+      xai-key: ${XAI_API_KEY}
+      cursor-key: ${CURSOR_API_KEY}
+      cline-key: ${CLINE_API_KEY}

@@ -23,6 +23,9 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Duplicate tool name across agents and apps, or invalid tool-name syntax | Fail before building |
 | Variable in a key or a field that is not secret-capable | Fail without echoing the input value |
 | Template or managed destination escapes a recipe volume, including a prefix lookalike | Fail in recipe validation and recheck during evaluation |
+| `runtime.shm_size` or `stop_grace_period` is malformed, zero or negative | Fail with the field and the expected size or positive duration |
+| `runtime.seccomp` is a URL, absolute path, traversal, or the recipe has no volume | Fail in recipe validation; never fetch a remote profile |
+| Seccomp profile changes | Hash it into the tool, upload the new store file and list the config path in `plan` |
 | Source template or skill is a symlink, traverses `..`, or names a sensitive source file | Fail without reading the target |
 | YAML aliases, anchors, tags, duplicate keys or extra documents | Reject; do not expand aliases or construct objects |
 | MCP secret reference has no supplied recipe secret with an environment target | Fail in the test-recipe convention; real-tool delivery remains open |

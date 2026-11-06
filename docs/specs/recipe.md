@@ -2,9 +2,9 @@
 
 - **Status:** Draft v1 format; local loading and offline rendering implemented
 - **Date:** 2026-10-20
-- **Decisions:** [ADR 0005](../ADR.md#0005-describe-each-tool-with-a-declarative-yaml-recipe), [0006](../ADR.md#0006-keep-official-recipes-in-one-folder-in-this-repo), [0012](../ADR.md#0012-define-mcp-servers-and-skills-once-and-translate-them-per-tool), [0035](../ADR.md#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile), [0036](../ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service), [0037](../ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references), [0038](../ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes), [0039](../ADR.md#0039-configure-hermes-channels-as-environment-variables)
+- **Decisions:** [ADR 0005](../ADR.md#0005-describe-each-tool-with-a-declarative-yaml-recipe), [0006](../ADR.md#0006-keep-official-recipes-in-one-folder-in-this-repo), [0012](../ADR.md#0012-define-mcp-servers-and-skills-once-and-translate-them-per-tool), [0035](../ADR.md#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile), [0036](../ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service), [0037](../ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references), [0038](../ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes), [0039](../ADR.md#0039-configure-hermes-channels-as-environment-variables), [0045](../ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)
 
-A recipe tells the core how to install, run and configure one tool. Recipes live in `recipes/` in this repo and are versioned together, by the git revision pinned in `stack.lock` ([ADR 0016](../ADR.md#0016-pin-the-recipe-set-as-a-flake-style-input)). The core turns each recipe into one Docker Compose service ([ADR 0015](../ADR.md#0015-use-one-docker-compose-project-as-the-runtime)). The shipped `recipes/hermes`, `recipes/codex` and `recipes/opencode` are the current examples; each folder's README names its sources and what is still unverified.
+A recipe tells the core how to install, run and configure one tool. Recipes live in `recipes/` in this repo and are versioned together, by the git revision pinned in `stack.lock` ([ADR 0016](../ADR.md#0016-pin-the-recipe-set-as-a-flake-style-input)). The core turns each recipe into one Docker Compose service ([ADR 0015](../ADR.md#0015-use-one-docker-compose-project-as-the-runtime)). The shipped `recipes/hermes`, `recipes/codex`, `recipes/opencode` and `recipes/openbot` are the current examples; each folder's README names its sources and what is still unverified.
 
 The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-current-offline-slice). The fictional `testdata/sample/recipes/observatory` recipe verifies rendering only; it is not a supported production tool.
 
@@ -27,6 +27,7 @@ The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-cu
 | `build` | no | `src` Dockerfile in the recipe folder and `dst` path inside a volume; the core builds the image with Compose (below) |
 | `templates` | no | `source -> destination` pairs for files with no structured form. Never used for YAML, TOML or JSON keys the core manages through `supports` ([ADR 0018](../ADR.md#0018-build-structured-config-as-data-and-publish-json-schemas)). |
 | `hooks.post_install` | no | Command run once inside the container after first start. Escape hatch; prefer declarative fields. |
+| `runtime` | no | Container runtime limits rendered as fixed Compose keys: `shm_size`, `stop_grace_period`, `no_new_privileges` and `seccomp` (below) ([ADR 0045](../ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)). |
 
 ## `supports`
 
@@ -43,6 +44,25 @@ The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-cu
 If a stack file gives a tool MCP servers, skills or channels its recipe does not support, `plan` warns and names the tool.
 
 Every `file`, `dir`, `dst` and `writable` path must resolve strictly inside one of the recipe's volume paths. Paths that the init service puts into a shell script must also be shell-safe.
+
+## Runtime options
+
+```yaml
+runtime:
+  shm_size: 1g
+  stop_grace_period: 60s
+  no_new_privileges: true
+  seccomp: seccomp.json
+```
+
+| Key | Meaning |
+| --- | --- |
+| `shm_size` | Shared-memory size, a positive size in the `resources.min_ram` units. Rendered as Compose `shm_size`. |
+| `stop_grace_period` | Positive duration, for example `60s` or `1m30s`. Rendered as Compose `stop_grace_period`. |
+| `no_new_privileges` | Boolean, default `false`; `true` adds `no-new-privileges:true` to `security_opt`. Opt-in per recipe ([ADR 0045](../ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)). |
+| `seccomp` | Relative path to a seccomp profile inside the recipe folder. Never a URL, absolute path or traversal. |
+
+`seccomp` is read with the same confinement checks as a template source and must name a regular file no larger than the template limit. The profile becomes a generated tool file at `<first volume>/.olympus/seccomp.json`: it is hashed into the tool and appears in `plan` as a config change, is uploaded under `store/<tool hash>/files/…` (that is, under `/var/lib/olympus` on the server), and bind-mounted read-only. Compose receives `security_opt: [seccomp=/var/lib/olympus/store/<tool hash>/files/<path>]`. The recipe must declare at least one volume; a profile destination that collides with a template or managed file, or that is also listed under `writable`, is an error. Olympus does not parse the profile as JSON; a malformed profile fails when Docker starts the container.
 
 ## MCP translation
 

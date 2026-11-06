@@ -50,6 +50,8 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
 | [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032 |
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
+| [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
+| [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1387,6 +1389,76 @@ index, so it records nothing and warns.
   confirmation; servers are also shared, so the user decides.
 - **Inspect `/proc/net/tcp` instead of `ss`:** gives no process name, and the
   edge case requires naming the process.
+
+## 0045. Render recipe runtime limits as fixed Compose keys
+
+- **Status:** Accepted
+- **Date:** 2026-11-06
+
+### Context
+
+OLY-55. Some tools need limits Compose can already express: a larger `/dev/shm` than Docker's 64 MiB default (browser automation and in-process models), a longer grace period before SIGKILL, blocking setuid escalation, or a seccomp profile narrower than Docker's default. Recipes had no way to declare any of them, so a tool with those requirements could not be described without hand-editing Compose, which no command does. A generic passthrough of arbitrary Compose keys would make the recipe format unlimited and untestable, and could override the keys the evaluator already owns (image, ports, volumes, environment).
+
+### Decision
+
+Add one optional `runtime` block to the recipe:
+
+| Key | Validation | Compose output |
+| --- | --- | --- |
+| `shm_size` | `recipe.ParseSize`, greater than zero | `shm_size` |
+| `stop_grace_period` | `time.ParseDuration`, greater than zero | `stop_grace_period` |
+| `no_new_privileges` | boolean, default `false` | `security_opt: ["no-new-privileges:true"]` |
+| `seccomp` | relative regular file inside the recipe folder; no scheme, absolute path or `..` | `security_opt: ["seccomp=/var/lib/olympus/store/<tool hash>/files/<path>"]` |
+
+Only these four keys exist; there is no passthrough. `no_new_privileges` stays opt-in instead of becoming the default for every tool. The seccomp profile is read with `recipe.ReadFile`, becomes a generated tool file at `<first volume>/.olympus/seccomp.json`, and follows the existing rule that every generated file is a read-only store bind. Its bytes are part of the tool hash and its manifest file hash, so a changed profile changes the generation and `plan` prints the path as a config change. Its host copy is `store/<tool hash>/files/…` under `/var/lib/olympus` (A11), and the bind's source gives Compose the host path the Docker daemon needs, with no second path layout.
+
+### Consequences
+
+- A recipe needs one volume for `seccomp`; the destination is fixed and cannot collide with a template, managed file or writable path.
+- The profile also appears read-only inside the container at that path. It is policy, not secret, and the alternative (a host-only path outside the tool entry) would need a new upload and verification path in `deploy`.
+- Olympus does not validate the profile's JSON or syscall list; Docker rejects a malformed profile when the container starts. The generation records exactly the file the recipe shipped.
+- `no_new_privileges` remains off by default because Olympus cannot verify that every shipped image starts without setuid or file capabilities, and enabling it globally would change every tool's service and require a lab run per tool. New recipes should set it to `true` when their image does not need setuid; whether to flip the default is reconsidered after the lab verifies each image.
+- Fixed names mean a future Compose key needs a new field and ADR, not a recipe free-for-all.
+
+### Alternatives considered
+
+- **Generic Compose passthrough:** unbounded format, untestable, can override evaluator-owned keys, and bypasses size and duration validation.
+- **Wrap the tool in a shell entrypoint that applies limits:** cannot set cgroup or seccomp settings from inside a container.
+- **Put the seccomp profile in the image:** a custom image is not available for every tool, and the profile would no longer be visible to `plan`.
+- **Store the profile outside the tool's store entry:** would need a new content-addressed upload path, verification and garbage-collection rules in `deploy`.
+- **Make `no_new_privileges` the default:** a silent behaviour change for three unverified images and every future recipe, with no evidence the images still start.
+
+## 0046. Vendor OpenBot's seccomp profile and pin an exact release
+
+- **Status:** Accepted
+- **Date:** 2026-11-06
+
+### Context
+
+OLY-56 adds the OpenBot recipe. Upstream publishes a container image and three files that must agree: `docker/compose.yaml`, `docker/seccomp.json` and the `docs/docker.md` example. The seccomp profile is not optional: it is Docker's default profile plus one rule that lets `clone` and `unshare` create user, PID and network namespaces, which the Electron sandbox needs. Without it the container stops. Upstream warns that the files can change between releases and asks an operator to diff them before an upgrade.
+
+OpenBot also refuses to open a database that a newer release migrated, so an image-tag rollback of a live volume does not start. A moving tag would therefore turn an ordinary `apply` into a one-way upgrade.
+
+### Decision
+
+We will vendor the profile at `recipes/openbot/seccomp.json`, copied verbatim from `docker/seccomp.json` at release `v0.62.0`, and record its SHA-256 and source in the recipe README. The recipe names the exact image `ghcr.io/nightly-labs/openbot:0.62.0`, never `latest`; the lock file pins the digest (A7). The profile reaches the daemon through the OLY-55 `runtime.seccomp` path: a hashed tool file under the `/data` volume's `.olympus` folder, uploaded under `/var/lib/olympus` and bind-mounted read-only.
+
+The recipe declares no `supports` block. The pinned docs define OpenBot's own local skills library and channel chats inside the app, but no file or folder where Olympus could install shared MCP servers or skills and no channel environment variables.
+
+### Consequences
+
+- The profile is part of the recipe set and therefore part of the recipes hash; a changed profile changes the generation and shows up in `plan`.
+- Upgrading OpenBot is a manual recipe update: copy the new `docker/seccomp.json`, update the image tag, the README dates and the SHA-256, and diff `docker/compose.yaml`. There is no automation, matching upstream's own upgrade guidance.
+- The vendored file is a derivative of Docker's Apache-2.0 default profile; upstream's notice and the PolyForm Noncommercial 1.0.0 licence of OpenBot itself are recorded in the recipe README, and the README states that commercial use needs a vendor licence.
+- The recipe is not lab-verified, because the QEMU lab is unavailable here; the golden test covers rendering only.
+
+### Alternatives considered
+
+- **Fetch the profile from GitHub at `plan` or `apply`:** adds a network dependency and a mutable remote input to an otherwise offline generation, is invisible in `plan`, and enlarges the supply-chain surface (A1, A12).
+- **Use `latest` or a floating `<minor>` tag:** OpenBot publishes no floating minor tag, evades review of runtime option changes, and makes an unintended one-way database migration likely.
+- **Use Docker's default profile instead of upstream's:** the container stops, because the Electron sandbox cannot create user namespaces.
+- **Set `seccomp=unconfined`, `--privileged` or `--no-sandbox`:** upstream explicitly rules these out; each one removes either the sandbox or the syscall filter.
+- **Declare `supports` for OpenBot's own skills folder:** the pinned docs document no stable on-disk MCP config or shared-skills folder that Olympus could write, so a guess would break on upgrade.
 
 ## Template
 

@@ -1,0 +1,32 @@
+name: claude-code
+kind: coding-agent
+image: node:22-bookworm-slim
+resources:
+  min_ram: 4GB
+volumes:
+  home: /root
+env:
+  # Anthropic recommends this for image-installed, version-pinned builds
+  # (docs/en/devcontainer). The package version is pinned in the Dockerfile.
+  DISABLE_AUTOUPDATER: "1"
+command: [sleep, infinity]
+build:
+  src: Dockerfile
+  dst: /root/.olympus-build/Dockerfile
+health:
+  command: [claude, --version]
+  timeout: 60s
+secrets:
+  model-key:
+    env: ANTHROPIC_API_KEY
+  github-token:
+    env: GITHUB_TOKEN
+supports:
+  mcps:
+    file: /root/.mcp.json
+    format: json
+    style: hermes
+    key: mcpServers
+  skills:
+    dir: /root/.claude/skills
+    mode: mount
