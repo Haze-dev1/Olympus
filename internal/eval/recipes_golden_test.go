@@ -19,6 +19,7 @@ func TestRecipeGoldens(t *testing.T) {
 		{"gemini-cli", "gemini"},
 		{"goose", "goose"},
 		{"aider", "aider"},
+		{"openclaw", "openclaw"},
 	} {
 		t.Run(tc.dir, func(t *testing.T) {
 			dir := filepath.Join("../../testdata", tc.dir)

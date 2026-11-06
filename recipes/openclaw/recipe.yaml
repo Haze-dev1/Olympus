@@ -1,0 +1,25 @@
+name: openclaw
+kind: harness
+image: ghcr.io/openclaw/openclaw:2026.11.1
+resources:
+  min_ram: 2GB
+volumes:
+  data: /home/node/.openclaw
+ports: [18789]
+command: [node, openclaw.mjs, gateway, --bind, lan, --port, "18789"]
+runtime:
+  no_new_privileges: true
+health:
+  http:
+    port: 18789
+    path: /healthz
+  timeout: 60s
+secrets:
+  model-key:
+    env: ANTHROPIC_API_KEY
+  gateway-token:
+    env: OPENCLAW_GATEWAY_TOKEN
+supports:
+  skills:
+    dir: /home/node/.openclaw/skills
+    mode: mount

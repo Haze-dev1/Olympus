@@ -1,0 +1,32 @@
+name: olympus
+services:
+  openclaw:
+    command:
+    - node
+    - openclaw.mjs
+    - gateway
+    - --bind
+    - lan
+    - --port
+    - "18789"
+    env_file:
+    - /var/lib/olympus/secrets/openclaw/environment
+    image: ghcr.io/openclaw/openclaw:2026.11.1@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+    labels:
+      org.olympus.tool: openclaw
+    ports:
+    - 127.0.0.1:18789:18789
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - source: openclaw_data
+      target: /home/node/.openclaw
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-e0ba2959a1bdd64584529d89a7b75f03c2ad23a36a06706b372badeff53be9a8/files/home/node/.openclaw/skills/deploy-checklist/SKILL.md
+      target: /home/node/.openclaw/skills/deploy-checklist/SKILL.md
+      type: bind
+volumes:
+  openclaw_data:
+    name: olympus_openclaw_data
