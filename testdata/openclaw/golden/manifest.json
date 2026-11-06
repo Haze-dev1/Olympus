@@ -1,0 +1,28 @@
+{
+  "id": "sha256-2dbdf9c98fd9ffbe7658324fe787bb3b9952a069d70bc1753adc33e0d93db585",
+  "inputs": {
+    "recipes": "sha256-1f97f6d114240bca74b3d64de9a6fc14d2f218f7f73e15e919e36bf942b7a64c"
+  },
+  "olym": "0.1.0-dev",
+  "tools": {
+    "openclaw": {
+      "files": {
+        "/home/node/.openclaw/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
+      },
+      "hash": "sha256-d5f81f34dde0d75402f490e7eccc120b0d4b131def237709439a87d34156d1c8",
+      "health": {
+        "http": {
+          "path": "/healthz",
+          "port": 18789
+        },
+        "timeout": "60s"
+      },
+      "image": "ghcr.io/openclaw/openclaw:2026.11.1@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "secrets": [
+        "gateway-token",
+        "model-key"
+      ]
+    }
+  },
+  "version": 1
+}

@@ -1,6 +1,6 @@
 # Recipe catalog
 
-- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose and Aider recipes added and rendered offline; none lab-verified.
+- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose, Aider and OpenClaw recipes added and rendered offline; none lab-verified.
 - **Milestone:** M5
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -350,3 +350,83 @@ ADR: none added. Reuses ADR 0035 (built images) and existing recipe format; no
 format, durable behaviour or architecture changed.
 
 - **Merge review, 2026-11-06:** the entrypoint fix and the `HOME=/app`, appuser and `/app` ownership facts were checked against the image config in the registry and upstream `docker/Dockerfile` at v0.86.2. `TestRecipeGoldens` now pins each recipe's own image with a fake digest, so the Aider golden shows `paulgauthier/aider:v0.86.2` as the build base instead of a placeholder Node image; the other goldens are unchanged.
+
+## OpenClaw (OLY-21)
+
+**Status:** implemented offline; live-server verification not run.
+
+Files: `recipes/openclaw/{recipe.yaml,README.md}`,
+`testdata/openclaw/stack.yaml`, `testdata/openclaw/skills/deploy-checklist/SKILL.md`,
+`testdata/openclaw/golden/` (rendered fixture).
+
+Decisions:
+
+- Official container image: `ghcr.io/openclaw/openclaw:2026.11.1` on GHCR
+  (multi-arch index digest `sha256:db0e0809fbd0df375445e9eea8daf2a278ac7ac3a263fa6bfce8fb344ad3ad77`,
+  covering `linux/amd64` and `linux/arm64`), verified via GHCR API. Matches GitHub Release
+  tag `v2026.11.1` (`2026-11-05T09:48:37Z`) on the non-fork official repo
+  `openclaw/openclaw` (`gh api repos/openclaw/openclaw` → `fork: false`, 394k+ stars).
+- Image configuration (read from registry amd64 config `sha256:45b7944d…`):
+  `User: node` (UID 1000), `WorkingDir: /app`, `Entrypoint: ["tini", "-s", "--", "node", "/app/docker-entrypoint.mjs"]`,
+  `Cmd: ["node", "openclaw.mjs", "gateway"]`, no exposed ports, no volume declarations.
+  Upstream entrypoint runs unattended doctor maintenance on container startup and delegates
+  cleanly via `process.execve` without swallowing `command`.
+- Ports & binding: default Gateway multiplexed port `18789` (`ports: [18789]`), bound by
+  Compose strictly to `127.0.0.1:18789:18789` (Rule A4, never public). Inside the container,
+  `command: [node, openclaw.mjs, gateway, --bind, lan, --port, "18789"]` sets `--bind lan`
+  (0.0.0.0) so Docker bridge port forwarding from host localhost reaches the listener.
+- State: `/home/node/.openclaw` single named volume (`data`). Upstream Dockerfile pre-creates
+  this directory with `node:node 0700` ownership and permissions, which Docker volume initialization
+  preserves. Config (`openclaw.json`), SQLite state and agent databases, credentials, and workspace
+  all reside inside this volume.
+- Runtime options: `runtime.no_new_privileges: true` reproduces upstream's
+  `security_opt: [no-new-privileges:true]` from `docker-compose.yml` (ADR 0045).
+- Resources: `resources.min_ram: 2GB` based on documented pre-built container requirements
+  (`docs/install/gcp.md`, `docs/install/digitalocean.md`).
+- Health: `health.http.port: 18789`, `health.http.path: /healthz`, `timeout: 60s`.
+  Upstream container probe checks `http://127.0.0.1:18789/healthz` (`src/docker-healthcheck.ts`),
+  which returns HTTP 200 without authentication.
+- Secrets: `model-key` → `ANTHROPIC_API_KEY`, `gateway-token` → `OPENCLAW_GATEWAY_TOKEN`.
+- Skills: mounted read-only at `/home/node/.openclaw/skills` (`mode: mount`), the canonical
+  managed/local skills directory (`Priority 4: Managed / local skills: <state-dir>/skills`,
+  `src/skills/loading/skill-paths.ts`, `docs/tools/skills.md`).
+
+Verification (offline, 2026-11-06):
+
+- `go build`, `go vet`, `gofmt -l .` clean; `go test ./...` green except the three macOS-only
+  `internal/deploy` failures listed in AGENTS.md (unrelated, untouched).
+- `olym check -f testdata/openclaw/stack.yaml -recipes recipes` with a temporary sentinel `.env`
+  → "Stack is valid." (exit 0).
+- Rendered generation for `testdata/openclaw/stack.yaml` via `TestRecipeGoldens`:
+  - `compose.yaml` declares service `openclaw` with image `ghcr.io/openclaw/openclaw:2026.11.1@sha256:dd...dd`,
+    command `[node, openclaw.mjs, gateway, --bind, lan, --port, "18789"]`, mounts volume
+    `openclaw_data` at `/home/node/.openclaw`, bind-mounts `/home/node/.openclaw/skills/deploy-checklist/SKILL.md`
+    read-only, binds port `127.0.0.1:18789:18789`, sets `security_opt: [no-new-privileges:true]`,
+    and delivers secrets via `env_file`.
+  - `manifest.json` tracks skill file hash and tool hash, registers HTTP health check on port 18789
+    path `/healthz`, and lists `gateway-token` and `model-key` secrets only (no secret values).
+- `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go` renders and passes against
+  `testdata/openclaw/golden/`.
+
+Known gaps:
+
+- **MCP servers omitted (STOP rule).** OpenClaw configures MCP client servers under `mcp.servers`
+  in `openclaw.json` (`src/config/zod-schema.mcp-server.ts`). Remote servers require
+  `transport: "streamable-http"` or `"sse"`. No existing Olympus translation style emits
+  `transport: "streamable-http"` or targets `mcp.servers` within `openclaw.json`. Per the project
+  STOP rule, `supports.mcps` is omitted rather than worked around.
+- **Chat channels omitted.** OpenClaw configures channels (Telegram, Discord, Slack) via structured
+  keys in `openclaw.json` (`channels.telegram.allowFrom`, `channels.telegram.dmPolicy: "pairing"`).
+  It does not configure channels or allow-lists via environment variables (`TELEGRAM_ALLOWED_USERS`
+  does not exist in OpenClaw). Olympus's channel contract (ADR 0039, Rule A10) requires token and
+  allow-list environment variables. Because OpenClaw cannot be configured with allow-lists through
+  environment variables alone, `supports.channels` is omitted.
+- **No live lab run.** No QEMU on the host, so `docker pull`, container execution, and live health
+  probes were not exercised against a live daemon.
+- **UNVERIFIED:** live model session execution against an active API key; browser Control UI
+  pairing and WebSocket RPC operations.
+
+ADR: none added. Reuses existing recipe format, ADR 0038 (skills mounting) and ADR 0045 (runtime options);
+no format, durable behaviour or architecture changed.
+
+- **Merge review, 2026-11-06:** verified the repo (not a fork), the `v2026.11.1` release, the GHCR image config (tini entrypoint that takes `command` as arguments, `User node`, `WorkingDir /app`) and the Dockerfile's `node:node 0700` state directories. Added `--allow-unconfigured` because the gateway refuses to start on a fresh volume without `gateway.mode=local`, which would have failed the first health check and rolled back. Added an `auth` volume for `/home/node/.config/openclaw`, which upstream persists separately. Regenerated the golden. Container start is still unverified (no lab).
