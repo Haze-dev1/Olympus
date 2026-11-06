@@ -1,17 +1,17 @@
 {
-  "id": "sha256-9f81edb5287892eea5864b83119c64e9d3448448b31b1eca34722fd9d7162d12",
+  "id": "sha256-43f5f7f957a3b7f088cebc0986927867144770ad0599422fb056cf30bf013efe",
   "inputs": {
-    "recipes": "sha256-dd54964dc0fa88a055cfa55e3281bf83043a3f5f63696ee66bc36310c68bd7a0"
+    "recipes": "sha256-584481c0eb268394bc6b1ac9ca0413d677b662dd345f94a1780d0d710b2f4d2e"
   },
   "olym": "0.1.0-dev",
   "tools": {
     "gemini": {
       "files": {
-        "/root/.gemini/settings.json": "sha256-7d7ee3c77cd6298e8d0d906f532284493509d95b03c89bd0c87a3671145bd3ec",
+        "/root/.gemini/settings.json": "sha256-20883b29f1964136eeb8aac6da9ac27b5c7f020e447ea79415baf529ea95a8bc",
         "/root/.gemini/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0",
         "/root/.olympus-build/Dockerfile": "sha256-9d74a1a027a621752f09d6a58b91ca98c55de888aa6bd1ced9dff86488b88715"
       },
-      "hash": "sha256-17d074319fed2d4af2a68c6be65a05552a2135f8e24a75f400712454138f9ad4",
+      "hash": "sha256-10c0b387704438c0bcdcb14a315b82a3408f68780f02f6b6fe602d64c5f7408e",
       "health": {
         "command": [
           "gemini",

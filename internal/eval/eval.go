@@ -605,12 +605,22 @@ func translateMCP(obj map[string]any, style string) (map[string]any, error) {
 	command, hasCommand := obj["command"]
 	url, hasURL := obj["url"]
 	switch style {
-	case "hermes":
+	case "hermes", "claude-code", "gemini-cli":
 		out := map[string]any{}
 		for _, key := range []string{"command", "args", "env", "url", "headers"} {
 			if v, ok := obj[key]; ok {
 				out[key] = v
 			}
+		}
+		if !hasURL {
+			return out, nil
+		}
+		if style == "claude-code" {
+			out["type"] = mcpTransport(obj)
+		}
+		if style == "gemini-cli" && mcpTransport(obj) == "http" {
+			out["httpUrl"] = url
+			delete(out, "url")
 		}
 		return out, nil
 	case "codex":
@@ -708,6 +718,14 @@ func translateMCP(obj map[string]any, style string) (map[string]any, error) {
 		return out, nil
 	}
 	return nil, fmt.Errorf("unknown MCP style %q", style)
+}
+
+// mcpTransport returns the declared remote transport, defaulting to http.
+func mcpTransport(obj map[string]any) string {
+	if transport, ok := obj["transport"].(string); ok && transport != "" {
+		return transport
+	}
+	return "http"
 }
 
 // soleReference accepts exactly ${VAR} or "Bearer ${VAR}" and returns VAR.

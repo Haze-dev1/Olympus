@@ -77,6 +77,13 @@
             "type": "string",
             "minLength": 1
           },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "http",
+              "sse"
+            ]
+          },
           "headers": {
             "type": "object",
             "additionalProperties": {
