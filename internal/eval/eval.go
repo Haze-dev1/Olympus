@@ -377,9 +377,11 @@ func Build(in Inputs) (*generation.Generation, error) {
 			if schema.Variables(provided)[0] != schema.Variables(c.Token)[0] {
 				return nil, fmt.Errorf("%s: channel token does not match secret %q", name, secretName)
 			}
-			if allowEnv := support.Env["allow"]; allowEnv != "" {
-				service.Environment[allowEnv] = strings.Join(c.Allow, ",")
+			allowEnv := support.Env["allow"]
+			if allowEnv == "" {
+				return nil, fmt.Errorf("%s: channel requires an allow environment variable", name)
 			}
+			service.Environment[allowEnv] = strings.Join(c.Allow, ",")
 			if len(c.Roles) > 0 {
 				rolesEnv := support.Env["roles"]
 				if rolesEnv == "" {

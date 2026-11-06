@@ -12,6 +12,8 @@ const base = "name: demo\nkind: harness\nimage: example/demo:1\nvolumes: {data: 
 func TestRecipeValidation(t *testing.T) {
 	cases := []struct{ name, input, want string }{
 		{"valid", base, ""},
+		{"channel missing allow mapping", base + "supports: {channels: {telegram: {env: {token: TG}}}}\n", "allow environment variable"},
+		{"channel empty allow mapping", base + "supports: {channels: {telegram: {env: {token: TG, allow: ''}}}}\n", "string must not be empty"},
 		{"unknown", base + "unknown: true\n", "unknown field"},
 		{"kind", strings.Replace(base, "harness", "root-shell", 1), "allowed choice"},
 		{"hook string", base + "hooks: {post_install: 'sh -c evil'}\n", "expected array"},
