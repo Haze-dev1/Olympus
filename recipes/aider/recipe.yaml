@@ -6,6 +6,9 @@ resources:
 volumes:
   app: /app
 command: [sleep, infinity]
+build:
+  src: Dockerfile
+  dst: /app/.olympus-build/Dockerfile
 health:
   command: [aider, --version]
   timeout: 60s

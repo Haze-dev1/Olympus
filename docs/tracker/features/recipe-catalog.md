@@ -229,20 +229,28 @@ format, durable behaviour or architecture changed.
 
 **Status:** implemented offline; live-server verification not run.
 
-Files: `recipes/aider/{recipe.yaml,README.md}`,
+Files: `recipes/aider/{recipe.yaml,Dockerfile,README.md}`,
 `testdata/aider/stack.yaml`, `testdata/aider/golden/` (rendered fixture).
 
 Decisions:
 
-- Official container image: `paulgauthier/aider:v0.86.2` on Docker Hub, verified
+- Base container image: `paulgauthier/aider:v0.86.2` on Docker Hub, verified
   via Docker Hub registry API (index digest
   `sha256:0d54037f6c97c85a926ebc3c903e27446f5bca96823d9f68902f1e623289b556`,
   covering `linux/amd64` and `linux/arm64`). PyPI package `aider-chat==0.86.2`
-  verified via PyPI API. No `build` block needed.
+  verified via PyPI API.
+- Built image (ADR 0035): upstream sets `ENTRYPOINT ["/venv/bin/aider"]`, causing
+  `command: [sleep, infinity]` to be passed as file arguments to aider, which
+  exits immediately without a TTY. A derived `Dockerfile` builds on `${BASE_IMAGE}`
+  and resets `ENTRYPOINT []`, allowing detached sleep execution.
 - No `supports` block: Aider natively supports neither MCP client connections nor
   skills directories. As instructed by the recipe checklist and project guidance,
   no `supports` block is declared.
-- State: `/app` volume (`WORKDIR /app`, `USER appuser` in upstream image).
+- State: `/app` volume (`WORKDIR /app`, `USER appuser` in upstream image, and
+  `ENV HOME=/app`). All config (`.aider.conf.yml`), chat/input history
+  (`.aider.*.history`), repo map cache (`.aider.tags.cache.v*`), and `~/.aider/`
+  resolve inside `/app`. Docker volume initialization preserves image ownership
+  (`appuser:appuser`, UID 1000) and permissions, making `/app` writable by `appuser`.
 - Secret: `model-key` → `OPENAI_API_KEY` (A1, A5).
 - Health: `aider --version` (60 s).
 - `resources.min_ram: 4GB`.
@@ -255,27 +263,25 @@ Verification (offline, 2026-11-06):
 - `olym check -f testdata/aider/stack.yaml -recipes recipes` with a temporary
   sentinel `.env` → "Stack is valid." (exit 0).
 - Rendered generation for `testdata/aider/stack.yaml` via `TestRecipeGoldens`:
-  - `compose.yaml` declares service `aider` with `image: paulgauthier/aider:v0.86.2`,
-    mounts `aider_app` volume at `/app`, command `[sleep, infinity]`, and
+  - `compose.yaml` declares service `aider` with `build:` block on `${BASE_IMAGE}`,
+    `image: olympus/aider:sha256-...`, mounts `aider_app` volume at `/app`,
+    bind-mounts `/app/.olympus-build/Dockerfile`, command `[sleep, infinity]`, and
     delivers secret `env_file`.
-  - `manifest.json` and `compose.yaml` contain no secret value and no sentinel;
-    the manifest lists `model-key` only.
+  - `manifest.json` tracks file hash `/app/.olympus-build/Dockerfile` and tool hash,
+    and lists `model-key` secret only.
+- `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go` renders and
+  passes against `testdata/aider/golden/`.
 
 Known gaps:
 
-- **Entrypoint override gap:** The upstream image hardcodes `ENTRYPOINT ["/venv/bin/aider"]`.
-  In headless Compose, `command: [sleep, infinity]` is passed as arguments to
-  `/venv/bin/aider`, which Aider parses as positional file arguments before trying
-  to start an interactive chat session on `/app`. The recipe format has no
-  `entrypoint` field to override this to `sleep infinity` for detached idle
-  execution; noted as a format gap and not worked around in Go.
-- **Golden test.** `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go`
-  renders `testdata/aider/stack.yaml` and compares it with `testdata/aider/golden/`.
-- **No live lab run.** No QEMU on the host, so `docker pull`,
+- **No live lab run.** No QEMU on the host, so `docker build`, `docker pull`,
   `aider --version`, and container execution were not exercised against a live daemon.
-- **UNVERIFIED:** live model session execution against an active API key.
+- **UNVERIFIED:** live model session execution against an active API key; runtime
+  Playwright browser installation under `/home/appuser/pw-browsers` if `--browser`
+  is used on the core image.
 
-ADR: none added. Reuses existing recipe format; no format, durable behaviour or
-architecture changed.
+ADR: none added. Reuses ADR 0035 (built images) and existing recipe format; no
+format, durable behaviour or architecture changed.
+
 
 

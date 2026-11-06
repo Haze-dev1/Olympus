@@ -1,13 +1,15 @@
 {
-  "id": "sha256-1f2ff72517be47b49b764fa7f29905dabb0392f32703a231fb9a8d56045c6d23",
+  "id": "sha256-f8fe678a3202c891c5fae94765f222c3f678f060862e34680a975e922a87c03a",
   "inputs": {
-    "recipes": "sha256-459f082b31115e04ada08c9f0a458c3eb8a15787ee0476393c38029bc23322ec"
+    "recipes": "sha256-8ece5fcccfbe5a24e196d1e2f3f3a4fc9b97278ae6dc861e3498546b965a8dfa"
   },
   "olym": "0.1.0-dev",
   "tools": {
     "aider": {
-      "files": {},
-      "hash": "sha256-741934b512b7d16685e9f0acf58b8abf0149fc9c4c847fb25502e49fd11f5eb0",
+      "files": {
+        "/app/.olympus-build/Dockerfile": "sha256-086ff74fab29d375b4ced11510407b8a82cd721969d87dbf951f3c2beea52be5"
+      },
+      "hash": "sha256-41ac13a7c366c063b914d068244789ab25004a36903cd672032ced23b7ab5bdb",
       "health": {
         "command": [
           "aider",
@@ -15,7 +17,7 @@
         ],
         "timeout": "60s"
       },
-      "image": "node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "image": "olympus/aider:sha256-88f64b15095a",
       "secrets": [
         "model-key"
       ]
