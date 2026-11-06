@@ -81,29 +81,49 @@ the npm registry.
 - **Channels.** The local CLI has no chat-channel configuration, so the recipe
   declares none.
 
-## Format gap: remote MCP servers
+## Remote MCP servers
 
 Claude Code requires `"type": "http"`, `"sse"` or `"ws"` on an entry that has a
 `url`; an entry with a `url` and no `type` is a configuration error and Claude
 Code skips that server
 (<https://code.claude.com/docs/en/mcp>, "Option 1: Add a remote HTTP server").
 
-The recipe format cannot express that yet: `translateMCP` supports the `hermes`,
-`codex` and `opencode` styles only, and the `hermes` style emits `url` and
-`headers` without a `type` field
-([ADR 0037](../../docs/ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references)).
-As a result:
+The recipe uses `mcps.style: claude-code`. That style renders stdio entries as
+`command`/`args`/`env` and remote entries as `type` + `url` + `headers`, with
+`type` taken from the stack's `transport`: `http` (the default) or `sse`
+([ADR 0047](../../docs/ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers)).
+The recipe does not emit `ws`, because the stack file has no way to ask for it;
+a WebSocket MCP server cannot be configured from an Olympus stack yet.
 
-- **stdio servers work** (`command`/`args`/`env` with `${VAR}`), which is what
-  the recipe's stack in `testdata/claude-code/` uses and what the golden
-  evidence covers;
-- **`url`-based servers do not.** They are still rendered, but Claude Code
-  skips them with `MCP server "<name>" has a "url" but no "type"`. Until a
-  dedicated style (or a per-style extra field) exists, point the stack at a
-  stdio server instead.
+`testdata/claude-code/stack.yaml` now carries one remote server and its golden
+contains `"type": "http"`, so the rendered shape is covered by evidence. What
+is not covered is a live connection: no running Claude Code session has loaded
+that file (see UNVERIFIED).
 
-This gap is recorded in `docs/tracker/features/recipe-catalog.md` and in the
-pull request that added the recipe; it is not worked around in Go.
+### Config file location
+
+The managed file is still `/root/.mcp.json`. An open question from the issue was
+whether a project-scope `.mcp.json` loads from a cloned repository. The docs say:
+
+- Project scope is `.mcp.json` at the project root and nothing in the docs says
+  Claude Code walks up to a parent folder. A session started elsewhere therefore
+  does not see `/root/.mcp.json` unless you start it in `/root`.
+- The other documented locations are root-owned `~/.claude.json` (local and user
+  scope), whose format and content the CLI rewrites for its own state, and on
+  Linux the managed file `/etc/claude-code/managed-mcp.json`, same `mcpServers`
+  format (<https://code.claude.com/docs/en/managed-mcp>).
+- `managed-mcp.json` is the wrong choice here: when it exists it takes
+  exclusive control of MCP, the user cannot add or use other servers, and
+  `--mcp-config` refuses to run. That would make a normal Olympus image
+  surprising and block every other way of adding a server, so the recipe keeps
+  the project-scope file and documents the limit instead.
+
+Nothing offline can prove approval behaviour, so this remains a documented
+limitation rather than a verified fix: in an interactive session, servers from a
+cloned repository can stay at "Pending approval" until the workspace is trusted.
+`claude -p` runs and Agent SDK sessions load project-scope servers without
+asking (<https://code.claude.com/docs/en/mcp>, "Project server approvals and
+workspace trust").
 
 ## UNVERIFIED
 

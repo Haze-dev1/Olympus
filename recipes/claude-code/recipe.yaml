@@ -25,7 +25,7 @@ supports:
   mcps:
     file: /root/.mcp.json
     format: json
-    style: hermes
+    style: claude-code
     key: mcpServers
   skills:
     dir: /root/.claude/skills

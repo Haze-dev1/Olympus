@@ -5,18 +5,19 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
-// TestRecipeGoldens renders each single-recipe fixture stack with a fake base
-// digest and compares it with the committed generation under <dir>/golden.
+// TestRecipeGoldens renders each single-recipe fixture stack with a fake digest
+// for the recipe's own image and compares it with <dir>/golden.
 func TestRecipeGoldens(t *testing.T) {
-	const base = "node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 	for _, tc := range []struct{ dir, tool string }{
 		{"claude-code", "claude"},
 		{"gemini-cli", "gemini"},
+		{"goose", "goose"},
 		{"aider", "aider"},
 	} {
 		t.Run(tc.dir, func(t *testing.T) {
@@ -29,7 +30,8 @@ func TestRecipeGoldens(t *testing.T) {
 			if len(errs) > 0 {
 				t.Fatal(errs)
 			}
-			in.Images = map[string]string{tc.tool: base}
+			image := in.Recipes[s.Agents[tc.tool].Recipe].Image
+			in.Images = map[string]string{tc.tool: image + "@sha256:" + strings.Repeat("d", 64)}
 			g, err := Build(in)
 			if err != nil {
 				t.Fatal(err)

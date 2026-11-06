@@ -6,7 +6,15 @@ Sets up a whole AI system on your own server from one YAML file: personal agents
 
 ## Install
 
-Not released yet. Planned: `brew install <owner>/tap/olym` (Homebrew, own tap) and `olym` on the AUR. See [docs/TRD.md](docs/TRD.md) section 13.
+Download the latest prebuilt binary from [GitHub Releases](https://github.com/Haze-dev1/Olympus/releases) (macOS and Linux, amd64/arm64) and verify with `SHA256SUMS`:
+
+```sh
+curl -fsSL -O "https://github.com/Haze-dev1/Olympus/releases/latest/download/olym_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz"
+tar -xzf olym_*.tar.gz
+sudo install -m 0755 olym /usr/local/bin/olym
+```
+
+See [docs/install.md](docs/install.md) for full installation and verification instructions, or build from source with Go 1.26+ via `go build -o /usr/local/bin/olym ./cmd/olym`. Planned package managers: `brew install <owner>/tap/olym` (Homebrew) and `olym` on the AUR.
 
 ## Status
 

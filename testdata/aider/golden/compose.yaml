@@ -3,15 +3,15 @@ services:
   aider:
     build:
       args:
-        BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-      context: /var/lib/olympus/store/sha256-41ac13a7c366c063b914d068244789ab25004a36903cd672032ced23b7ab5bdb/files/app/.olympus-build
+        BASE_IMAGE: paulgauthier/aider:v0.86.2@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+      context: /var/lib/olympus/store/sha256-38c5a627afcdc317f3099914d4bd4318ddb39f26a7c66b4b1b278e528301a833/files/app/.olympus-build
       dockerfile: Dockerfile
     command:
     - sleep
     - infinity
     env_file:
     - /var/lib/olympus/secrets/aider/environment
-    image: olympus/aider:sha256-88f64b15095a
+    image: olympus/aider:sha256-47d911366e3e
     labels:
       org.olympus.tool: aider
     restart: unless-stopped
@@ -20,7 +20,7 @@ services:
       target: /app
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-41ac13a7c366c063b914d068244789ab25004a36903cd672032ced23b7ab5bdb/files/app/.olympus-build/Dockerfile
+      source: /var/lib/olympus/store/sha256-38c5a627afcdc317f3099914d4bd4318ddb39f26a7c66b4b1b278e528301a833/files/app/.olympus-build/Dockerfile
       target: /app/.olympus-build/Dockerfile
       type: bind
 volumes:

@@ -41,7 +41,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0033](#0033-record-image-tag-overrides-in-the-image-lock) | Record image tag overrides in the image lock | Accepted |
 | [0035](#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile) | Build tools without an official image from a recipe-supplied Dockerfile | Accepted |
 | [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service) | Deliver writable managed config with a Compose init service | Accepted |
-| [0037](#0037-encode-mcp-secrets-as-tool-native-environment-references) | Encode MCP secrets as tool-native environment references | Accepted |
+| [0037](#0037-encode-mcp-secrets-as-tool-native-environment-references) | Encode MCP secrets as tool-native environment references | Accepted, amended by 0047 |
 | [0038](#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes) | Mount shared skills read-only where supported, and copy them where the tool writes | Accepted |
 | [0039](#0039-configure-hermes-channels-as-environment-variables) | Configure Hermes channels as environment variables | Accepted |
 
@@ -52,6 +52,8 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
 | [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
 | [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
+| [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) | Carry an explicit remote transport for MCP servers | Accepted, amends 0037 |
+| [0048](#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build) | Cross-compile release binaries and verify activator checksum against release build | Accepted, amends 0029 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1055,7 +1057,7 @@ Init paths pass `ShellSafe` before they reach the script; the source is generate
 
 ## 0037. Encode MCP secrets as tool-native environment references
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by 0047
 - **Date:** 2026-10-20
 
 ### Context
@@ -1459,6 +1461,76 @@ The recipe declares no `supports` block. The pinned docs define OpenBot's own lo
 - **Use Docker's default profile instead of upstream's:** the container stops, because the Electron sandbox cannot create user namespaces.
 - **Set `seccomp=unconfined`, `--privileged` or `--no-sandbox`:** upstream explicitly rules these out; each one removes either the sandbox or the syscall filter.
 - **Declare `supports` for OpenBot's own skills folder:** the pinned docs document no stable on-disk MCP config or shared-skills folder that Olympus could write, so a guess would break on upgrade.
+
+## 0047. Carry an explicit remote transport for MCP servers
+
+- **Status:** Accepted, amends 0037
+- **Date:** 2026-11-06
+
+### Context
+
+ADR 0037 introduced tool-native MCP styles (`hermes`, `codex`, `opencode`), where remote servers were rendered as `url` + `headers`. However, tool remote MCP formats diverge:
+- Claude Code skips any remote server entry that has `url` but lacks `"type": "http"|"sse"|"ws"`.
+- Gemini CLI interprets `url` as an SSE endpoint and requires `httpUrl` for streaming HTTP.
+- Hermes Agent supports streaming HTTP via `url`.
+
+Stacks previously had no way to declare whether a remote server uses streaming HTTP or SSE.
+
+### Decision
+
+We will:
+1. Add an optional `transport: http | sse` field to remote MCP definitions in the stack file (`docs/specs/stack-file.md`), defaulting to `http`. Reject unknown values and reject `transport` on stdio (`command`) servers during schema and parser validation.
+2. Add tool-specific MCP styles `claude-code` and `gemini-cli` to `translateMCP` in `internal/eval`:
+   - `claude-code`: writes `"type": "http"` (or `"sse"`) alongside `url` and `headers`.
+   - `gemini-cli`: writes `httpUrl` + `headers` for `http` transport (omitting `url`), and `url` + `headers` for `sse`.
+   - `hermes`, `codex`, and `opencode` remain byte-identical: `hermes` emits `url` + `headers` unchanged, ignoring `transport`.
+3. Switch `recipes/claude-code` to `style: claude-code` and `recipes/gemini-cli` to `style: gemini-cli`.
+
+### Consequences
+
+- Stacks can cleanly configure remote MCP servers across both Claude Code and Gemini CLI without custom wrapper scripts.
+- Existing hermes, codex, and opencode golden tests remain byte-identical.
+- Stacks default to `http` transport without requiring explicit configuration on every server.
+- WebSocket remotes (`ws`) remain unsupported in stacks until a recipe or use case requires them (ponytail / YAGNI).
+
+### Alternatives considered
+
+- **Heuristically infer transport from URL path:** Fragile; endpoints do not reliably contain `/sse` or `/http`.
+- **Modify `hermes` style to emit `type` or `httpUrl`:** Changes Hermes Agent format and breaks byte-identity for existing configurations.
+- **Support `ws` transport now:** No existing tool recipe or test stack requires WebSocket MCP transport; deferred until needed.
+
+## 0048. Cross-compile release binaries and verify activator checksum against release build
+
+- **Status:** Accepted, amends 0029
+- **Date:** 2026-11-06
+
+### Context
+
+ADR 0029 established deployment verification of the activator binary on the server, but deferred release-checksum embedding: in the M1 offline slice, `UploadActivator` and `VerifyActivator` computed the SHA-256 of whatever local binary was selected and verified the server matched that binary, without asserting trust against an official release build.
+
+Rule A12 requires: "Run the activator on the server only after checking its checksum matches the CLI's release build, and never a different version from the CLI." TRD section 13 specifies cross-compiling the CLI and Linux activator for darwin/linux on amd64/arm64 and publishing a `SHA256SUMS` file.
+
+### Decision
+
+We will:
+1. Cross-compile Olympus CLI (`darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64`) and Linux activator (`linux/amd64`, `linux/arm64`) binaries using standard Go toolchain (`CGO_ENABLED=0`) in a tag-triggered GitHub Actions workflow (`.github/workflows/release.yml`) and `scripts/build-release.sh`.
+2. Sequence release builds so Linux activator binaries are compiled first, their SHA-256 digests computed, and then embedded into the CLI binaries via linker flags (`-ldflags "-X ..."`).
+3. In `internal/deploy`, check the activator's SHA-256 against the embedded release checksum (`ExpectedReleaseChecksum(arch)`) before uploading to or activating on the remote server. Mismatches fail closed with `deploy: activator checksum does not match release build`.
+4. Reject server commands in release builds missing either embedded checksum; development builds retain a visible warning. Select the matching Linux activator alongside the CLI for uploads, including on macOS.
+5. Bundle both Linux activator architectures alongside each CLI in its archive. Package tarball archives (`olym_<version>_<os>_<arch>.tar.gz` and `olym-activator_<version>_linux_<arch>.tar.gz`), emit a `SHA256SUMS` manifest, and publish releases using `gh release create`.
+
+### Consequences
+
+- Rule A12 is enforced cryptographically: release CLI builds will only execute verified release activators on target servers.
+- The build pipeline requires zero third-party GitHub Actions or release dependencies, relying exclusively on official `actions/*` and standard Go tooling.
+- Developers can continue testing custom Linux activator builds in local dev environments using `--activator` with clear warning transparency.
+- Activator and CLI binaries are decoupled in build order to avoid circular hash embedding.
+
+### Alternatives considered
+
+- **GoReleaser or third-party release Action:** Adds external dependencies and non-official actions, which violates the repo guideline to prefer native tools and requires approval.
+- **Download and verify activator at runtime over HTTPS:** Introduces runtime network dependencies and external failure modes during deployment. Embedding release digests directly at build time is offline-first, deterministic, and self-contained.
+- **Single binary without separate activator artifact:** Activator on Linux is the `olym` binary running server commands; building activator artifacts first allows deterministic checksum calculation prior to CLI linking.
 
 ## Template
 
