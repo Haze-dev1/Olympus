@@ -1,0 +1,30 @@
+{
+  "id": "sha256-9f81edb5287892eea5864b83119c64e9d3448448b31b1eca34722fd9d7162d12",
+  "inputs": {
+    "recipes": "sha256-dd54964dc0fa88a055cfa55e3281bf83043a3f5f63696ee66bc36310c68bd7a0"
+  },
+  "olym": "0.1.0-dev",
+  "tools": {
+    "gemini": {
+      "files": {
+        "/root/.gemini/settings.json": "sha256-7d7ee3c77cd6298e8d0d906f532284493509d95b03c89bd0c87a3671145bd3ec",
+        "/root/.gemini/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0",
+        "/root/.olympus-build/Dockerfile": "sha256-9d74a1a027a621752f09d6a58b91ca98c55de888aa6bd1ced9dff86488b88715"
+      },
+      "hash": "sha256-17d074319fed2d4af2a68c6be65a05552a2135f8e24a75f400712454138f9ad4",
+      "health": {
+        "command": [
+          "gemini",
+          "--version"
+        ],
+        "timeout": "60s"
+      },
+      "image": "olympus/gemini:sha256-53f40b9436ca",
+      "secrets": [
+        "github-token",
+        "model-key"
+      ]
+    }
+  },
+  "version": 1
+}

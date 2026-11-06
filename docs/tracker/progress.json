@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-05",
+  "updated": "2026-11-06",
   "phase": "implementation",
   "milestones": [
     {
@@ -45,7 +45,7 @@
     {
       "id": "M5",
       "name": "Recipe catalog",
-      "status": "not_started",
+      "status": "in_progress",
       "features": [
         "recipe-catalog"
       ]
@@ -103,8 +103,10 @@
       "summary": "Hermes Telegram and Discord render as environment variables with a required allow-list; live bot test pending."
     },
     "recipe-catalog": {
-      "status": "not_started",
-      "file": "features/recipe-catalog.md"
+      "status": "in_progress",
+      "file": "features/recipe-catalog.md",
+      "updated": "2026-11-06",
+      "summary": "Gemini CLI recipe added offline (pinned @google/gemini-cli@0.67.0, settings.json MCP rendering, read-only skills). Streamable-HTTP remote MCP needs httpUrl, which no style emits; live lab run pending (no QEMU)."
     },
     "test-lab": {
       "status": "done",
