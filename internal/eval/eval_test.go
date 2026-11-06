@@ -129,6 +129,92 @@ func TestGoldenAndPurity(t *testing.T) {
 		t.Fatal("private port or env_file missing")
 	}
 }
+func openbot(t *testing.T) *generation.Generation {
+	t.Helper()
+	file := "../../testdata/openbot/stack.yaml"
+	s, d := stack.Load(file)
+	if len(d.Errors) > 0 {
+		t.Fatal(d.Errors)
+	}
+	in, errors := Load(s, "../../recipes", "../../testdata/openbot")
+	if len(errors) > 0 {
+		t.Fatal(errors)
+	}
+	g, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+func TestOpenBotGolden(t *testing.T) {
+	g := openbot(t)
+	if *updateGolden {
+		for p, b := range g.Files {
+			target := filepath.Join("../../testdata/golden-openbot", p)
+			if e := os.MkdirAll(filepath.Dir(target), 0700); e != nil {
+				t.Fatal(e)
+			}
+			if e := os.WriteFile(target, b, 0600); e != nil {
+				t.Fatal(e)
+			}
+		}
+	}
+	count := 0
+	err := filepath.WalkDir("../../testdata/golden-openbot", func(p string, d fs.DirEntry, e error) error {
+		if e != nil {
+			return e
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, e := filepath.Rel("../../testdata/golden-openbot", p)
+		if e != nil {
+			return e
+		}
+		expected, e := os.ReadFile(p)
+		if e != nil {
+			return e
+		}
+		if !bytes.Equal(expected, g.Files[filepath.ToSlash(rel)]) {
+			t.Errorf("golden differs: %s", rel)
+		}
+		count++
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != len(g.Files) {
+		t.Fatalf("golden has %d files, build has %d", count, len(g.Files))
+	}
+	tool := g.Manifest.Tools["openbot"]
+	if tool.Image != "ghcr.io/nightly-labs/openbot:0.62.0" {
+		t.Fatalf("unexpected image %q", tool.Image)
+	}
+	compose := string(g.Files["compose.yaml"])
+	for _, want := range []string{
+		"shm_size: 1g",
+		"stop_grace_period: 60s",
+		"no-new-privileges:true",
+		"seccomp=/var/lib/olympus/store/" + tool.Hash + "/files/data/.olympus/seccomp.json",
+		"source: openbot_data",
+		"name: olympus_openbot_data",
+		"target: /data",
+	} {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("compose lacks %q:\n%s", want, compose)
+		}
+	}
+	if strings.Contains(compose, "ports:") {
+		t.Fatal("openbot publishes a port")
+	}
+	health := g.Manifest.Tools["openbot"].Health.Command
+	if strings.Join(health, " ") != "openbot status" {
+		t.Fatalf("unexpected health command %v", health)
+	}
+}
+
 func TestManagedFormatsPreserveBase(t *testing.T) {
 	for _, format := range []string{"yaml", "json", "toml"} {
 		t.Run(format, func(t *testing.T) {
