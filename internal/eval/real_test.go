@@ -195,7 +195,7 @@ func TestRealStackCompose(t *testing.T) {
 
 	hermesService := object(t, services["hermes"], "hermes service")
 	env := object(t, hermesService["environment"], "hermes environment")
-	if env["TELEGRAM_ALLOWED_USERS"] != "@alice,@bob" {
+	if env["TELEGRAM_ALLOWED_USERS"] != "111111111,222222222" {
 		t.Errorf("allow-list = %v", env["TELEGRAM_ALLOWED_USERS"])
 	}
 	if env["DISCORD_ALLOWED_USERS"] != "123456789" {

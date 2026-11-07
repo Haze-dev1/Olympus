@@ -23,9 +23,12 @@ Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`; im
 - Skills: one folder per skill with `SKILL.md` under `$HERMES_HOME/skills`.
   Hermes can write its primary skills directory, so the recipe copies skills
   into the volume instead of bind-mounting them (`mode: copy`).
-- Telegram: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USERS` (comma-separated).
-  The gateway denies users outside the allow-list by default, so an empty
-  allow-list is rejected during the build (Rule A10).
+- Telegram: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USERS` (comma-separated
+  numeric Telegram user IDs). Upstream matches the inbound numeric `user_id`
+  against this list and resolves no usernames for Telegram, so an `@handle`
+  entry matches nobody and that user is denied. The gateway denies users
+  outside the allow-list by default, so an empty allow-list is rejected during
+  the build (Rule A10).
 - Discord: `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS` (comma-separated), and
   optional `DISCORD_ALLOWED_ROLES` (comma-separated role IDs). The gateway fails
   closed and denies users outside the allow-list by default, so an empty
@@ -38,6 +41,10 @@ Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`; im
 
 - Gateway operation with real chat channels (Telegram, Discord), including platform
   authentication, remains unverified. The lab intentionally configures no channel.
+  Source review on 2026-11-07 confirmed the delivery path: Compose supplies the
+  token as a process environment variable through the secret `env_file`, and
+  `hermes_cli.config.get_env_value` reads `os.environ` before `~/.hermes/.env`,
+  so the container sees it. That is a code reading, not a live bot session.
 
 ## Lab observations, 2026-10-20
 
