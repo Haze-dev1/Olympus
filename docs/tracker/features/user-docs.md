@@ -56,4 +56,4 @@ Adds user-facing documentation for Olympus (OLY-35): a Quickstart in `README.md`
 ## Merge review, 2026-11-06
 
 - `docs/usage/commands.md` listed only the flags in the CLI's invalid-flag message. Added the flags `internal/cli/cli.go` also accepts (`-activator`, `-out`, `-yes`, `-keep`, `-json`, `-delete-data`) to the overview and per-command sections, and described the saved-plan staleness check.
-- `examples/full-stack/stack.yaml` passed `olym check -recipes recipes` with fake sentinel values in a temporary `.env` (deleted). Whether Hermes accepts `@username` or needs numeric Telegram IDs in `allow` is not verified; it matches the stack spec's own example and is left to the OLY-16 live test.
+- `examples/full-stack/stack.yaml` passed `olym check -recipes recipes` with fake sentinel values in a temporary `.env` (deleted). Whether Hermes accepts `@username` or needs numeric Telegram IDs in `allow` was not verified then; it matched the stack spec's own example and was left to the OLY-16 live test. OLY-16 source review on 2026-11-07 resolved it: Telegram matches numeric user IDs only, so the example and the stack spec now use numeric IDs.
