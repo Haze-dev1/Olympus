@@ -27,7 +27,7 @@ agents:
     channels:
       telegram:
         token: ${TELEGRAM_BOT_TOKEN}
-        allow: ["@alice", "@bob"]
+        allow: ["111111111", "222222222"]
       discord:
         token: ${DISCORD_BOT_TOKEN}
         allow: ["123456789"]

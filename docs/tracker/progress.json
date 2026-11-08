@@ -101,8 +101,8 @@
     "channels": {
       "status": "in_progress",
       "file": "features/channels.md",
-      "updated": "2026-11-05",
-      "summary": "Hermes Telegram and Discord render as environment variables with a required allow-list; live bot test pending."
+      "updated": "2026-11-08",
+      "summary": "Hermes Telegram and Discord render as environment variables with a required allow-list. Telegram allow entries corrected to numeric user IDs (usernames match nobody upstream). Live bot test pending."
     },
     "recipe-catalog": {
       "status": "in_progress",

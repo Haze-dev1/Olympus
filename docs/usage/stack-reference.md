@@ -38,7 +38,7 @@ agents:
     channels:
       telegram:
         token: ${TG_TOKEN}
-        allow: ["@admin"]
+        allow: ["123456789"]
 
 apps:
   openbot:
@@ -138,7 +138,7 @@ For tools with channel support (e.g. `telegram`, `discord`):
 | Field | Required | Type | Description |
 | --- | --- | --- | --- |
 | `token` | **Yes** | String (`minLength: 1`) | Bot authentication token reference as `${NAME}`. |
-| `allow` | **Yes** | Array of unique Strings (`minItems: 1`) | Non-empty allow-list of authorized user identifiers or usernames. |
+| `allow` | **Yes** | Array of unique Strings (`minItems: 1`) | Non-empty allow-list of authorized user identifiers, in the format the bot expects. Telegram matches numeric user IDs only; `@username` entries match nobody and the bot answers no one. Discord accepts numeric user IDs (usernames are resolved at connect time). |
 | `roles` | No | Array of unique Strings (`minLength: 1`) | Optional list of authorized role IDs (e.g. Discord roles). |
 
 ---

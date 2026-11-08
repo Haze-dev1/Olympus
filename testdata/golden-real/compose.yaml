@@ -65,7 +65,7 @@ services:
       DISCORD_ALLOWED_ROLES: "987654321"
       DISCORD_ALLOWED_USERS: "123456789"
       HERMES_HOME: /opt/data
-      TELEGRAM_ALLOWED_USERS: "@alice,@bob"
+      TELEGRAM_ALLOWED_USERS: 111111111,222222222
     image: nousresearch/hermes-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     labels:
       org.olympus.tool: hermes
@@ -89,15 +89,15 @@ services:
       target: /opt/data
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-b8b20004d5a343e17a921de96a576616953d94951f62a6a006847e01bfdb631e/files/opt/data/config.yaml
+      source: /var/lib/olympus/store/sha256-2db558ff06e3baa2377ce60cf057d9d2a355c24a843eeb64a67c0e12fa3be8e0/files/opt/data/config.yaml
       target: /olympus-init/0
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-b8b20004d5a343e17a921de96a576616953d94951f62a6a006847e01bfdb631e/files/opt/data/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-2db558ff06e3baa2377ce60cf057d9d2a355c24a843eeb64a67c0e12fa3be8e0/files/opt/data/skills/deploy-checklist/SKILL.md
       target: /olympus-init/1
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-b8b20004d5a343e17a921de96a576616953d94951f62a6a006847e01bfdb631e/files/opt/data/skills/.olympus-managed-files
+      source: /var/lib/olympus/store/sha256-2db558ff06e3baa2377ce60cf057d9d2a355c24a843eeb64a67c0e12fa3be8e0/files/opt/data/skills/.olympus-managed-files
       target: /olympus-init/2
       type: bind
   opencode:
