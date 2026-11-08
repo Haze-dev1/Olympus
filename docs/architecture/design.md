@@ -95,7 +95,7 @@ agents:
     mcps: [github]
     skills: all
     channels:
-      telegram: { token: ${TG_TOKEN}, allow: ["@haze"] }
+      telegram: { token: ${TG_TOKEN}, allow: ["123456789"] }
   codex:
     recipe: codex
     mcps: [github]

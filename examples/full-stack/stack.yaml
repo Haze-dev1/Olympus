@@ -23,7 +23,7 @@ agents:
     channels:
       telegram:
         token: ${TELEGRAM_BOT_TOKEN}
-        allow: ["@admin_user"]
+        allow: ["123456789"]
   codex:
     recipe: codex
     mcps: [github]
