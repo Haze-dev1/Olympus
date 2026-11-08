@@ -1552,13 +1552,13 @@ We will:
 2. Expose that field as the `-unsafe-dev-activator` CLI flag, registered for all commands and passed to the deploy client in `manageGeneration` and `serverCommand`.
 3. Keep release builds unchanged: a missing embedded checksum still fails closed, and a checksum mismatch still rejects the activator. The flag has no effect on a release build.
 4. Keep development builds that do embed release checksums on the normal verification path, with no opt-in required.
-5. Pass the flag in the tagged lab tests (`internal/cli/lab_test.go`, `internal/cli/real_lab_test.go`, `internal/deploy/lab_test.go`) and document it in `docs/usage/commands.md`, `docs/install.md` and `lab/README.md`.
+5. Pass the flag in the tagged lab tests (`internal/cli/lab_test.go`, `internal/cli/real_lab_test.go`, `internal/deploy/lab_test.go`) and document it in `README.md`, `docs/usage/commands.md`, `docs/install.md` and `lab/README.md`.
 
 ### Consequences
 
 - A development client can no longer upload or run an unsigned activator by accident; the operator must name the flag and the error message points at it.
 - The development path is still possible for the lab and for contributors who build their own activator, at the cost of one extra flag on every lab and manual server command.
-- The flag is deliberately named unsafe and is visible in the CLI help, so it cannot be mistaken for normal operation.
+- The flag is deliberately named unsafe and is documented in `docs/usage/commands.md`, so it cannot be mistaken for normal operation. The static `olym` usage line and per-command help do not list individual flags, so that document remains the flag reference.
 - The trust boundary is unchanged for release builds; a compromised root server can still replace the verified binary after the check.
 
 ### Alternatives considered

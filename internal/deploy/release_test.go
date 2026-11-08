@@ -253,6 +253,14 @@ func TestMissingReleaseChecksumFailsClosed(t *testing.T) {
 	if err := CheckReleaseBuild("0.1.0-dev"); err != nil {
 		t.Fatal(err)
 	}
+	// The development opt-in must not loosen a release build (F3).
+	c.UnsafeDevActivator = true
+	if err := c.UploadActivator(context.Background(), ""); err == nil {
+		t.Fatal("release build accepted missing checksum with the development opt-in")
+	}
+	if err := c.VerifyActivator(context.Background(), ""); err == nil {
+		t.Fatal("release build ran an activator missing checksum with the development opt-in")
+	}
 }
 
 func TestBundledActivatorSelectionAndChecksum(t *testing.T) {
