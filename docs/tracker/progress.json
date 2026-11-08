@@ -101,8 +101,8 @@
     "channels": {
       "status": "in_progress",
       "file": "features/channels.md",
-      "updated": "2026-11-05",
-      "summary": "Hermes Telegram and Discord render as environment variables with a required allow-list; live bot test pending."
+      "updated": "2026-11-08",
+      "summary": "Hermes Telegram and Discord render as environment variables with a required allow-list. Telegram allow entries corrected to numeric user IDs (usernames match nobody upstream). Live bot test pending."
     },
     "recipe-catalog": {
       "status": "in_progress",
@@ -128,14 +128,14 @@
     "release-pipeline": {
       "status": "done",
       "file": "features/release-pipeline.md",
-      "updated": "2026-11-06",
-      "summary": "Cross-compile CLI (darwin/linux, amd64/arm64) and Linux activator (amd64/arm64), SHA256SUMS file, activator checksum verification against release (A12), and tag-triggered GitHub Actions release workflow. OLY-59 configures GitHub build provenance for archives and SHA256SUMS; live release verification remains pending."
+      "updated": "2026-11-08",
+      "summary": "Cross-compile CLI and Linux activator, SHA256SUMS, activator checksum verification against release (A12), tag-triggered release workflow and build provenance. OLY-61 adds an explicit -unsafe-dev-activator opt-in for development builds without a release checksum. Live release verification remains pending."
     },
     "security-review": {
       "status": "in_progress",
       "file": "features/security-review.md",
-      "updated": "2026-11-06",
-      "summary": "OLY-33 source review documented; findings and live verification remain open."
+      "updated": "2026-11-08",
+      "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. Security data-flow note added in docs/security/data-flow.md. F1 live checks, F2 and F4 remain open."
     },
     "user-docs": {
       "status": "done",

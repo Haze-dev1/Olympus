@@ -1,6 +1,32 @@
 # Security review
 
-- **Status:** In progress — findings and live verification remain open
-- **Updated:** 2026-11-06
+- **Status:** In progress — F1 live verification and F2/F4 remain open
+- **Updated:** 2026-11-08
 
 OLY-33 records the pre-release source review in [the report](../../security/review-2026-11-06.md). No product fixes were made. ADR reviewed; no decision is introduced by a findings-only review. `govulncheck ./...` found no reachable vulnerabilities and one non-reachable module advisory. Build and vet passed; gofmt was clean; the full suite failed on the three known macOS cases `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, and `TestToolEntryReuseAndVerification`. No QEMU lab, live release or server testing was performed. Relative Markdown links and anchors in `docs/` resolved, and tracker JSON parsed successfully.
+
+## F3 fixed (2026-11-08, OLY-61)
+
+Finding F3 (development clients bypass release digest matching, rule A12) is fixed in `internal/deploy`: `checkReleaseChecksum` now refuses when a development build has no release checksum for the server architecture unless `deploy.Client.UnsafeDevActivator` is set, and `UploadActivator` and `VerifyActivator` both call it before uploading or executing anything. The CLI exposes this as `-unsafe-dev-activator`, wired through `manageGeneration` and `serverCommand`. Release builds keep their previous behaviour: a missing embedded checksum fails closed, and a checksum mismatch rejects the activator. ADR 0049 amends ADR 0048.
+
+Verification evidence:
+
+- Red-before: in a detached tree at `fd8743d` with the new tests and only the `UnsafeDevActivator` field added to `Client` (no guard), `go test ./internal/deploy/ -run '^(TestDevelopmentActivatorRequiresExplicitOptIn|TestUploadActivatorReleaseChecksumVerification)$' -v` failed both refusal subtests — `development build uploaded an activator with no release checksum without -unsafe-dev-activator` and `development build ran an activator with no release checksum without -unsafe-dev-activator`. Against `fd8743d` without that field shim the committed test file does not compile (`unknown field UnsafeDevActivator`), because the opt-in API does not exist there.
+- Independent red proof (t12): the exact two refusal subtests were copied onto `fd8743d` in a scratch tree, omitting the opt-in-success subtest so the file compiles against the old `Client`; both failed because the old `UploadActivator` and `VerifyActivator` accepted an unsigned development binary, with no unrelated failure. Green was already established by the full suite on `7c497ca`.
+- After the fix the same tests pass, including upload and verify with the opt-in. The earlier `empty release checksum allows dev build` case was replaced with a case that expects the opt-in error and then succeeds with the flag. `TestMissingReleaseChecksumFailsClosed` also asserts a release build still refuses a missing checksum with the opt-in set.
+- After merging `origin/development` at `e6c495d`, build, `go vet ./...` and `gofmt -l .` (empty) passed. `go test ./...` passed every package except the three known macOS deploy cases `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication` (`activator must be a Linux ELF binary`) and `TestToolEntryReuseAndVerification` (`mv failed`). The tagged lab tests were not run (no QEMU on this host); they still compile, now pass `-unsafe-dev-activator`, and `internal/deploy/lab_test.go` sets the client field directly.
+- Independent review of `7c497ca` (t12): build, vet and gofmt passed; the full suite showed only the same three known macOS failures with baseline-identical reasons. Its first run failed for an environment reason, not code: `TMPDIR` pointed at the scratch worktree instead of a separate temp directory; rerunning with a separate temp directory reproduced only the known failures. The review also found the README opt-in gap, the `docs/install.md` overstatement and the ADR help claim, all corrected here.
+
+Remaining limits: a compromised root server can still replace the binary after the check; a development build that embeds release checksums uses normal verification without the flag. F1 live sender checks, F2 build-input pinning and F4 independent artifact authentication remain open.
+
+## Security data-flow note (2026-11-08)
+
+Added `docs/security/data-flow.md` based on `.agents/skills/review-app-security/reference/data-flow-note.md` at baseline `61a1e57`. Traced sensitive model keys, bot/GitHub tokens, SSH credentials, chat content, trust boundaries, and rules A1–A12 directly to source code citations.
+
+Review evidence and limits:
+- Draft revisions: Lead review rejected two initial drafts for inaccurate recipe table citations, unverified upstream runtime claims asserted as facts, conflation of file-based vs env-mapped secret delivery, anchor syntax errors (`#Lx-Ly`), and over-broad development opt-in assertions. All were corrected: recipe citations were scoped to an exact Hermes example (`recipes/hermes/recipe.yaml:18-26`), upstream chat/runtime behaviors were explicitly marked `UNVERIFIED`, file-based and env-file secret delivery were distinguished (`internal/activate/activate.go:786, 793, 830`), and development opt-in was qualified strictly to development builds lacking embedded release checksums (`internal/deploy/deploy.go:283-292`).
+- Scope and threat model limits: Docker daemon and server root have full inspection access to container environments and volume mounts; Olympus does not isolate secrets from privileged host accounts. Upstream runtime logging and chat storage remain UNVERIFIED; the core does not establish a container-log collection path. Upstream model provider and chat platform data retention remain unverified.
+- ADR review: Reviewed `docs/ADR.md`. No architecture decision or file format change was introduced by this documentation; no ADR was added.
+- Validation: `python3 /private/tmp/olym-doc-links.py` reported 0 JSON errors and 0 doc link/anchor errors. `go build -o /tmp/olym-agy-flow-bin ./cmd/olym/`, `go vet ./...`, and `gofmt -l .` (empty) passed cleanly. `go test ./...` reproduced only the three known macOS deploy failures (`TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, and `TestToolEntryReuseAndVerification`).
+
+- 2026-11-08 lead review: independent build/vet/formatting passed; full tests reproduced only the three baseline-identical macOS deploy failures. Corrected remaining source-line citations and removed unsupported network, logging and blanket secrecy claims in the detached review tree. Docs links/anchors and tracker JSON pass. No new ADR warranted. The documented hook-execution gap is tracked as OLY-63; no bundled recipe currently uses a hook.

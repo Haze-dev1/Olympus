@@ -277,6 +277,14 @@ func TestRenderingFailuresAndWarnings(t *testing.T) {
 			v.Channels = map[string]stack.Channel{"telegram": {Token: "${TG}", Allow: []string{"owner"}}}
 			in.Stack.Agents["research"] = v
 		}, "not supported"},
+		{"missing channel allow mapping", func(in Inputs) {
+			in.Recipes["observatory"].Supports.Channels = map[string]recipe.Channel{"telegram": {Env: map[string]string{"token": "TELEGRAM_TOKEN"}}}
+			in.Recipes["observatory"].Secrets["tg"] = recipe.Secret{Env: "TELEGRAM_TOKEN"}
+			v := in.Stack.Agents["research"]
+			v.Secrets["tg"] = "${TG}"
+			v.Channels = map[string]stack.Channel{"telegram": {Token: "${TG}", Allow: []string{"owner"}}}
+			in.Stack.Agents["research"] = v
+		}, "allow environment variable"},
 		{"unsupported channel roles", func(in Inputs) {
 			in.Recipes["observatory"].Supports.Channels = map[string]recipe.Channel{
 				"telegram": {Env: map[string]string{"token": "TELEGRAM_TOKEN", "allow": "TELEGRAM_ALLOW"}},

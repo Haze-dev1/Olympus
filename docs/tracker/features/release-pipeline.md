@@ -33,3 +33,9 @@ Cross-compiles the Olympus CLI (`darwin/amd64`, `darwin/arm64`, `linux/amd64`, `
 ## Release provenance, 2026-11-06
 
 OLY-59 configures the official `actions/attest-build-provenance` action, pinned to the commit behind v3, for every archive and `SHA256SUMS`; the release job requests only contents, OIDC and attestation write permissions. Install and release instructions describe `gh attestation verify`. ADR 0048 was amended. No release or tag was created, so live attestation and verification remain untested. Build and vet passed, gofmt printed nothing, documentation links and tracker JSON validated. Full tests failed only the known macOS deploy cases: `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, and `TestToolEntryReuseAndVerification`. No QEMU lab was available.
+
+## Development activator opt-in, 2026-11-08
+
+OLY-61 (security finding F3) closes the development-build bypass. `checkReleaseChecksum` in `internal/deploy/deploy.go` now requires `Client.UnsafeDevActivator` when the CLI is `0.1.0-dev` and the server architecture has no embedded release checksum; `UploadActivator` and `VerifyActivator` both call it before upload or execution. The CLI flag is `-unsafe-dev-activator`. Release builds are unchanged: missing embedded checksums still fail closed and mismatches still reject. The tagged lab tests pass the flag (or set the field) because they build development activators. ADR 0049 amends ADR 0048.
+
+Verification: the new `TestDevelopmentActivatorRequiresExplicitOptIn` failed on the previous code for both upload and verify, and passes with the guard plus opt-in cases. Build/vet/gofmt and the full test run are recorded in the OLY-61 PR. No lab VM or live release was run.

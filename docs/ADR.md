@@ -53,7 +53,8 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
 | [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
 | [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) | Carry an explicit remote transport for MCP servers | Accepted, amends 0037 |
-| [0048](#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build) | Cross-compile release binaries and verify activator checksum against release build | Accepted, amends 0029 |
+| [0048](#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build) | Cross-compile release binaries and verify activator checksum against release build | Accepted, amends 0029, amended by 0049 |
+| [0049](#0049-require-an-explicit-opt-in-for-unsigned-development-activators) | Require an explicit opt-in for unsigned development activators | Accepted, amends 0048 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1501,7 +1502,7 @@ We will:
 
 ## 0048. Cross-compile release binaries and verify activator checksum against release build
 
-- **Status:** Accepted, amends 0029
+- **Status:** Accepted, amends 0029, amended by 0049
 - **Date:** 2026-11-06
 
 ### Context
@@ -1516,7 +1517,7 @@ We will:
 1. Cross-compile Olympus CLI (`darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64`) and Linux activator (`linux/amd64`, `linux/arm64`) binaries using standard Go toolchain (`CGO_ENABLED=0`) in a tag-triggered GitHub Actions workflow (`.github/workflows/release.yml`) and `scripts/build-release.sh`.
 2. Sequence release builds so Linux activator binaries are compiled first, their SHA-256 digests computed, and then embedded into the CLI binaries via linker flags (`-ldflags "-X ..."`).
 3. In `internal/deploy`, check the activator's SHA-256 against the embedded release checksum (`ExpectedReleaseChecksum(arch)`) before uploading to or activating on the remote server. Mismatches fail closed with `deploy: activator checksum does not match release build`.
-4. Reject server commands in release builds missing either embedded checksum; development builds retain a visible warning. Select the matching Linux activator alongside the CLI for uploads, including on macOS.
+4. Reject server commands in release builds missing either embedded checksum; development builds retain a visible warning. A development build without a release checksum requires the explicit `-unsafe-dev-activator` opt-in (amended by 0049). Select the matching Linux activator alongside the CLI for uploads, including on macOS.
 5. Bundle both Linux activator architectures alongside each CLI in its archive. Package tarball archives (`olym_<version>_<os>_<arch>.tar.gz` and `olym-activator_<version>_linux_<arch>.tar.gz`), emit a `SHA256SUMS` manifest, and publish releases using `gh release create`.
 6. Attest each release archive and `SHA256SUMS` using the official GitHub build provenance action pinned to a full commit; users verify artifacts with `gh attestation verify`.
 
@@ -1524,7 +1525,7 @@ We will:
 
 - Rule A12 is enforced cryptographically: release CLI builds will only execute verified release activators on target servers.
 - The build pipeline requires zero third-party GitHub Actions or release dependencies, relying exclusively on official `actions/*` and standard Go tooling.
-- Developers can continue testing custom Linux activator builds in local dev environments using `--activator` with clear warning transparency.
+- Developers can continue testing custom Linux activator builds in local dev environments using `--activator` plus the explicit `--unsafe-dev-activator` opt-in (ADR 0049).
 - Activator and CLI binaries are decoupled in build order to avoid circular hash embedding.
 - GitHub provenance binds artifact digests to the workflow identity; verification depends on GitHub attestation services and does not independently prove that build inputs are safe.
 
@@ -1534,6 +1535,38 @@ We will:
 - **Download and verify activator at runtime over HTTPS:** Introduces runtime network dependencies and external failure modes during deployment. Embedding release digests directly at build time is offline-first, deterministic, and self-contained.
 - **Checksums only:** An attacker able to replace both an archive and its checksum could make a substituted artifact pass verification.
 - **Single binary without separate activator artifact:** Activator on Linux is the `olym` binary running server commands; building activator artifacts first allows deterministic checksum calculation prior to CLI linking.
+
+## 0049. Require an explicit opt-in for unsigned development activators
+
+- **Status:** Accepted, amends 0048
+- **Date:** 2026-11-08
+
+### Context
+
+ADR 0048 embedded release checksums into release CLI builds and failed closed when they were missing. Development builds (`0.1.0-dev`) deliberately skipped the check so contributors could test local activator binaries, and `UploadActivator`/`VerifyActivator` accepted any well-formed Linux ELF whose self-reported version matched. The 2026-11-06 security review recorded this as finding F3 (Medium): a development client and a substituted local activator could execute as root on the server without any release-build digest, and only a warning told the operator.
+
+### Decision
+
+We will:
+1. Keep the development-build fallback but make it explicit. When `eval.Version == eval.DevelopmentVersion` and no release checksum is available for the server architecture, `UploadActivator` and `VerifyActivator` refuse unless `deploy.Client.UnsafeDevActivator` is set.
+2. Expose that field as the `-unsafe-dev-activator` CLI flag, registered for all commands and passed to the deploy client in `manageGeneration` and `serverCommand`.
+3. Keep release builds unchanged: a missing embedded checksum still fails closed, and a checksum mismatch still rejects the activator. The flag has no effect on a release build.
+4. Keep development builds that do embed release checksums on the normal verification path, with no opt-in required.
+5. Pass the flag in the tagged lab tests (`internal/cli/lab_test.go`, `internal/cli/real_lab_test.go`, `internal/deploy/lab_test.go`) and document it in `README.md`, `docs/usage/commands.md`, `docs/install.md` and `lab/README.md`.
+
+### Consequences
+
+- A development client can no longer upload or run an unsigned activator by accident; the operator must name the flag and the error message points at it.
+- The development path is still possible for the lab and for contributors who build their own activator, at the cost of one extra flag on every lab and manual server command.
+- The flag is deliberately named unsafe and is documented in `docs/usage/commands.md`, so it cannot be mistaken for normal operation. The static `olym` usage line and per-command help do not list individual flags, so that document remains the flag reference.
+- The trust boundary is unchanged for release builds; a compromised root server can still replace the verified binary after the check.
+
+### Alternatives considered
+
+- **Remove the development path entirely:** Blocks the lab and local contributor testing against real servers; the lab would need a separate release-signed activator for every change.
+- **Trust any activator whose version string matches:** That is the behaviour F3 reports; a version string is attacker-controlled.
+- **Prompt interactively instead of a flag:** Server commands already run unattended in tests and CI; an interactive prompt would need a second bypass for automation and break the non-interactive `--yes` contract.
+- **Require a trusted expected digest supplied by the user for development:** Useful for advanced users but does not remove the need for a short local override; left as a future option rather than adding a second input format now.
 
 ## Template
 

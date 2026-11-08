@@ -33,7 +33,7 @@ agents:
     skills: all
     secrets: { model_key: ${ANTHROPIC_KEY} }
     channels:
-      telegram: { token: ${TG_TOKEN}, allow: ["@haze"] }
+      telegram: { token: ${TG_TOKEN}, allow: ["123456789"] }
   codex:
     recipe: codex
     mcps: [github]
@@ -97,6 +97,13 @@ Tools differ in how they name the two remote transports, so recipes translate `t
 | `secrets` | no | Values for the secrets the recipe declares |
 | `channels` | no | Channel settings, for recipes that declare channel support |
 | `ports.public` | no | Ports to open publicly. Off by default ([ADR 0010](../ADR.md#0010-expose-nothing-publicly-by-default)). |
+
+### `agents.<name>.channels`
+
+`channels.<name>` has `token` (a `${NAME}` reference to the bot token), `allow` (a non-empty list of authorized sender IDs) and, where the recipe supports it, `roles`. Olympus passes `allow` through to the recipe's environment variable joined with commas; the value format is the bot's, not Olympus's:
+
+- Telegram `allow` entries are numeric user IDs. `TELEGRAM_ALLOWED_USERS` is matched against the inbound numeric `user_id`, so an `@username` entry matches nobody and the gateway denies that user (fail closed). Get the ID from a bot `getUpdates` response or a user-info bot; a profile `@handle` is not accepted.
+- Discord `allow` entries are numeric user IDs (the adapter also resolves username entries at connect time); `roles` entries are numeric role IDs.
 
 ## Current offline commands
 
