@@ -29,3 +29,5 @@ supports:
   skills:
     dir: /root/.pi/agent/skills
     mode: mount
+writable:
+  - /root/.pi/agent/mcp.json

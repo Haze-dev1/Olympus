@@ -9,6 +9,9 @@ services:
     command:
     - sleep
     - infinity
+    depends_on:
+      pi-init:
+        condition: service_completed_successfully
     env_file:
     - /var/lib/olympus/secrets/pi/environment
     environment:
@@ -27,12 +30,32 @@ services:
       target: /root/.olympus-build/Dockerfile
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-93090ef29ea63402c6c70e24bc321f574588ace89d2e2ad6fb9166315de05fce/files/root/.pi/agent/mcp.json
-      target: /root/.pi/agent/mcp.json
-      type: bind
-    - read_only: true
       source: /var/lib/olympus/store/sha256-93090ef29ea63402c6c70e24bc321f574588ace89d2e2ad6fb9166315de05fce/files/root/.pi/agent/skills/deploy-checklist/SKILL.md
       target: /root/.pi/agent/skills/deploy-checklist/SKILL.md
+      type: bind
+  pi-init:
+    build:
+      args:
+        BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+      context: /var/lib/olympus/store/sha256-93090ef29ea63402c6c70e24bc321f574588ace89d2e2ad6fb9166315de05fce/files/root/.olympus-build
+      dockerfile: Dockerfile
+    entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      mkdir -p '/root/.pi/agent' && cp -a '/olympus-init/0' '/root/.pi/agent/mcp.json'
+    image: olympus/pi:sha256-383520e7f744
+    labels:
+      org.olympus.role: init
+      org.olympus.tool: pi
+    restart: "no"
+    volumes:
+    - source: pi_home
+      target: /root
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-93090ef29ea63402c6c70e24bc321f574588ace89d2e2ad6fb9166315de05fce/files/root/.pi/agent/mcp.json
+      target: /olympus-init/0
       type: bind
 volumes:
   pi_home:

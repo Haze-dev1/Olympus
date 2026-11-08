@@ -5,9 +5,6 @@ resources:
   min_ram: 4GB
 volumes:
   home: /root
-env:
-  OMP_SKIP_VERSION_CHECK: "1"
-  OMP_TELEMETRY: "0"
 command: [sleep, infinity]
 build:
   src: Dockerfile
@@ -29,3 +26,9 @@ supports:
   skills:
     dir: /root/.omp/agent/skills
     mode: mount
+writable:
+  - /root/.omp/agent/mcp.json
+  - /root/.omp/agent/config.yml
+templates:
+  - src: config.yml.tmpl
+    dst: /root/.omp/agent/config.yml

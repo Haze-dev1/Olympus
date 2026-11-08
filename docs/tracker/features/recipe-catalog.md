@@ -444,8 +444,8 @@ Files:
 Decisions:
 
 - Tool identification & classification:
-  - **Pi:** official non-fork repository `earendil-works/pi` (`gh api repos/earendil-works/pi` → `fork: false`, 120,442 stars), created by Mario Zechner (`badlogic`), published to npm as `@earendil-works/pi-coding-agent`.
-  - **Oh My Pi:** official non-fork repository `can1357/oh-my-pi` (`gh api repos/can1357/oh-my-pi` → `fork: false`, 38,025 stars), created by Stencil Labs (`omp.sh`). Originating as a fork of Pi with ~80k lines of native Rust core, Bun runtime and tree-sitter AST editing, it compiles to a standalone `omp` CLI and publishes prebuilt binaries. It is a separately runnable tool, not a configuration pack for Pi.
+  - **Pi:** official non-fork repository `earendil-works/pi` (`gh api repos/earendil-works/pi` → `fork: false`), created by Mario Zechner (`badlogic`), published to npm as `@earendil-works/pi-coding-agent`.
+  - **Oh My Pi:** official non-fork repository `can1357/oh-my-pi` (`gh api repos/can1357/oh-my-pi` → `fork: false`), created by Stencil Labs (`omp.sh`). Originating as a fork of Pi with native Rust IDE integration, Bun runtime and tree-sitter AST editing, it compiles to a standalone `omp` CLI and publishes prebuilt binaries. It is a separately runnable tool, not a configuration pack for Pi.
 - Image & build mechanisms:
   - **Pi:** npm-built image via `build` (ADR 0035) on `node:22-bookworm-slim`, installing exact npm release `@earendil-works/pi-coding-agent@1.5.0` (`latest` on 2026-11-06) into `/opt/pi/bin` with normalized timestamps (`touch -h -d @0`). Verified with `npm view` that `1.5.0` has no `postinstall` script downloading external code.
   - **Oh My Pi:** binary-download build via `build` (ADR 0035) on `node:22-bookworm-slim`, downloading exact GitHub release `v18.17.0` standalone binary `omp-linux-<arch>` verified against upstream `SHA256SUMS.txt` (`a4ce6001…` for amd64, `a9423fd7…` for arm64) into `/usr/local/bin/omp`.
@@ -456,21 +456,24 @@ Decisions:
   - **Pi:** `command: [pi, --version]` (60 s).
   - **Oh My Pi:** `command: [omp, --version]` (60 s).
 - Resources & command:
-  - Both declare `resources.min_ram: 4GB` and run `command: [sleep, infinity]`.
+  - Both declare `resources.min_ram: 4GB` (Olympus sizing choice for coding agents with AST parsing and quickjs workers; upstream docs do not specify a 4GB minimum) and run `command: [sleep, infinity]`.
 - Secrets:
   - Both declare `model-key` → `ANTHROPIC_API_KEY` (primary provider key) and `github-token` → `GITHUB_TOKEN`.
-- MCP configuration:
-  - **Pi:** `/root/.pi/agent/mcp.json` under `mcpServers` in JSON format. Uses `style: hermes`, which maps stdio (`command`, `args`, `env` with `${VAR}`) and streamable HTTP (`url`, `headers` with `${VAR}`). Upstream explicitly rejects legacy `sse`.
-  - **Oh My Pi:** `/root/.omp/agent/mcp.json` under `mcpServers` in JSON format. Uses `style: claude-code`, which emits the required `"type": "http"` for remote endpoints (`docs/mcp-config.md`).
+- MCP configuration & writable delivery:
+  - **Pi:** `/root/.pi/agent/mcp.json` under `mcpServers` in JSON format. Uses `style: hermes`, which maps stdio (`command`, `args`, `env` with `${VAR}`) and streamable HTTP (`url`, `headers` with `${VAR}`). Upstream explicitly rejects legacy `sse`. Marked `writable` and delivered via `pi-init` service into the volume because Pi rewrites `mcp.json` at runtime; edits are overwritten on apply.
+  - **Oh My Pi:** `/root/.omp/agent/mcp.json` under `mcpServers` in JSON format. Uses `style: claude-code`, which emits the required `"type": "http"` for remote endpoints (`docs/mcp-config.md`). Marked `writable` and delivered via `oh-my-pi-init` service into the volume because Oh My Pi rewrites `mcp.json` at runtime; edits are overwritten on apply.
+- Oh My Pi update settings:
+  - Upstream Oh My Pi has no `OMP_SKIP_VERSION_CHECK` or `OMP_TELEMETRY` environment variables. Version check and auto-update are controlled by settings `startup.checkUpdate: false` and `update.auto: false` in `~/.omp/agent/config.yml` (`packages/coding-agent/src/modes/settings.ts:1283,1318`; `packages/coding-agent/src/main.ts:275-278` skips update checks when both false; path resolved in `packages/coding-agent/src/config/settings.ts:736-737` via `getAgentDir()` at `dirs.ts:641` and `MAIN_CONFIG_FILENAMES[0]` at `dirs.ts:32`).
+  - Added recipe template `config.yml.tmpl` at `/root/.omp/agent/config.yml` seeding `startup.checkUpdate: false` and `update.auto: false` (A7), marked `writable` and delivered via `oh-my-pi-init` service into the volume.
 - Skills:
   - **Pi:** mounted read-only at `/root/.pi/agent/skills` (`mode: mount`, ADR 0038).
   - **Oh My Pi:** mounted read-only at `/root/.omp/agent/skills` (`mode: mount`, ADR 0038).
 
-Verification (offline, 2026-11-06):
+Verification (offline, 2026-11-06, review update 2026-11-08):
 
 - `go build -o /tmp/olym ./cmd/olym/`, `go vet ./...`, `gofmt -l .` clean; `go test ./...` green except the three pre-existing macOS-only `internal/deploy` ownership/ELF failures documented in AGENTS.md.
 - `olym check -f testdata/pi/stack.yaml -recipes recipes` and `olym check -f testdata/oh-my-pi/stack.yaml -recipes recipes` with sentinel `.env` → "Stack is valid." (exit 0).
-- `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go` updated and passes cleanly against `testdata/pi/golden/` and `testdata/oh-my-pi/golden/`.
+- `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go` passes cleanly against `testdata/pi/golden/` and `testdata/oh-my-pi/golden/`. Upstream links pinned to `v1.5.0` and `v18.17.0`.
 
 Known gaps:
 

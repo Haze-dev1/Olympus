@@ -1,17 +1,18 @@
 {
-  "id": "sha256-10aa24b487dc758516478251119d51200e5b57fd92ac8315243df8e73caf3cd6",
+  "id": "sha256-a6a5321b3c0e30b76e556da41697c73ae1ae9e2b4c1b109aec54bd1cb1b3cb20",
   "inputs": {
-    "recipes": "sha256-9c18fa357a91fa26336da982af476b9b267848a577e9e1b275a1da448b7d625a"
+    "recipes": "sha256-e9fe3ecbe71b09f38a9233acf17fe42cdb0ae39f077214029ba53dcb81645267"
   },
   "olym": "0.1.0-dev",
   "tools": {
     "oh-my-pi": {
       "files": {
         "/root/.olympus-build/Dockerfile": "sha256-830b88fd148915ccdb45de3cc26ed9ba31a26598684bb48bb1f13aa40c336525",
+        "/root/.omp/agent/config.yml": "sha256-dfdfd3fa56d6d3a100547712554886b0682b8487bc0b624c404bfc51100e15dc",
         "/root/.omp/agent/mcp.json": "sha256-c4362a0cb05e59311e86eac62c4d1e7995628359412052051c0dce81d18f55ca",
         "/root/.omp/agent/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-a759c2d4d18ce216e3c4ba72bc3af5fe2286be0e092fd3c2a01accc65c3c3524",
+      "hash": "sha256-2864490cf28f6af5ded8a9080bf535dbcd3cedf7c5e5e0328d7d9d7b024860a2",
       "health": {
         "command": [
           "omp",
