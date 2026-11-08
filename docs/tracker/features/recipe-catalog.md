@@ -473,7 +473,7 @@ Verification (offline, 2026-11-06, review update 2026-11-08):
 
 - `go build -o /tmp/olym-agy-pi-bin ./cmd/olym/`, `go vet ./...`, `gofmt -l .` clean; `go test ./...` green except the three pre-existing macOS-only `internal/deploy` ownership/ELF failures documented in AGENTS.md.
 - Validation ordering note: intermediate recipe fix commit `1636a15` ran `TestRecipeGoldens` prior to commit, but deferred full `go test ./...` / `go vet` / `go build` until immediately after commit. Full validation suite was executed and verified on the merged head before pushing.
-- `olym check -f testdata/pi/stack.yaml -recipes recipes` and `olym check -f testdata/oh-my-pi/stack.yaml -recipes recipes` with sentinel `.env` → "Stack is valid." (exit 0).
+- Manual CLI check (`olym check`) against testdata fixtures requires stack variables; in compliance with AGENTS.md rules prohibiting reading or creating `.env` files, manual check was skipped. Complete offline stack loading, recipe validation, build generation and golden verification are fully covered by `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go`.
 - `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go` passes cleanly against `testdata/pi/golden/` and `testdata/oh-my-pi/golden/`. Upstream links pinned to `v1.5.0` and `v18.17.0`.
 
 Known gaps:
