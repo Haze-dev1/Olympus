@@ -1,0 +1,64 @@
+name: olympus
+services:
+  oh-my-pi:
+    build:
+      args:
+        BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+      context: /var/lib/olympus/store/sha256-2864490cf28f6af5ded8a9080bf535dbcd3cedf7c5e5e0328d7d9d7b024860a2/files/root/.olympus-build
+      dockerfile: Dockerfile
+    command:
+    - sleep
+    - infinity
+    depends_on:
+      oh-my-pi-init:
+        condition: service_completed_successfully
+    env_file:
+    - /var/lib/olympus/secrets/oh-my-pi/environment
+    image: olympus/oh-my-pi:sha256-dbf8cde5a489
+    labels:
+      org.olympus.tool: oh-my-pi
+    restart: unless-stopped
+    volumes:
+    - source: oh-my-pi_home
+      target: /root
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-2864490cf28f6af5ded8a9080bf535dbcd3cedf7c5e5e0328d7d9d7b024860a2/files/root/.olympus-build/Dockerfile
+      target: /root/.olympus-build/Dockerfile
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-2864490cf28f6af5ded8a9080bf535dbcd3cedf7c5e5e0328d7d9d7b024860a2/files/root/.omp/agent/skills/deploy-checklist/SKILL.md
+      target: /root/.omp/agent/skills/deploy-checklist/SKILL.md
+      type: bind
+  oh-my-pi-init:
+    build:
+      args:
+        BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+      context: /var/lib/olympus/store/sha256-2864490cf28f6af5ded8a9080bf535dbcd3cedf7c5e5e0328d7d9d7b024860a2/files/root/.olympus-build
+      dockerfile: Dockerfile
+    entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      mkdir -p '/root/.omp/agent' && cp -a '/olympus-init/0' '/root/.omp/agent/mcp.json'
+      mkdir -p '/root/.omp/agent' && cp -a '/olympus-init/1' '/root/.omp/agent/config.yml'
+    image: olympus/oh-my-pi:sha256-dbf8cde5a489
+    labels:
+      org.olympus.role: init
+      org.olympus.tool: oh-my-pi
+    restart: "no"
+    volumes:
+    - source: oh-my-pi_home
+      target: /root
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-2864490cf28f6af5ded8a9080bf535dbcd3cedf7c5e5e0328d7d9d7b024860a2/files/root/.omp/agent/mcp.json
+      target: /olympus-init/0
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-2864490cf28f6af5ded8a9080bf535dbcd3cedf7c5e5e0328d7d9d7b024860a2/files/root/.omp/agent/config.yml
+      target: /olympus-init/1
+      type: bind
+volumes:
+  oh-my-pi_home:
+    name: olympus_oh-my-pi_home

@@ -20,6 +20,8 @@ func TestRecipeGoldens(t *testing.T) {
 		{"goose", "goose"},
 		{"aider", "aider"},
 		{"openclaw", "openclaw"},
+		{"pi", "pi"},
+		{"oh-my-pi", "oh-my-pi"},
 	} {
 		t.Run(tc.dir, func(t *testing.T) {
 			dir := filepath.Join("../../testdata", tc.dir)

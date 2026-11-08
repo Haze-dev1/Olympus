@@ -107,8 +107,8 @@
     "recipe-catalog": {
       "status": "in_progress",
       "file": "features/recipe-catalog.md",
-      "updated": "2026-11-06",
-      "summary": "Recipes added offline with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24) and OpenClaw (OLY-21). Remote MCP renders per tool since OLY-57. Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). No lab run for any of them (no QEMU)."
+      "updated": "2026-11-08",
+      "summary": "Recipes added offline with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). No lab run for any of them (no QEMU)."
     },
     "test-lab": {
       "status": "done",

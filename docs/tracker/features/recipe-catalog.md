@@ -1,6 +1,6 @@
 # Recipe catalog
 
-- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose, Aider and OpenClaw recipes added and rendered offline; none lab-verified.
+- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose, Aider, OpenClaw, Pi and Oh My Pi recipes added and rendered offline; none lab-verified.
 - **Milestone:** M5
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -430,3 +430,57 @@ ADR: none added. Reuses existing recipe format, ADR 0038 (skills mounting) and A
 no format, durable behaviour or architecture changed.
 
 - **Merge review, 2026-11-06:** verified the repo (not a fork), the `v2026.11.1` release, the GHCR image config (tini entrypoint that takes `command` as arguments, `User node`, `WorkingDir /app`) and the Dockerfile's `node:node 0700` state directories. Added `--allow-unconfigured` because the gateway refuses to start on a fresh volume without `gateway.mode=local`, which would have failed the first health check and rolled back. Added an `auth` volume for `/home/node/.config/openclaw`, which upstream persists separately. Regenerated the golden. Container start is still unverified (no lab).
+
+## Pi and Oh My Pi (OLY-22)
+
+**Status:** implemented offline; live-server verification not run.
+
+Files:
+- `recipes/pi/{recipe.yaml,Dockerfile,README.md}`
+- `testdata/pi/stack.yaml`, `testdata/pi/skills/deploy-checklist/SKILL.md`, `testdata/pi/golden/`
+- `recipes/oh-my-pi/{recipe.yaml,Dockerfile,README.md}`
+- `testdata/oh-my-pi/stack.yaml`, `testdata/oh-my-pi/skills/deploy-checklist/SKILL.md`, `testdata/oh-my-pi/golden/`
+
+Decisions:
+
+- Tool identification & classification:
+  - **Pi:** official non-fork repository `earendil-works/pi` (`gh api repos/earendil-works/pi` → `fork: false`), created by Mario Zechner (`badlogic`), published to npm as `@earendil-works/pi-coding-agent`.
+  - **Oh My Pi:** official non-fork repository `can1357/oh-my-pi` (`gh api repos/can1357/oh-my-pi` → `fork: false`), created by Stencil Labs (`omp.sh`). Originating as a fork of Pi with native Rust IDE integration, Bun runtime and tree-sitter AST editing, it compiles to a standalone `omp` CLI and publishes prebuilt binaries. It is a separately runnable tool, not a configuration pack for Pi.
+- Image & build mechanisms:
+  - **Pi:** npm-built image via `build` (ADR 0035) on `node:22-bookworm-slim`, installing exact npm release `@earendil-works/pi-coding-agent@1.5.0` (`latest` on 2026-11-06) into `/opt/pi/bin` with normalized timestamps (`touch -h -d @0`). Verified with `npm view` that `1.5.0` has no `postinstall` script downloading external code.
+  - **Oh My Pi:** binary-download build via `build` (ADR 0035) on `node:22-bookworm-slim`, downloading exact GitHub release `v18.17.0` standalone binary `omp-linux-<arch>` verified against upstream `SHA256SUMS.txt` (`a4ce6001…` for amd64, `a9423fd7…` for arm64) into `/usr/local/bin/omp`.
+- State & volumes:
+  - **Pi:** state directory is `/root/.pi/agent` (`getAgentDir()` in `packages/coding-agent/src/config.ts`), persisted via `home` volume at `/root`.
+  - **Oh My Pi:** state directory is `/root/.omp/agent` (`getAgentDir()` / `docs/config-usage.md`), persisted via `home` volume at `/root`.
+- Health checks:
+  - **Pi:** `command: [pi, --version]` (60 s).
+  - **Oh My Pi:** `command: [omp, --version]` (60 s).
+- Resources & command:
+  - Both declare `resources.min_ram: 4GB` (Olympus sizing choice for coding agents with AST parsing and quickjs workers; upstream docs do not specify a 4GB minimum) and run `command: [sleep, infinity]`.
+- Secrets:
+  - Both declare `model-key` → `ANTHROPIC_API_KEY` (primary provider key) and `github-token` → `GITHUB_TOKEN`.
+- MCP configuration & writable delivery:
+  - **Pi:** `/root/.pi/agent/mcp.json` under `mcpServers` in JSON format. Uses `style: hermes`, which maps stdio (`command`, `args`, `env` with `${VAR}`) and streamable HTTP (`url`, `headers` with `${VAR}`). Upstream explicitly rejects legacy `sse`. Marked `writable` and delivered via `pi-init` service into the volume because Pi rewrites `mcp.json` at runtime; edits are overwritten on apply.
+  - **Oh My Pi:** `/root/.omp/agent/mcp.json` under `mcpServers` in JSON format. Uses `style: claude-code`, which emits the required `"type": "http"` for remote endpoints (`docs/mcp-config.md`). Marked `writable` and delivered via `oh-my-pi-init` service into the volume because Oh My Pi rewrites `mcp.json` at runtime; edits are overwritten on apply.
+- Oh My Pi update settings:
+  - Upstream Oh My Pi has no `OMP_SKIP_VERSION_CHECK` or `OMP_TELEMETRY` environment variables. Version check and auto-update are controlled by settings `startup.checkUpdate: false` and `update.auto: false` in `~/.omp/agent/config.yml` (`packages/coding-agent/src/modes/settings.ts:1283,1318`; `packages/coding-agent/src/main.ts:275-278` skips update checks when both false; path resolved in `packages/coding-agent/src/config/settings.ts:736-737` via `getAgentDir()` at `dirs.ts:641` and `MAIN_CONFIG_FILENAMES[0]` at `dirs.ts:32`).
+  - Added recipe template `config.yml.tmpl` at `/root/.omp/agent/config.yml` seeding `startup.checkUpdate: false` and `update.auto: false` (A7), marked `writable` and delivered via `oh-my-pi-init` service into the volume.
+- Skills:
+  - **Pi:** mounted read-only at `/root/.pi/agent/skills` (`mode: mount`, ADR 0038).
+  - **Oh My Pi:** mounted read-only at `/root/.omp/agent/skills` (`mode: mount`, ADR 0038).
+
+Verification (offline, 2026-11-06, review update 2026-11-08):
+
+- `go build -o /tmp/olym-agy-pi-bin ./cmd/olym/`, `go vet ./...`, `gofmt -l .` clean; `go test ./...` green except the three pre-existing macOS-only `internal/deploy` ownership/ELF failures documented in AGENTS.md.
+- Validation ordering note: intermediate recipe fix commit `1636a15` ran `TestRecipeGoldens` prior to commit, but deferred full `go test ./...` / `go vet` / `go build` until immediately after commit. Full validation suite was executed and verified on the merged head before pushing.
+- Manual CLI check (`olym check`) against testdata fixtures requires stack variables; in compliance with AGENTS.md rules prohibiting reading or creating `.env` files, manual check was skipped. Complete offline stack loading, recipe validation, build generation and golden verification are fully covered by `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go`.
+- `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go` passes cleanly against `testdata/pi/golden/` and `testdata/oh-my-pi/golden/`. Upstream links pinned to `v1.5.0` and `v18.17.0`.
+
+Known gaps:
+
+- **Legacy SSE on Pi:** Pi rejects legacy SSE endpoints. Remote MCP servers must provide streamable HTTP endpoints.
+- **No live lab run:** No QEMU on this host, so container startup, live health checks and model API calls were not exercised against a running Docker daemon.
+- **UNVERIFIED:** live interactive session behavior and token consumption.
+
+ADR: none added. Reuses existing recipe format, ADR 0035 (built images), ADR 0037/0047 (MCP styles) and ADR 0038 (mounted skills); no format, durable behaviour or architecture changed.
+
