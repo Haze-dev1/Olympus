@@ -60,7 +60,9 @@ Release artifacts and `SHA256SUMS` will be placed in `dist/`.
 
 Olympus evaluates your stack locally and manages the target Linux host over SSH using a server-side activator binary (`/var/lib/olympus/bin/olym-<version>`).
 
-Each CLI archive, for both Linux and macOS, includes Linux activators for amd64 and arm64. Keep both `olym-activator_linux_amd64` and `olym-activator_linux_arm64` beside `olym`; Olympus selects the server architecture and checks its embedded release checksum. An explicit `--activator <path>` is also checked. Development builds permit an explicit Linux activator with a visible warning.
+Each CLI archive, for both Linux and macOS, includes Linux activators for amd64 and arm64. Keep both `olym-activator_linux_amd64` and `olym-activator_linux_arm64` beside `olym`; Olympus selects the server architecture and checks its embedded release checksum. An explicit `--activator <path>` is also checked. Release builds refuse an activator with no embedded release checksum.
+
+A development build (`olym version` reports `0.1.0-dev`) that does not embed a release checksum has nothing to compare against, so it refuses to upload or run an activator unless you pass `--unsafe-dev-activator`. Only use that flag with a development CLI and an activator you built yourself; it knowingly removes the release trust check (rule A12). Release builds ignore the flag and always verify their embedded checksum.
 
 ## 4. Planned Package Managers
 

@@ -14,7 +14,8 @@ An unknown flag prints `invalid flags; use -f, -recipes, -o, -known-hosts and --
 - `-recipes <directory>`: local recipe directory override (defaults to the locked catalog).
 - `-o <directory>`: output build directory for `build` (defaults to `.olympus/build`).
 - `-known-hosts <file>`: custom SSH `known_hosts` file.
-- `-activator <file>`: explicit Linux activator binary for server commands. Release builds verify it against their embedded checksum; development builds print a warning.
+- `-activator <file>`: explicit Linux activator binary for server commands. Release builds verify it against their embedded checksum; a development build without an embedded checksum refuses it unless `-unsafe-dev-activator` is passed.
+- `-unsafe-dev-activator`: development builds only; explicitly allow uploading and running an activator that has no release checksum. Release builds always verify their embedded checksum and this flag changes nothing.
 - `-out <file>`: `plan` only; save the plan so `apply <file>` can refuse to run if anything changed since.
 - `-yes`: `apply` only; skip the confirmation prompt.
 - `-keep <n>`: `gc` only; generations to keep (defaults to `server.keep` in the stack, then 5).
@@ -109,7 +110,7 @@ An optional saved plan (from `olym plan -out plan.json`) may be supplied. Apply 
 ### Usage
 
 ```sh
-olym apply [plan.json] [-f stack.yaml] [-recipes recipes] [-known-hosts known_hosts] [-activator file] [-yes]
+olym apply [plan.json] [-f stack.yaml] [-recipes recipes] [-known-hosts known_hosts] [-activator file] [-unsafe-dev-activator] [-yes]
 ```
 
 ### Flags
@@ -118,6 +119,7 @@ olym apply [plan.json] [-f stack.yaml] [-recipes recipes] [-known-hosts known_ho
 - `-recipes`: path to local recipe directory override
 - `-known-hosts`: path to custom SSH `known_hosts` file
 - `-activator`: explicit Linux activator binary
+- `-unsafe-dev-activator`: allows an unsigned development activator
 - `-yes`: skip the confirmation prompt
 
 ---
@@ -129,7 +131,7 @@ Queries the target server over SSH to report the operational state, health statu
 ### Usage
 
 ```sh
-olym status [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-json]
+olym status [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-unsafe-dev-activator] [-json]
 ```
 
 ### Flags
@@ -137,6 +139,7 @@ olym status [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-json]
 - `-f`: path to stack file
 - `-known-hosts`: path to custom SSH `known_hosts` file
 - `-activator`: explicit Linux activator binary
+- `-unsafe-dev-activator`: allows an unsigned development activator
 - `-json`: print status as JSON
 
 ---
@@ -148,7 +151,7 @@ Instructs the server activator over SSH to revert the active generation to the p
 ### Usage
 
 ```sh
-olym rollback [-f stack.yaml] [-known-hosts known_hosts] [-activator file]
+olym rollback [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-unsafe-dev-activator]
 ```
 
 ### Flags
@@ -156,6 +159,7 @@ olym rollback [-f stack.yaml] [-known-hosts known_hosts] [-activator file]
 - `-f`: path to stack file
 - `-known-hosts`: path to custom SSH `known_hosts` file
 - `-activator`: explicit Linux activator binary
+- `-unsafe-dev-activator`: allows an unsigned development activator
 
 ---
 
@@ -166,7 +170,7 @@ Executes garbage collection on the target server over SSH. Cleans up older inact
 ### Usage
 
 ```sh
-olym gc [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-keep n]
+olym gc [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-unsafe-dev-activator] [-keep n]
 ```
 
 ### Flags
@@ -174,6 +178,7 @@ olym gc [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-keep n]
 - `-f`: path to stack file
 - `-known-hosts`: path to custom SSH `known_hosts` file
 - `-activator`: explicit Linux activator binary
+- `-unsafe-dev-activator`: allows an unsigned development activator
 - `-keep`: generations to keep (defaults to `server.keep`, then 5)
 
 ---
@@ -185,7 +190,7 @@ Tears down the deployed Olympus Compose project and stops all containers on the 
 ### Usage
 
 ```sh
-olym destroy [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-delete-data]
+olym destroy [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-unsafe-dev-activator] [-delete-data]
 ```
 
 ### Flags
@@ -193,4 +198,5 @@ olym destroy [-f stack.yaml] [-known-hosts known_hosts] [-activator file] [-dele
 - `-f`: path to stack file
 - `-known-hosts`: path to custom SSH `known_hosts` file
 - `-activator`: explicit Linux activator binary
+- `-unsafe-dev-activator`: allows an unsigned development activator
 - `-delete-data`: also delete the project's volumes and data

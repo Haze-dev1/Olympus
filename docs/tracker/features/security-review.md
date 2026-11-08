@@ -1,6 +1,20 @@
 # Security review
 
-- **Status:** In progress — findings and live verification remain open
-- **Updated:** 2026-11-06
+- **Status:** In progress — F1 live verification and F2/F4 remain open
+- **Updated:** 2026-11-08
 
 OLY-33 records the pre-release source review in [the report](../../security/review-2026-11-06.md). No product fixes were made. ADR reviewed; no decision is introduced by a findings-only review. `govulncheck ./...` found no reachable vulnerabilities and one non-reachable module advisory. Build and vet passed; gofmt was clean; the full suite failed on the three known macOS cases `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, and `TestToolEntryReuseAndVerification`. No QEMU lab, live release or server testing was performed. Relative Markdown links and anchors in `docs/` resolved, and tracker JSON parsed successfully.
+
+## F3 fixed (2026-11-08, OLY-61)
+
+Finding F3 (development clients bypass release digest matching, rule A12) is fixed in `internal/deploy`: `checkReleaseChecksum` now refuses when a development build has no release checksum for the server architecture unless `deploy.Client.UnsafeDevActivator` is set, and `UploadActivator` and `VerifyActivator` both call it before uploading or executing anything. The CLI exposes this as `-unsafe-dev-activator`, wired through `manageGeneration` and `serverCommand`. Release builds keep their previous behaviour: a missing embedded checksum fails closed, and a checksum mismatch rejects the activator. ADR 0049 amends ADR 0048.
+
+Verification evidence:
+
+- Red-before: in a detached tree at `fd8743d` with the new tests and only the `UnsafeDevActivator` field added to `Client` (no guard), `go test ./internal/deploy/ -run '^(TestDevelopmentActivatorRequiresExplicitOptIn|TestUploadActivatorReleaseChecksumVerification)$' -v` failed both refusal subtests — `development build uploaded an activator with no release checksum without -unsafe-dev-activator` and `development build ran an activator with no release checksum without -unsafe-dev-activator`. Against `fd8743d` without that field shim the committed test file does not compile (`unknown field UnsafeDevActivator`), because the opt-in API does not exist there.
+- Independent red proof (t12): the exact two refusal subtests were copied onto `fd8743d` in a scratch tree, omitting the opt-in-success subtest so the file compiles against the old `Client`; both failed because the old `UploadActivator` and `VerifyActivator` accepted an unsigned development binary, with no unrelated failure. Green was already established by the full suite on `7c497ca`.
+- After the fix the same tests pass, including upload and verify with the opt-in. The earlier `empty release checksum allows dev build` case was replaced with a case that expects the opt-in error and then succeeds with the flag. `TestMissingReleaseChecksumFailsClosed` also asserts a release build still refuses a missing checksum with the opt-in set.
+- After merging `origin/development` at `e6c495d`, build, `go vet ./...` and `gofmt -l .` (empty) passed. `go test ./...` passed every package except the three known macOS deploy cases `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication` (`activator must be a Linux ELF binary`) and `TestToolEntryReuseAndVerification` (`mv failed`). The tagged lab tests were not run (no QEMU on this host); they still compile, now pass `-unsafe-dev-activator`, and `internal/deploy/lab_test.go` sets the client field directly.
+- Independent review of `7c497ca` (t12): build, vet and gofmt passed; the full suite showed only the same three known macOS failures with baseline-identical reasons. Its first run failed for an environment reason, not code: `TMPDIR` pointed at the scratch worktree instead of a separate temp directory; rerunning with a separate temp directory reproduced only the known failures. The review also found the README opt-in gap, the `docs/install.md` overstatement and the ADR help claim, all corrected here.
+
+Remaining limits: a compromised root server can still replace the binary after the check; a development build that embeds release checksums uses normal verification without the flag. F1 live sender checks, F2 build-input pinning and F4 independent artifact authentication remain open.

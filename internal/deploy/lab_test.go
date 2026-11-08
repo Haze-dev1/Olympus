@@ -38,6 +38,8 @@ func TestLabDeploy(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Conn.Close()
+	// The lab builds a development activator with no embedded release checksum.
+	c.UnsafeDevActivator = true
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	if _, _, err = c.Conn.Run(ctx, remote.Sudo([]string{"docker", "info"}), nil); err == nil {

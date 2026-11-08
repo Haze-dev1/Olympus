@@ -66,3 +66,8 @@ one skill and no channel. It checks all tools' health and config formats, copies
 and mounts, no-op and selective container IDs, rollback and delete-data teardown.
 It never attempts provider inference or chat login. If it fails before teardown,
 inspect the sanitized activation log and reset the VM before a clean rerun.
+
+Both lab tests build a development CLI and activator, so every server command
+they run passes `-unsafe-dev-activator`. Do the same for manual runs against the
+lab; a development build refuses an unsigned activator without it (rule A12).
+`lab/lab.sh` itself never calls `olym`, so it needs no change.
