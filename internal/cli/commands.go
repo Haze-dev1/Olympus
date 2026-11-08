@@ -35,13 +35,13 @@ func ask(prompt string, stderr io.Writer) bool {
 	return err == nil && strings.EqualFold(strings.TrimSpace(line), "y")
 }
 
-func manageGeneration(command string, in eval.Inputs, g *generation.Generation, file, known, activator, saved, output string, yes, detailed bool, out, stderr io.Writer) int {
+func manageGeneration(command string, in eval.Inputs, g *generation.Generation, file, known, activator, saved, output string, yes, detailed, unsafeDevActivator bool, out, stderr io.Writer) int {
 	if err := deploy.CheckReleaseBuild(eval.Version); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	if eval.Version == eval.DevelopmentVersion {
-		fmt.Fprintln(stderr, "Warning: development build; skipping release checksum verification")
+		fmt.Fprintln(stderr, "Warning: development build; unsigned activators require -unsafe-dev-activator")
 	}
 	secrets, err := toolSecrets(in, file)
 	if err != nil {
@@ -59,6 +59,7 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 		return 1
 	}
 	defer c.Conn.Close()
+	c.UnsafeDevActivator = unsafeDevActivator
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	fail := func(err error) int { fmt.Fprintln(stderr, err); return 1 }
@@ -162,13 +163,13 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 	return code
 }
 
-func serverCommand(command string, s *stack.Stack, known, activator string, keep int, data, jsonOutput bool, out, stderr io.Writer) int {
+func serverCommand(command string, s *stack.Stack, known, activator string, keep int, data, jsonOutput, unsafeDevActivator bool, out, stderr io.Writer) int {
 	if err := deploy.CheckReleaseBuild(eval.Version); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	if eval.Version == eval.DevelopmentVersion {
-		fmt.Fprintln(stderr, "Warning: development build; skipping release checksum verification")
+		fmt.Fprintln(stderr, "Warning: development build; unsigned activators require -unsafe-dev-activator")
 	}
 	if command == "destroy" && !ask("Destroy the Olympus project?", stderr) {
 		fmt.Fprintln(out, "Cancelled.")
@@ -185,6 +186,7 @@ func serverCommand(command string, s *stack.Stack, known, activator string, keep
 		return 1
 	}
 	defer c.Conn.Close()
+	c.UnsafeDevActivator = unsafeDevActivator
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	fail := func(e error) int { fmt.Fprintln(stderr, e); return deploy.ExitCode(e) }

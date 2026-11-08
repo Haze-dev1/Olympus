@@ -136,7 +136,7 @@ agents:
 	}
 	run := func(command string, extra ...string) string {
 		t.Helper()
-		args := []string{command, "-f", file, "-known-hosts", os.Getenv("OLYMPUS_LAB_KNOWN_HOSTS")}
+		args := []string{command, "-f", file, "-known-hosts", os.Getenv("OLYMPUS_LAB_KNOWN_HOSTS"), "-unsafe-dev-activator"}
 		if command != "update" {
 			args = append(args, "-recipes", recipes)
 		}

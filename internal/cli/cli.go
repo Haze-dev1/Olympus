@@ -46,6 +46,7 @@ func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver l
 	deleteData := flags.Bool("delete-data", false, "delete project volumes and data")
 	jsonOutput := flags.Bool("json", false, "JSON status")
 	detailed := flags.Bool("detailed-exitcode", false, "exit 2 when plan finds changes")
+	unsafeDevActivator := flags.Bool("unsafe-dev-activator", false, "allow an unsigned development activator")
 	parseArgs := interspersedArgs(flags, args[1:])
 	if flags.Parse(parseArgs) != nil || (flags.NArg() != 0 && (args[0] != "apply" || flags.NArg() != 1)) || *keep < 0 {
 		fmt.Fprintln(stderr, "invalid flags; use -f, -recipes, -o, -known-hosts and --detailed-exitcode")
@@ -62,7 +63,7 @@ func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver l
 		return 1
 	}
 	if args[0] == "status" || args[0] == "rollback" || args[0] == "gc" || args[0] == "destroy" {
-		return serverCommand(args[0], s, *known, *activator, *keep, *deleteData, *jsonOutput, out, stderr)
+		return serverCommand(args[0], s, *known, *activator, *keep, *deleteData, *jsonOutput, *unsafeDevActivator, out, stderr)
 	}
 	inputs, err := prepare(context.Background(), s, *file, *recipes, args[0], out, fetch, resolver)
 	if err != nil {
@@ -91,7 +92,7 @@ func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver l
 		fmt.Fprintln(stderr, "warning:", warning)
 	}
 	if args[0] == "plan" || args[0] == "apply" {
-		return manageGeneration(args[0], inputs, g, *file, *known, *activator, flags.Arg(0), *planOut, *yes, *detailed, out, stderr)
+		return manageGeneration(args[0], inputs, g, *file, *known, *activator, flags.Arg(0), *planOut, *yes, *detailed, *unsafeDevActivator, out, stderr)
 	}
 	if err = g.Write(*output); err != nil {
 		fmt.Fprintln(stderr, err)

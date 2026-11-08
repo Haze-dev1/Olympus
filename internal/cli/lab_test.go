@@ -100,7 +100,7 @@ func TestLabM1(t *testing.T) {
 		t.Fatal(err)
 	}
 	argsFor := func(command string, extra ...string) []string {
-		a := []string{command, "-f", file, "-recipes", recipes, "-known-hosts", os.Getenv("OLYMPUS_LAB_KNOWN_HOSTS")}
+		a := []string{command, "-f", file, "-recipes", recipes, "-known-hosts", os.Getenv("OLYMPUS_LAB_KNOWN_HOSTS"), "-unsafe-dev-activator"}
 		return append(a, extra...)
 	}
 	run := func(command string, want int, extra ...string) string {

@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Haze-dev1/Olympus/internal/eval"
 )
 
 func dummyELF64x86() []byte {
@@ -80,14 +82,23 @@ func TestUploadActivatorReleaseChecksumVerification(t *testing.T) {
 		}
 	})
 
-	t.Run("empty release checksum allows dev build", func(t *testing.T) {
+	t.Run("empty release checksum requires dev opt-in", func(t *testing.T) {
 		f := makeConn()
 		c := Client{
 			Conn:    f,
-			Version: "0.1.0-dev",
+			Version: eval.DevelopmentVersion,
+		}
+		err := c.UploadActivator(context.Background(), binPath)
+		if err == nil || !strings.Contains(err.Error(), "-unsafe-dev-activator") {
+			t.Fatalf("expected dev opt-in error, got %v", err)
+		}
+		c = Client{
+			Conn:               makeConn(),
+			Version:            eval.DevelopmentVersion,
+			UnsafeDevActivator: true,
 		}
 		if err := c.UploadActivator(context.Background(), binPath); err != nil {
-			t.Fatalf("expected dev build to succeed when expected checksum is empty, got %v", err)
+			t.Fatalf("expected opt-in dev build to succeed, got %v", err)
 		}
 	})
 }
@@ -135,6 +146,67 @@ func TestVerifyActivatorReleaseChecksum(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "checksum mismatch") {
 			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+// A development build has no embedded release checksum, so it cannot prove the
+// activator matches a release. Uploading or running it must require the explicit
+// -unsafe-dev-activator opt-in (security finding F3).
+func TestDevelopmentActivatorRequiresExplicitOptIn(t *testing.T) {
+	elfData := dummyELF64x86()
+	checksum := fmt.Sprintf("%x", sha256.Sum256(elfData))
+	binPath := filepath.Join(t.TempDir(), "olym-linux-amd64")
+	if err := os.WriteFile(binPath, elfData, 0755); err != nil {
+		t.Fatal(err)
+	}
+	conn := func(hash string) *fakeConn {
+		return &fakeConn{run: func(a []string, in io.Reader) ([]byte, []byte, error) {
+			switch a[0] {
+			case "uname":
+				return okOutput("x86_64")
+			case "install":
+				_, _ = io.Copy(io.Discard, in)
+			case "sha256sum":
+				return okOutput(hash + "  binary")
+			}
+			if strings.HasPrefix(a[0], root) {
+				return okOutput(eval.DevelopmentVersion)
+			}
+			return okOutput("")
+		}}
+	}
+
+	t.Run("upload refuses without opt-in", func(t *testing.T) {
+		c := Client{Conn: conn(checksum), Version: eval.DevelopmentVersion}
+		err := c.UploadActivator(context.Background(), binPath)
+		if err == nil {
+			t.Fatal("development build uploaded an activator with no release checksum without -unsafe-dev-activator")
+		}
+		if !strings.Contains(err.Error(), "-unsafe-dev-activator") {
+			t.Fatalf("error does not name the opt-in flag: %v", err)
+		}
+	})
+
+	t.Run("verify refuses without opt-in", func(t *testing.T) {
+		c := Client{Conn: conn(checksum), Version: eval.DevelopmentVersion}
+		err := c.VerifyActivator(context.Background(), binPath)
+		if err == nil {
+			t.Fatal("development build ran an activator with no release checksum without -unsafe-dev-activator")
+		}
+		if !strings.Contains(err.Error(), "-unsafe-dev-activator") {
+			t.Fatalf("error does not name the opt-in flag: %v", err)
+		}
+	})
+
+	t.Run("upload and verify succeed with opt-in", func(t *testing.T) {
+		c := Client{Conn: conn(checksum), Version: eval.DevelopmentVersion, UnsafeDevActivator: true}
+		if err := c.UploadActivator(context.Background(), binPath); err != nil {
+			t.Fatalf("opt-in upload: %v", err)
+		}
+		c = Client{Conn: conn(checksum), Version: eval.DevelopmentVersion, UnsafeDevActivator: true}
+		if err := c.VerifyActivator(context.Background(), binPath); err != nil {
+			t.Fatalf("opt-in verify: %v", err)
 		}
 	})
 }

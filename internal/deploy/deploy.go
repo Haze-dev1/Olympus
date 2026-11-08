@@ -54,6 +54,10 @@ type Client struct {
 	ExpectedCurrent  *string
 	ConfirmTimeout   string
 	ReleaseChecksums map[string]string
+	// UnsafeDevActivator is the explicit -unsafe-dev-activator opt-in. A
+	// development build without an embedded release checksum refuses to upload
+	// or run an activator unless this is set (security finding F3).
+	UnsafeDevActivator bool
 }
 
 // Dial uses remote's host-key verification for both initial and confirm SSH.
@@ -271,9 +275,19 @@ func CheckReleaseBuild(version string) error {
 	return nil
 }
 
+// checkReleaseChecksum enforces rule A12 before an activator is uploaded or run.
+// A release build must embed the checksum for the server architecture. A
+// development build has no release checksum to compare against, so it refuses by
+// default and requires the explicit -unsafe-dev-activator opt-in (F3).
 func (c *Client) checkReleaseChecksum(arch string) error {
-	if c.Version != eval.DevelopmentVersion && c.ExpectedReleaseChecksum(arch) == "" {
+	if c.ExpectedReleaseChecksum(arch) != "" {
+		return nil
+	}
+	if c.Version != eval.DevelopmentVersion {
 		return errors.New("deploy: release build missing activator checksum for server architecture")
+	}
+	if !c.UnsafeDevActivator {
+		return errors.New("deploy: development build has no release checksum for the server architecture; pass -unsafe-dev-activator to upload and run it anyway")
 	}
 	return nil
 }
