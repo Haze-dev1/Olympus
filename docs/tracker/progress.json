@@ -135,7 +135,7 @@
       "status": "in_progress",
       "file": "features/security-review.md",
       "updated": "2026-11-08",
-      "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. F1 live checks, F2 and F4 remain open."
+      "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. Security data-flow note added in docs/security/data-flow.md. F1 live checks, F2 and F4 remain open."
     },
     "user-docs": {
       "status": "done",
