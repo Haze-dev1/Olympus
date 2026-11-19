@@ -2,6 +2,7 @@ package eval
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -49,10 +50,22 @@ func TestTranslateMCPRemoteTransport(t *testing.T) {
 			want:  map[string]any{"url": "https://mcp.example.test/sse"},
 		},
 		{
-			name:  "hermes keeps the generic shape",
+			name:  "hermes http keeps the generic shape",
 			style: "hermes",
-			in:    map[string]any{"url": "https://mcp.example.test/mcp", "transport": "sse"},
+			in:    map[string]any{"url": "https://mcp.example.test/mcp", "transport": "http"},
 			want:  map[string]any{"url": "https://mcp.example.test/mcp"},
+		},
+		{
+			name:  "hermes sse",
+			style: "hermes",
+			in:    map[string]any{"url": "https://mcp.example.test/sse", "transport": "sse"},
+			want:  map[string]any{"url": "https://mcp.example.test/sse", "transport": "sse"},
+		},
+		{
+			name:  "opencode sse falls back on its own",
+			style: "opencode",
+			in:    map[string]any{"url": "https://mcp.example.test/sse", "transport": "sse"},
+			want:  map[string]any{"type": "remote", "url": "https://mcp.example.test/sse"},
 		},
 	}
 	for _, tc := range cases {
@@ -65,5 +78,15 @@ func TestTranslateMCPRemoteTransport(t *testing.T) {
 				t.Fatalf("got %#v, want %#v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestTranslateMCPCodexRejectsSSE(t *testing.T) {
+	_, err := translateMCP(map[string]any{"url": "https://mcp.example.test/sse", "transport": "sse"}, "codex")
+	if err == nil || !strings.Contains(err.Error(), "Codex") {
+		t.Fatalf("err = %v, want Codex sse rejection", err)
+	}
+	if _, err = translateMCP(map[string]any{"url": "https://mcp.example.test/mcp", "transport": "http"}, "codex"); err != nil {
+		t.Fatal(err)
 	}
 }
