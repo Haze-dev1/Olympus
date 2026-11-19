@@ -29,7 +29,9 @@ Verification evidence:
 - Each lockfile is v3, and every `resolved` entry has an `integrity` hash (codex 7, claude-code 9, gemini-cli 12 packages, including linux x64/arm64 optional packages). `npm ci --omit=dev --ignore-scripts` succeeded against each committed pair on macOS, left the lockfile unchanged and produced the `codex`, `claude` and `gemini` binaries the health checks call.
 - Goldens regenerated; `TestRealStackGolden` and `TestRecipeGoldens` pass. Build, vet and gofmt pass. With `TMPDIR` on a path without a symlinked ancestor, `go test ./...` fails only the three known macOS deploy cases (`TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, `TestToolEntryReuseAndVerification`). The default macOS `TMPDIR` under `/var` (a symlink) adds six `unsafe build directory ancestor` failures, identically on untouched `origin/development`.
 
-Remaining limits: no image was built (no Docker daemon or QEMU on this host), so `npm ci` inside `node:22-bookworm-slim` and the Goose multi-stage build are unverified; native install scripts still run at build time.
+- 2026-11-19 image build on Docker 29.9.2 (`linux/arm64`, base `node:22-bookworm-slim`, `BASE_IMAGE` passed as the generation does): all four recipe Dockerfiles built, and the health commands printed `codex-cli 0.116.0`, `2.1.318 (Claude Code)`, `0.67.0` (Gemini CLI) and `1.57.0` (Goose). The Goose final image has no `curl`, confirming apt stays in the fetch stage.
+
+Remaining limits: `linux/amd64` builds and a full lab apply were not run (no QEMU); native install scripts still run at build time.
 
 ## Security data-flow note (2026-11-08)
 
