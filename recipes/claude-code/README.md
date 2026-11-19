@@ -17,9 +17,11 @@ the npm registry.
   or later).
 - **Install.** `npm install -g @anthropic-ai/claude-code`; the npm package
   requires Node.js 22 or later (<https://code.claude.com/docs/en/setup>). The
-  Dockerfile installs to `/opt/claude-code` and puts its `bin` on `PATH`
-  instead of touching the base image's global prefix, matching the Codex
-  recipe.
+  Dockerfile runs `npm ci` from the committed `package.json` and
+  `package-lock.json` in `/opt/claude-code` and puts `node_modules/.bin` on
+  `PATH`, so every transitive package is pinned by integrity hash (ADR 0051).
+  To move the pin, edit `package.json` and run
+  `npm install --package-lock-only --ignore-scripts` in this folder.
 - **Version pin.** `@anthropic-ai/claude-code@2.1.318`, the `latest` dist-tag
   on 2026-11-06; `stable` was `2.1.311`.
   Source: <https://registry.npmjs.org/@anthropic-ai/claude-code/2.1.318>.

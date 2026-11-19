@@ -1,6 +1,6 @@
 # Security review
 
-- **Status:** In progress — F1 live verification and F2/F4 remain open
+- **Status:** In progress — F1 live verification and F4 remain open; F2 fixed offline (OLY-62)
 - **Updated:** 2026-11-08
 
 OLY-33 records the pre-release source review in [the report](../../security/review-2026-11-06.md). No product fixes were made. ADR reviewed; no decision is introduced by a findings-only review. `govulncheck ./...` found no reachable vulnerabilities and one non-reachable module advisory. Build and vet passed; gofmt was clean; the full suite failed on the three known macOS cases `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, and `TestToolEntryReuseAndVerification`. No QEMU lab, live release or server testing was performed. Relative Markdown links and anchors in `docs/` resolved, and tracker JSON parsed successfully.
@@ -18,6 +18,18 @@ Verification evidence:
 - Independent review of `7c497ca` (t12): build, vet and gofmt passed; the full suite showed only the same three known macOS failures with baseline-identical reasons. Its first run failed for an environment reason, not code: `TMPDIR` pointed at the scratch worktree instead of a separate temp directory; rerunning with a separate temp directory reproduced only the known failures. The review also found the README opt-in gap, the `docs/install.md` overstatement and the ADR help claim, all corrected here.
 
 Remaining limits: a compromised root server can still replace the binary after the check; a development build that embeds release checksums uses normal verification without the flag. F1 live sender checks, F2 build-input pinning and F4 independent artifact authentication remain open.
+
+## F2 fixed offline (2026-11-19, OLY-62)
+
+Finding F2 (built-image recipes did not pin transitive npm or apt inputs, rule A7) is fixed in the recipe format and the four affected recipes ([ADR 0051](../../ADR.md#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage)). `build.files` delivers a committed `package.json` and `package-lock.json` into the build context for `codex`, `claude-code` and `gemini-cli`, which install with `npm ci --omit=dev`; Goose moves apt and curl into a `fetch` stage and ships only its checksum-verified binary. Build files feed the image tag, so ADR 0041 reuse cannot serve an image built from an older lockfile.
+
+Verification evidence:
+
+- `TestBuildFilesFeedImageTag` fails with the hash change reverted (`image tag olympus/codex:sha256-4ddcab8723f4 did not change with the lockfile`) and passes with it. New `TestRecipeValidation` cases reject a traversing build file and duplicate or Dockerfile-shadowing names.
+- Each lockfile is v3, and every `resolved` entry has an `integrity` hash (codex 7, claude-code 9, gemini-cli 12 packages, including linux x64/arm64 optional packages). `npm ci --omit=dev --ignore-scripts` succeeded against each committed pair on macOS, left the lockfile unchanged and produced the `codex`, `claude` and `gemini` binaries the health checks call.
+- Goldens regenerated; `TestRealStackGolden` and `TestRecipeGoldens` pass. Build, vet and gofmt pass. With `TMPDIR` on a path without a symlinked ancestor, `go test ./...` fails only the three known macOS deploy cases (`TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, `TestToolEntryReuseAndVerification`). The default macOS `TMPDIR` under `/var` (a symlink) adds six `unsafe build directory ancestor` failures, identically on untouched `origin/development`.
+
+Remaining limits: no image was built (no Docker daemon or QEMU on this host), so `npm ci` inside `node:22-bookworm-slim` and the Goose multi-stage build are unverified; native install scripts still run at build time.
 
 ## Security data-flow note (2026-11-08)
 

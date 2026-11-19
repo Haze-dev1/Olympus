@@ -18,7 +18,11 @@ type Secret struct{ Env string }
 type Managed struct{ File, Format, Style, Key string }
 type Skills struct{ Dir, Mode string }
 type Channel struct{ Env map[string]string }
-type Build struct{ Src, Dst string }
+type Build struct {
+	Src, Dst string
+	// Files are copied next to Dst so the Dockerfile can COPY them (lockfiles).
+	Files []string
+}
 type Template struct{ Src, Dst string }
 type Runtime struct {
 	ShmSize         string `json:"shm_size"`
@@ -149,6 +153,16 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 		}
 		if !r.Confined(b.Dst) {
 			d.Add("/build/dst", "build destination must be inside a tool volume")
+		}
+		names := map[string]bool{path.Base(b.Dst): true}
+		for i, f := range b.Files {
+			if !SafeRelative(f) {
+				d.Add(fmt.Sprintf("/build/files/%d", i), "build file must be a confined relative path")
+			}
+			if names[path.Base(f)] {
+				d.Add(fmt.Sprintf("/build/files/%d", i), "duplicate build file name")
+			}
+			names[path.Base(f)] = true
 		}
 	}
 	for i, p := range r.Writable {

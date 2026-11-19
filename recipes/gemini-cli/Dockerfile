@@ -5,15 +5,17 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
-# Exact npm release verified against registry.npmjs.org, 2026-11-06.
-ARG GEMINI_CLI_VERSION=0.67.0
+# package.json pins the exact npm release (verified against registry.npmjs.org,
+# 2026-11-06); package-lock.json pins every transitive package by integrity
+# hash, and `npm ci` refuses to install anything else (OLY-62, ADR 0051).
+COPY package.json package-lock.json /opt/gemini-cli/
 # BuildKit uses this for image/config timestamps. Normalize installed file
 # timestamps too, so a clean rebuild does not depend on the build clock.
 ARG SOURCE_DATE_EPOCH=0
-RUN npm install -g --prefix /opt/gemini-cli --cache /tmp/gemini-cli-npm-cache "@google/gemini-cli@${GEMINI_CLI_VERSION}" \
+RUN cd /opt/gemini-cli && npm ci --omit=dev --no-audit --no-fund --cache /tmp/gemini-cli-npm-cache \
  && rm -rf /tmp/gemini-cli-npm-cache \
  && find /opt/gemini-cli -exec touch -h -d @0 {} + \
  && touch -d @0 /opt /tmp
-ENV PATH="/opt/gemini-cli/bin:${PATH}"
+ENV PATH="/opt/gemini-cli/node_modules/.bin:${PATH}"
 
 WORKDIR /root
