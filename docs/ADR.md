@@ -52,9 +52,10 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
 | [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
 | [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
-| [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) | Carry an explicit remote transport for MCP servers | Accepted, amends 0037 |
+| [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) | Carry an explicit remote transport for MCP servers | Accepted, amends 0037, amended by 0050 |
 | [0048](#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build) | Cross-compile release binaries and verify activator checksum against release build | Accepted, amends 0029, amended by 0049 |
 | [0049](#0049-require-an-explicit-opt-in-for-unsigned-development-activators) | Require an explicit opt-in for unsigned development activators | Accepted, amends 0048 |
+| [0050](#0050-honour-or-reject-sse-for-hermes-codex-and-opencode) | Honour or reject SSE for Hermes, Codex and OpenCode | Accepted, amends 0047 |
 | [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage) | Pin built-image inputs with committed lockfiles and a fetch stage | Accepted, amends 0041 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
@@ -1466,7 +1467,7 @@ The recipe declares no `supports` block. The pinned docs define OpenBot's own lo
 
 ## 0047. Carry an explicit remote transport for MCP servers
 
-- **Status:** Accepted, amends 0037
+- **Status:** Accepted, amends 0037, amended by 0050
 - **Date:** 2026-11-06
 
 ### Context
@@ -1568,6 +1569,39 @@ We will:
 - **Trust any activator whose version string matches:** That is the behaviour F3 reports; a version string is attacker-controlled.
 - **Prompt interactively instead of a flag:** Server commands already run unattended in tests and CI; an interactive prompt would need a second bypass for automation and break the non-interactive `--yes` contract.
 - **Require a trusted expected digest supplied by the user for development:** Useful for advanced users but does not remove the need for a short local override; left as a future option rather than adding a second input format now.
+
+## 0050. Honour or reject SSE for Hermes, Codex and OpenCode
+
+- **Status:** Accepted, amends 0047
+- **Date:** 2026-11-19
+
+### Context
+
+ADR 0047 rendered `transport` only for the `claude-code` and `gemini-cli` styles and left `hermes`, `codex` and `opencode` ignoring it, on the assumption that those tools accept a single remote form. A stack that set `transport: sse` on a server shared with Codex therefore rendered a Streamable HTTP entry that fails at runtime, and `check` said nothing (OLY-58). Checking the pinned upstream source showed the assumption was wrong for two of the three tools:
+
+- Codex `rust-v0.116.0`, `codex-rs/core/src/config/types.rs`: `McpServerTransportConfig` has only `Stdio` and `StreamableHttp`. There is no SSE client.
+- Hermes Agent `v0.22.7`, `tools/mcp_tool_transport.py`: a server entry with `transport: sse` selects the SSE client; otherwise it uses Streamable HTTP and may fall back to SSE.
+- OpenCode `v1.0.196`, `packages/opencode/src/mcp/index.ts`: every `type: remote` entry tries `StreamableHTTPClientTransport` and then `SSEClientTransport`, with no config key choosing between them.
+
+### Decision
+
+We will:
+1. `hermes`: write `transport: sse` next to `url` and `headers` when the stack sets `sse`. Write nothing for `http` or an absent field, so existing output stays byte-identical.
+2. `codex`: fail evaluation for a remote server with `transport: sse`. The error names the tool and the server (`<tool>: MCP <server>: transport sse is not supported by Codex …`).
+3. `opencode`: render unchanged, because OpenCode's own fallback reaches an SSE server.
+
+### Consequences
+
+- No style drops `transport` silently: each one renders it, reaches SSE through its own fallback, or refuses at `check`/`build`.
+- A stack that shares an SSE-only server with Codex must drop that server from Codex or use a Streamable HTTP endpoint.
+- `testdata/golden-real` is unchanged, since it sets no `transport`.
+- Upstream changes to these transports need a recheck when a recipe's pinned version moves.
+
+### Alternatives considered
+
+- **Warn instead of failing for Codex:** The entry cannot work, so a warning would still deploy a broken connection. Failing closed matches how Codex secret rendering already treats what it cannot express.
+- **Write `transport` for OpenCode too:** OpenCode has no such key; an unknown key would be at best ignored and at worst rejected by its config schema.
+- **Always write `transport` for Hermes:** Changes every existing Hermes config for no behaviour change.
 
 ## 0051. Pin built-image inputs with committed lockfiles and a fetch stage
 

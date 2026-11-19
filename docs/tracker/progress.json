@@ -95,7 +95,7 @@
     "shared-mcps-skills": {
       "status": "done",
       "file": "features/shared-mcps-skills.md",
-      "updated": "2026-10-22",
+      "updated": "2026-11-19",
       "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
     },
     "channels": {
@@ -177,6 +177,7 @@
     "ADR 0045 recipe runtime limits as fixed Compose keys",
     "ADR 0046 vendor OpenBot's seccomp profile and pin an exact release",
     "ADR 0048 cross-compile release binaries and verify activator checksum against release build",
+    "ADR 0050 honour or reject SSE per MCP style",
     "ADR 0051 pin built-image inputs with committed lockfiles"
   ]
 }

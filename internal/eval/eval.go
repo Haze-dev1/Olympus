@@ -282,7 +282,7 @@ func Build(in Inputs) (*generation.Generation, error) {
 			}
 			translated, err := translateMCP(obj, r.Supports.MCPs.Style)
 			if err != nil {
-				return nil, fmt.Errorf("%s: %w", name, err)
+				return nil, fmt.Errorf("%s: MCP %s: %w", name, mcpName, err)
 			}
 			mcps[mcpName] = translated
 		}
@@ -642,12 +642,20 @@ func translateMCP(obj map[string]any, style string) (map[string]any, error) {
 		if style == "claude-code" {
 			out["type"] = mcpTransport(obj)
 		}
+		// Hermes defaults to Streamable HTTP; only an explicit sse selects its SSE client.
+		if style == "hermes" && mcpTransport(obj) == "sse" {
+			out["transport"] = "sse"
+		}
 		if style == "gemini-cli" && mcpTransport(obj) == "http" {
 			out["httpUrl"] = url
 			delete(out, "url")
 		}
 		return out, nil
 	case "codex":
+		if hasURL && mcpTransport(obj) == "sse" {
+			// Codex 0.116.0 has only stdio and Streamable HTTP transports.
+			return nil, fmt.Errorf("transport sse is not supported by Codex (Streamable HTTP only)")
+		}
 		if hasURL {
 			out := map[string]any{"url": url}
 			headers, _ := obj["headers"].(map[string]any)
@@ -699,6 +707,7 @@ func translateMCP(obj map[string]any, style string) (map[string]any, error) {
 		}
 		return out, nil
 	case "opencode":
+		// OpenCode tries Streamable HTTP, then SSE, for every remote entry, so transport needs no key.
 		if hasURL {
 			out := map[string]any{"type": "remote", "url": url}
 			headers, _ := obj["headers"].(map[string]any)
