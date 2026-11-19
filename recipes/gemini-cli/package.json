@@ -1,0 +1,7 @@
+{
+  "name": "olympus-gemini-cli",
+  "private": true,
+  "dependencies": {
+    "@google/gemini-cli": "0.67.0"
+  }
+}

@@ -11,6 +11,7 @@ command: [sleep, infinity]
 build:
   src: Dockerfile
   dst: /root/.olympus-build/Dockerfile
+  files: [package.json, package-lock.json]
 health:
   command: [codex, --version]
   timeout: 60s

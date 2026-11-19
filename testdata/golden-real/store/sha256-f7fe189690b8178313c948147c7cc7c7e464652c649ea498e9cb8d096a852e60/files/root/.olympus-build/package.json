@@ -1,0 +1,7 @@
+{
+  "name": "olympus-codex",
+  "private": true,
+  "dependencies": {
+    "@openai/codex": "0.116.0"
+  }
+}

@@ -1,7 +1,7 @@
 {
-  "id": "sha256-43f5f7f957a3b7f088cebc0986927867144770ad0599422fb056cf30bf013efe",
+  "id": "sha256-90a248a996605271b9287e31e762029e4932ca2acd976ace0f52bdd1a7b67a52",
   "inputs": {
-    "recipes": "sha256-584481c0eb268394bc6b1ac9ca0413d677b662dd345f94a1780d0d710b2f4d2e"
+    "recipes": "sha256-3bc4841b96ebe03ecdb70e7b11522b8887e131aeefa742e4c3100a53ae55e71b"
   },
   "olym": "0.1.0-dev",
   "tools": {
@@ -9,9 +9,11 @@
       "files": {
         "/root/.gemini/settings.json": "sha256-20883b29f1964136eeb8aac6da9ac27b5c7f020e447ea79415baf529ea95a8bc",
         "/root/.gemini/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0",
-        "/root/.olympus-build/Dockerfile": "sha256-9d74a1a027a621752f09d6a58b91ca98c55de888aa6bd1ced9dff86488b88715"
+        "/root/.olympus-build/Dockerfile": "sha256-0478b0b56320e245a8004c5057dac94c6aa3715f8b9c6b3a15e1259d12ada8f6",
+        "/root/.olympus-build/package-lock.json": "sha256-8bb99c9efaf203f260b5392d93901993cd91b6f21b074784a80528417947673d",
+        "/root/.olympus-build/package.json": "sha256-b0645a611fd375e962cbc70d84d77aaf4b5a953ac19963c1376064d9d8719408"
       },
-      "hash": "sha256-10c0b387704438c0bcdcb14a315b82a3408f68780f02f6b6fe602d64c5f7408e",
+      "hash": "sha256-ec4a5634f59deceb0984968b0602fedbf9b2301fc528bfcc059743a191b24ccb",
       "health": {
         "command": [
           "gemini",
@@ -19,7 +21,7 @@
         ],
         "timeout": "60s"
       },
-      "image": "olympus/gemini:sha256-53f40b9436ca",
+      "image": "olympus/gemini:sha256-f98518958048",
       "secrets": [
         "github-token",
         "model-key"

@@ -37,6 +37,10 @@ func TestRecipeValidation(t *testing.T) {
 		{"seccomp url", base + "runtime: {seccomp: 'https://example.test/profile.json'}\n", "not a URL"},
 		{"seccomp absolute", base + "runtime: {seccomp: /etc/profile.json}\n", "confined relative"},
 		{"seccomp traversal", base + "runtime: {seccomp: ../profile.json}\n", "confined relative"},
+		{"build files", base + "build: {src: Dockerfile, dst: /opt/demo/b/Dockerfile, files: [package.json, lock/package-lock.json]}\n", ""},
+		{"build file traversal", base + "build: {src: Dockerfile, dst: /opt/demo/b/Dockerfile, files: [../package.json]}\n", "confined relative"},
+		{"build file shadows dockerfile", base + "build: {src: Dockerfile, dst: /opt/demo/b/Dockerfile, files: [other/Dockerfile]}\n", "duplicate build file name"},
+		{"build file duplicate name", base + "build: {src: Dockerfile, dst: /opt/demo/b/Dockerfile, files: [a/x.json, b/x.json]}\n", "duplicate build file name"},
 		{"seccomp no volume", "name: demo\nkind: harness\nimage: example/demo:1\nruntime: {seccomp: profile.json}\n", "requires a tool volume"},
 	}
 	for _, tc := range cases {

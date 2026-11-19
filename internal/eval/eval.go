@@ -104,6 +104,14 @@ func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 			} else {
 				in.Templates[t.Recipe][r.Build.Src] = b
 			}
+			for i, f := range r.Build.Files {
+				b, e := recipe.ReadFile(r.Dir, f)
+				if e != nil {
+					d.Add(fmt.Sprintf("/build/files/%d", i), "cannot read confined build file")
+				} else {
+					in.Templates[t.Recipe][f] = b
+				}
+			}
 		}
 		if rt := r.RuntimeOptions(); rt.Seccomp != "" {
 			b, e := recipe.ReadFile(r.Dir, rt.Seccomp)
@@ -314,7 +322,19 @@ func Build(in Inputs) (*generation.Generation, error) {
 				return nil, fmt.Errorf("%s: unsafe or colliding build destination", name)
 			}
 			files[r.Build.Dst] = source
-			service.Image = builtImage(name, source, baseRef)
+			// Build files share the Dockerfile's directory, which is the build
+			// context, and feed the image tag so a changed lockfile rebuilds.
+			hashed := source
+			for _, f := range r.Build.Files {
+				content, ok := in.Templates[entry.Recipe][f]
+				dst := path.Join(path.Dir(r.Build.Dst), path.Base(f))
+				if !ok || files[dst] != nil {
+					return nil, fmt.Errorf("%s: missing or colliding build file", name)
+				}
+				files[dst] = content
+				hashed = bytes.Join([][]byte{hashed, []byte(path.Base(f)), content}, []byte{0})
+			}
+			service.Image = builtImage(name, hashed, baseRef)
 			buildDst, buildBase = r.Build.Dst, baseRef
 		}
 		managed := map[string]map[string]any{}

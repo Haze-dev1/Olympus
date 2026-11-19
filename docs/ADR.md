@@ -46,7 +46,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0039](#0039-configure-hermes-channels-as-environment-variables) | Configure Hermes channels as environment variables | Accepted |
 
 | [0040](#0040-resolve-optional-catalog-refs-to-locked-commits) | Resolve optional catalog refs to locked commits | Accepted |
-| [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted |
+| [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted, amended by 0051 |
 | [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
 | [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032 |
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
@@ -56,6 +56,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0048](#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build) | Cross-compile release binaries and verify activator checksum against release build | Accepted, amends 0029, amended by 0049 |
 | [0049](#0049-require-an-explicit-opt-in-for-unsigned-development-activators) | Require an explicit opt-in for unsigned development activators | Accepted, amends 0048 |
 | [0050](#0050-honour-or-reject-sse-for-hermes-codex-and-opencode) | Honour or reject SSE for Hermes, Codex and OpenCode | Accepted, amends 0047 |
+| [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage) | Pin built-image inputs with committed lockfiles and a fetch stage | Accepted, amends 0041 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1175,7 +1176,7 @@ No local git executable or new dependency is needed.
 
 ## 0041. Prepare content-addressed built images before starting services
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by 0051
 - **Date:** 2026-10-20
 - **Amends:** [0035](#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile), [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service)
 
@@ -1601,6 +1602,38 @@ We will:
 - **Warn instead of failing for Codex:** The entry cannot work, so a warning would still deploy a broken connection. Failing closed matches how Codex secret rendering already treats what it cannot express.
 - **Write `transport` for OpenCode too:** OpenCode has no such key; an unknown key would be at best ignored and at worst rejected by its config schema.
 - **Always write `transport` for Hermes:** Changes every existing Hermes config for no behaviour change.
+
+## 0051. Pin built-image inputs with committed lockfiles and a fetch stage
+
+- **Status:** Accepted, amends 0041
+- **Date:** 2026-11-19
+
+### Context
+
+Security review finding F2 (OLY-62, rule A7): the recipes that build on the server pinned the base image by digest and the top-level package version, but `npm install -g pkg@X` resolved transitive npm dependencies at build time, and Goose's build installed unpinned apt packages into the shipped image. A later rebuild of the same generation could therefore produce different bytes under the same content-addressed tag. The build context was only the Dockerfile, so a recipe had no way to ship a lockfile.
+
+### Decision
+
+We will:
+1. Add an optional `build.files` list to the recipe format: recipe-folder files copied as generation files next to `build.dst`, under their base names, so they sit in the Compose build context. Names must be confined relative paths and must not repeat each other or the Dockerfile's name.
+2. Feed each build file's name and bytes into the built image tag together with the Dockerfile and base reference, so a changed lockfile changes the tag and is not served by an image reused under ADR 0041. A recipe without `build.files` keeps its previous tag.
+3. Give `codex`, `claude-code` and `gemini-cli` a committed `package.json` (exact top-level version) and `package-lock.json` (every package with an integrity hash, including all platform optional packages), and install with `npm ci --omit=dev`, which refuses a lockfile that does not match.
+4. Make Goose multi-stage: apt and curl run in a `fetch` stage that verifies the release checksum, and only the verified binary is copied into a fresh base stage.
+
+### Consequences
+
+- Every byte that reaches an npm-built image is named by the lock, the committed lockfile or the Dockerfile; npm verifies integrity hashes on install.
+- Moving a pin means editing `package.json` and running `npm install --package-lock-only --ignore-scripts`, then reviewing the lockfile diff.
+- Native install scripts (Claude Code's postinstall, Gemini CLI's optional `node-pty` and `keytar`) still run at build time; their inputs are pinned, but their outputs are not verified byte-for-byte.
+- The base image still carries whatever packages its digest contains; that remains the lock's job.
+- Built-image tags and generation hashes for these four recipes changed once.
+
+### Alternatives considered
+
+- **Record the first built image's digest and refuse a different rebuild:** Docker builds are not byte-reproducible across BuildKit versions and hosts even with fixed inputs, so this would reject legitimate rebuilds; it also detects drift instead of preventing it.
+- **Inline the lockfile into the Dockerfile with a heredoc:** No format change, but a several-hundred-line Dockerfile is hard to review and to regenerate.
+- **Publish prebuilt images:** Out of scope for OLY-62.
+- **Pin apt package versions for Goose:** Debian removes superseded versions from the mirror, so pins break; a fetch stage avoids shipping them at all.
 
 ## Template
 
