@@ -143,12 +143,15 @@ agents:
 		args = append(args, extra...)
 		cmd := exec.CommandContext(ctx, binary, args...)
 		cmd.Stdin = strings.NewReader("y\n")
-		b, e := cmd.CombinedOutput()
-		if bytes.Contains(b, []byte("OLYM_SENTINEL_")) {
+		// Keep stderr apart so warnings cannot corrupt --json output on stdout.
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		b, e := cmd.Output()
+		if bytes.Contains(b, []byte("OLYM_SENTINEL_")) || bytes.Contains(stderr.Bytes(), []byte("OLYM_SENTINEL_")) {
 			t.Fatal("sentinel in CLI output")
 		}
 		if e != nil {
-			t.Fatalf("%s: %v %s", command, e, b)
+			t.Fatalf("%s: %v %s%s", command, e, b, stderr.Bytes())
 		}
 		t.Logf("%s: exit 0", command)
 		return string(b)

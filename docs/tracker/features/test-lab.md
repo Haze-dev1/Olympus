@@ -32,6 +32,14 @@ Evidence: `reset`, then `down` immediately after first boot, then `up`, twice. S
 - The test now passes `-activator` to `status`, keeps stderr apart from stdout, checks both for sentinel secrets, and prints stderr on a failed exit. No product code changed.
 - Run on Arch (amd64, KVM, Go 1.27.4), fresh `lab/lab.sh reset`: `OLYMPUS_LAB=1 go test -tags=lab ./internal/cli -run '^TestLabM1$'` passed in 115.4 s, covering apply, status, no-op and selective changes, health-failure rollback, CLI kill with autonomous rollback, gc and both destroys. `TestLabDeploy` and `TestLabRealStack` were not run (the real stack needs the private catalog credential).
 
+## Full lab pass on merged development (2026-11-21)
+
+After PRs #37, #44, #45 and #46 merged (`development` at `9af4c04`), on a fresh VM each:
+
+- `TestLabDeploy` passed (127.9 s).
+- `TestLabM1` passed (118.1 s).
+- `TestLabRealStack` first failed at `status --json`: as in `TestLabM1`, the test read stderr together with stdout, so the development-build warning broke JSON parsing. `apply` had already brought up the real stack. With stderr kept apart (still scanned for sentinels), it passed in 1354.5 s on a 6144 MiB VM: update, check, plan, apply, health of Hermes, Codex (`codex-cli 0.116.0`) and OpenCode, shared MCP and skill checks, no-op apply, selective change, rollback, status and delete-data destroy. Most of the time went on image pulls from GitHub's CDN at about 41 KiB/s; an earlier run the same day finished `apply` in about 4 minutes. Model inference and chat were not attempted.
+
 ## Not done
 
 - The CLI has no setting yet for a custom `known_hosts` path; it lands with the `olym plan` wiring.

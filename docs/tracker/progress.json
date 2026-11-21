@@ -113,7 +113,8 @@
     "test-lab": {
       "status": "done",
       "file": "features/test-lab.md",
-      "updated": "2026-11-21"
+      "updated": "2026-11-21",
+      "summary": "All three lab tests pass on merged development (2026-11-21): TestLabDeploy, TestLabM1 and TestLabRealStack with real Hermes, Codex and OpenCode."
     },
     "deploy": {
       "status": "done",
