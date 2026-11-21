@@ -210,3 +210,24 @@ unrun lab check are in [preflight.md](preflight.md) and
 [ADR 0044](../../ADR.md#0044-preflight-the-server-before-plan-and-apply). The
 earlier "capacity/port preflight remains outside this slice" statements describe
 the state before this section.
+
+## Semantic config-key diffs in `plan` (OLY-54), 2026-11-21
+
+Plan output now displays key-level diffs for managed config files (`.yaml`, `.yml`, `.toml`, `.json`). When a tool's configuration file changes, `plan` outputs dotted paths for added, changed, or removed keys (e.g., `config: /opt/data/config.yaml (mcp_servers.github added)`), stably sorted by key path. Secret values are never printed (Rule A1): key-level diffs report only the key path and whether it was added, changed, or removed. Unparsable files, files with invalid structured syntax, or files without semantic key differences gracefully fall back to the existing file path diff (`config: <path>`).
+
+`internal/plan` provides `DiffConfig` using the existing deterministic encoders/parsers, `ChangedFiles` to determine file paths that differ, `ToolFiles` to extract generated tool content, and `ReadCurrentFiles` to read store files from the server via bounded read-only `head -c 4194305` commands. `internal/cli/commands.go` wires `ReadCurrentFiles` and `ToolFiles` into `plan.Compare`.
+
+### Verification
+
+- Unit tests in `internal/plan`:
+  - `TestDiffConfig` covering YAML, TOML, JSON, array modifications, fallback on invalid syntax/unsupported extension, and unchanged semantic keys.
+  - `TestCompareWithFileContents` verifying formatted output and graceful fallback on unparsable files.
+  - `TestSecretValueNeverAppearsInPlanOutput` explicitly asserting that sentinel secret values never appear in plan output while reporting key-level modification.
+  - `TestReadCurrentFiles` and `TestToolFilesAndChangedFiles` verifying file extraction and remote store read handling.
+- Full suite `go test ./...`, `go vet ./...`, `go build -o /tmp/olym ./cmd/olym/`, and `gofmt -l .` all passed.
+- Lab, orchestrator run on 2026-11-21 (Arch amd64, KVM, Go 1.27.4, fresh `lab/lab.sh reset`):
+  - `TestLabM1` passed in 119.9 s with the `fix/lab-dev-activator` test fix applied temporarily. Without that fix it fails the same way on clean `development` (`status: deploy: cannot read activator`).
+  - Live key diff: deployed a `pi` stack (from the `feat/oly-22-pi` recipes) as the non-root `sudo` user, added a remote MCP server, then ran `plan`. Output: `~ pi  config: /root/.pi/agent/mcp.json (mcpServers.docs added)`. The `development` binary printed only `config: /root/.pi/agent/mcp.json`. The sentinel secret values do not appear in the output.
+- Known limits: key names are printed as parsed, without stripping terminal control characters, and the `plan.Compare` contents argument is variadic for backward compatibility.
+- ADR review: No new architectural decision or file format change was introduced; no ADR added.
+
