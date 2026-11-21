@@ -1,9 +1,11 @@
 package plan
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -155,5 +157,306 @@ func TestSecretChangeCountsToolOnce(t *testing.T) {
 	d.SecretChanges(map[string]bool{"changed": true, "same": true, "other": false})
 	if len(d.Changes) != 2 || d.Unchanged != 1 || !d.Changes[0].Secret || !d.Changes[1].Secret {
 		t.Fatal(d)
+	}
+}
+
+func TestDiffConfig(t *testing.T) {
+	t.Run("yaml", func(t *testing.T) {
+		oldYaml := []byte(`
+gateway: {}
+model:
+  name: gpt-4
+  provider: openai
+mcp_servers:
+  slack:
+    command: python
+`)
+		newYaml := []byte(`
+gateway: {}
+model:
+  name: gpt-4
+  provider: anthropic
+mcp_servers:
+  github:
+    command: npx
+`)
+		keys, err := DiffConfig("/opt/data/config.yaml", oldYaml, newYaml)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []KeyChange{
+			{Path: "mcp_servers.github", Kind: "added"},
+			{Path: "mcp_servers.slack", Kind: "removed"},
+			{Path: "model.provider", Kind: "changed"},
+		}
+		if !reflect.DeepEqual(keys, want) {
+			t.Fatalf("got %+v, want %+v", keys, want)
+		}
+	})
+
+	t.Run("toml", func(t *testing.T) {
+		oldToml := []byte(`
+[model]
+name = "gpt-4"
+
+[mcp_servers.slack]
+command = "python"
+`)
+		newToml := []byte(`
+[model]
+name = "claude-3"
+
+[mcp_servers.github]
+command = "npx"
+`)
+		keys, err := DiffConfig("/root/.codex/config.toml", oldToml, newToml)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []KeyChange{
+			{Path: "mcp_servers.github", Kind: "added"},
+			{Path: "mcp_servers.slack", Kind: "removed"},
+			{Path: "model.name", Kind: "changed"},
+		}
+		if !reflect.DeepEqual(keys, want) {
+			t.Fatalf("got %+v, want %+v", keys, want)
+		}
+	})
+
+	t.Run("json", func(t *testing.T) {
+		oldJSON := []byte(`{"theme":"light","mcp":{"slack":{"command":"python"}}}`)
+		newJSON := []byte(`{"theme":"dark","mcp":{"github":{"command":"npx"}}}`)
+		keys, err := DiffConfig("/root/.config/opencode/opencode.json", oldJSON, newJSON)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []KeyChange{
+			{Path: "mcp.github", Kind: "added"},
+			{Path: "mcp.slack", Kind: "removed"},
+			{Path: "theme", Kind: "changed"},
+		}
+		if !reflect.DeepEqual(keys, want) {
+			t.Fatalf("got %+v, want %+v", keys, want)
+		}
+	})
+
+	t.Run("array change", func(t *testing.T) {
+		oldJSON := []byte(`{"channels":{"telegram":{"allow":[1,2]}}}`)
+		newJSON := []byte(`{"channels":{"telegram":{"allow":[1,2,3]}}}`)
+		keys, err := DiffConfig("config.json", oldJSON, newJSON)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []KeyChange{
+			{Path: "channels.telegram.allow", Kind: "changed"},
+		}
+		if !reflect.DeepEqual(keys, want) {
+			t.Fatalf("got %+v, want %+v", keys, want)
+		}
+	})
+
+	t.Run("unparsable fallback", func(t *testing.T) {
+		for _, tc := range []struct {
+			path string
+			old  []byte
+			new  []byte
+		}{
+			{"config.txt", []byte("a"), []byte("b")},
+			{"config.yaml", []byte("invalid: yaml: :"), []byte("ok: true")},
+			{"config.toml", []byte("invalid toml ="), []byte("ok = true")},
+			{"config.json", []byte("{not json"), []byte("{}")},
+		} {
+			if _, err := DiffConfig(tc.path, tc.old, tc.new); err == nil {
+				t.Fatalf("expected error for %s", tc.path)
+			}
+		}
+	})
+
+	t.Run("unchanged keys", func(t *testing.T) {
+		a := []byte("# comment\nfoo: bar\n")
+		b := []byte("foo: bar\n")
+		keys, err := DiffConfig("config.yaml", a, b)
+		if err != nil || len(keys) != 0 {
+			t.Fatalf("expected 0 key changes, got %+v, err %v", keys, err)
+		}
+	})
+}
+
+func TestCompareWithFileContents(t *testing.T) {
+	current := generation.Manifest{
+		Tools: map[string]generation.Tool{
+			"hermes": {
+				Hash:  "hash1",
+				Image: "image:1",
+				Files: map[string]string{"/opt/data/config.yaml": "h1"},
+			},
+		},
+	}
+	want := generation.Manifest{
+		Tools: map[string]generation.Tool{
+			"hermes": {
+				Hash:  "hash2",
+				Image: "image:1",
+				Files: map[string]string{"/opt/data/config.yaml": "h2"},
+			},
+		},
+	}
+	actual := map[string]map[string]string{"hermes": {"/opt/data/config.yaml": "h1"}}
+
+	contents := FileContents{
+		Want: map[string]map[string][]byte{
+			"hermes": {"/opt/data/config.yaml": []byte("mcp_servers:\n  github:\n    command: npx\n")},
+		},
+		Current: map[string]map[string][]byte{
+			"hermes": {"/opt/data/config.yaml": []byte("mcp_servers: {}\n")},
+		},
+	}
+
+	diff := Compare(want, current, actual, contents)
+	var buf bytes.Buffer
+	diff.Print(&buf)
+	out := buf.String()
+	if !strings.Contains(out, "config: /opt/data/config.yaml (mcp_servers.github added)") {
+		t.Fatalf("unexpected output: %s", out)
+	}
+
+	// Unparsable fallback
+	unparsableContents := FileContents{
+		Want: map[string]map[string][]byte{
+			"hermes": {"/opt/data/config.yaml": []byte("invalid: : yaml")},
+		},
+		Current: map[string]map[string][]byte{
+			"hermes": {"/opt/data/config.yaml": []byte("mcp_servers: {}\n")},
+		},
+	}
+	diff = Compare(want, current, actual, unparsableContents)
+	buf.Reset()
+	diff.Print(&buf)
+	out = buf.String()
+	if !strings.Contains(out, "config: /opt/data/config.yaml\n") || strings.Contains(out, "(") {
+		t.Fatalf("unexpected unparsable fallback output: %s", out)
+	}
+}
+
+func TestSecretValueNeverAppearsInPlanOutput(t *testing.T) {
+	const sentinelOld = "SENTINEL_OLD_SECRET_VAL_9999"
+	const sentinelNew = "SENTINEL_NEW_SECRET_VAL_8888"
+
+	current := generation.Manifest{
+		Tools: map[string]generation.Tool{
+			"codex": {
+				Hash:  "hash1",
+				Image: "image:1",
+				Files: map[string]string{"/root/.codex/config.toml": "h1"},
+			},
+		},
+	}
+	want := generation.Manifest{
+		Tools: map[string]generation.Tool{
+			"codex": {
+				Hash:  "hash2",
+				Image: "image:1",
+				Files: map[string]string{"/root/.codex/config.toml": "h2"},
+			},
+		},
+	}
+	actual := map[string]map[string]string{"codex": {"/root/.codex/config.toml": "h1"}}
+
+	contents := FileContents{
+		Want: map[string]map[string][]byte{
+			"codex": {"/root/.codex/config.toml": []byte(fmt.Sprintf("[mcp_servers.github.env]\nTOKEN = %q\n", sentinelNew))},
+		},
+		Current: map[string]map[string][]byte{
+			"codex": {"/root/.codex/config.toml": []byte(fmt.Sprintf("[mcp_servers.github.env]\nTOKEN = %q\n", sentinelOld))},
+		},
+	}
+
+	diff := Compare(want, current, actual, contents)
+	var buf bytes.Buffer
+	diff.Print(&buf)
+	out := buf.String()
+
+	if strings.Contains(out, sentinelOld) {
+		t.Fatalf("secret leak in plan output! Found old sentinel secret %q in:\n%s", sentinelOld, out)
+	}
+	if strings.Contains(out, sentinelNew) {
+		t.Fatalf("secret leak in plan output! Found new sentinel secret %q in:\n%s", sentinelNew, out)
+	}
+	if !strings.Contains(out, "config: /root/.codex/config.toml (mcp_servers.github.env.TOKEN changed)") {
+		t.Fatalf("expected key-level change notification without secret value, got:\n%s", out)
+	}
+}
+
+type fakeFileContentReader struct {
+	files map[string][]byte
+}
+
+func (f *fakeFileContentReader) Run(_ context.Context, args []string, _ io.Reader) ([]byte, []byte, error) {
+	if len(args) >= 5 && args[0] == "head" && args[1] == "-c" {
+		filePath := args[4]
+		if b, ok := f.files[filePath]; ok {
+			return b, nil, nil
+		}
+	}
+	return nil, nil, exitCode(1)
+}
+
+func TestReadCurrentFiles(t *testing.T) {
+	current := generation.Manifest{
+		Tools: map[string]generation.Tool{
+			"demo": {
+				Hash:  "sha256-" + strings.Repeat("a", 64),
+				Files: map[string]string{"/opt/config.yaml": "sha256-" + strings.Repeat("b", 64)},
+			},
+		},
+	}
+	storePath := "/var/lib/olympus/store/" + current.Tools["demo"].Hash + "/files/opt/config.yaml"
+	reader := &fakeFileContentReader{
+		files: map[string][]byte{
+			storePath: []byte("foo: bar\n"),
+		},
+	}
+
+	changed := map[string][]string{
+		"demo": {"/opt/config.yaml"},
+	}
+	result := ReadCurrentFiles(context.Background(), reader, true, current, changed)
+	if string(result["demo"]["/opt/config.yaml"]) != "foo: bar\n" {
+		t.Fatalf("unexpected read current files: %v", result)
+	}
+}
+
+func TestToolFilesAndChangedFiles(t *testing.T) {
+	hash := "sha256-" + strings.Repeat("1", 64)
+	g := &generation.Generation{
+		Manifest: generation.Manifest{
+			Tools: map[string]generation.Tool{
+				"demo": {
+					Hash:  hash,
+					Files: map[string]string{"/cfg.yaml": "h1"},
+				},
+			},
+		},
+		Files: map[string][]byte{
+			"store/" + hash + "/files/cfg.yaml": []byte("key: value\n"),
+		},
+	}
+	extracted := ToolFiles(g)
+	if string(extracted["demo"]["/cfg.yaml"]) != "key: value\n" {
+		t.Fatalf("unexpected tool files: %v", extracted)
+	}
+
+	want := g.Manifest
+	current := generation.Manifest{
+		Tools: map[string]generation.Tool{
+			"demo": {
+				Hash:  "sha256-" + strings.Repeat("2", 64),
+				Files: map[string]string{"/cfg.yaml": "h0"},
+			},
+		},
+	}
+	changed := ChangedFiles(want, current)
+	if len(changed["demo"]) != 1 || changed["demo"][0] != "/cfg.yaml" {
+		t.Fatalf("unexpected changed files: %v", changed)
 	}
 }

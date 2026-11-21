@@ -104,7 +104,10 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 			return fail(errors.New("saved plan is stale: generation, server current or secrets changed; run olym plan"))
 		}
 	}
-	diff := plan.Compare(g.Manifest, current, actual)
+	changedFiles := plan.ChangedFiles(g.Manifest, current)
+	curFiles := plan.ReadCurrentFiles(ctx, c.Conn, cfg.User == "root", current, changedFiles)
+	wantFiles := plan.ToolFiles(g)
+	diff := plan.Compare(g.Manifest, current, actual, plan.FileContents{Want: wantFiles, Current: curFiles})
 	diff.SecretChanges(changed)
 	fmt.Fprintf(out, "Plan: stack %q → %s\n", file, snapshot.Server)
 	diff.Print(out)
