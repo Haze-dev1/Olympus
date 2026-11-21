@@ -436,10 +436,11 @@ no format, durable behaviour or architecture changed.
 **Status:** implemented offline; live-server verification not run.
 
 Files:
-- `recipes/pi/{recipe.yaml,Dockerfile,README.md}`
+- `recipes/pi/{recipe.yaml,Dockerfile,README.md,package.json,package-lock.json}`
 - `testdata/pi/stack.yaml`, `testdata/pi/skills/deploy-checklist/SKILL.md`, `testdata/pi/golden/`
-- `recipes/oh-my-pi/{recipe.yaml,Dockerfile,README.md}`
+- `recipes/oh-my-pi/{recipe.yaml,Dockerfile,README.md,config.yml.tmpl}`
 - `testdata/oh-my-pi/stack.yaml`, `testdata/oh-my-pi/skills/deploy-checklist/SKILL.md`, `testdata/oh-my-pi/golden/`
+- `internal/eval/recipes_golden_test.go` (rows for both recipes plus `TestRecipeBuildInputPins`)
 
 Decisions:
 
@@ -447,8 +448,8 @@ Decisions:
   - **Pi:** official non-fork repository `earendil-works/pi` (`gh api repos/earendil-works/pi` → `fork: false`), created by Mario Zechner (`badlogic`), published to npm as `@earendil-works/pi-coding-agent`.
   - **Oh My Pi:** official non-fork repository `can1357/oh-my-pi` (`gh api repos/can1357/oh-my-pi` → `fork: false`), created by Stencil Labs (`omp.sh`). Originating as a fork of Pi with native Rust IDE integration, Bun runtime and tree-sitter AST editing, it compiles to a standalone `omp` CLI and publishes prebuilt binaries. It is a separately runnable tool, not a configuration pack for Pi.
 - Image & build mechanisms:
-  - **Pi:** npm-built image via `build` (ADR 0035) on `node:22-bookworm-slim`, installing exact npm release `@earendil-works/pi-coding-agent@1.5.0` (`latest` on 2026-11-06) into `/opt/pi/bin` with normalized timestamps (`touch -h -d @0`). Verified with `npm view` that `1.5.0` has no `postinstall` script downloading external code.
-  - **Oh My Pi:** binary-download build via `build` (ADR 0035) on `node:22-bookworm-slim`, downloading exact GitHub release `v18.17.0` standalone binary `omp-linux-<arch>` verified against upstream `SHA256SUMS.txt` (`a4ce6001…` for amd64, `a9423fd7…` for arm64) into `/usr/local/bin/omp`.
+  - **Pi:** npm-built image via `build` (ADR 0035) on `node:22-bookworm-slim`. After OLY-62 the exact release `@earendil-works/pi-coding-agent@1.5.0` is pinned in `package.json`, every transitive package is pinned by integrity hash in the committed `package-lock.json` (v3), and `build.files` puts both files in the build context and in the image tag (ADR 0051). The Dockerfile runs `npm ci --omit=dev --ignore-scripts` into `/opt/pi`, puts `/opt/pi/node_modules/.bin` on `PATH` and normalizes timestamps; `--ignore-scripts` matches upstream's containerization guide and keeps install-time egress out. The pinned package and its native dependency `@silvia-odwyer/photon-node@0.3.4` declare no install scripts (registry metadata re-checked 2026-11-21).
+  - **Oh My Pi:** binary-download build via `build` (ADR 0035) on `node:22-bookworm-slim`, downloading exact GitHub release `v18.17.0` standalone binary `omp-linux-<arch>` verified against upstream `SHA256SUMS.txt` (`a4ce6001…` for amd64, `a9423fd7…` for arm64) into `/usr/local/bin/omp`. After OLY-62 the unpinned `apt` packages stay in a `fetch` stage and the final image only `COPY`s the checksum-verified binary, matching Goose (ADR 0051). No lockfile is needed: the binary checksum is the only downloaded input.
 - State & volumes:
   - **Pi:** state directory is `/root/.pi/agent` (`getAgentDir()` in `packages/coding-agent/src/config.ts`), persisted via `home` volume at `/root`.
   - **Oh My Pi:** state directory is `/root/.omp/agent` (`getAgentDir()` / `docs/config-usage.md`), persisted via `home` volume at `/root`.
@@ -469,18 +470,41 @@ Decisions:
   - **Pi:** mounted read-only at `/root/.pi/agent/skills` (`mode: mount`, ADR 0038).
   - **Oh My Pi:** mounted read-only at `/root/.omp/agent/skills` (`mode: mount`, ADR 0038).
 
-Verification (offline, 2026-11-06, review update 2026-11-08):
+Verification (offline, 2026-11-06, review update 2026-11-08, OLY-62 follow-up 2026-11-21):
 
+- The worktree merged `origin/development` so OLY-62's `build.files` support (recipe field, schema, parser, evaluator, docs and ADR 0051) is present; the merge was left uncommitted per the no-commit instruction, with the CHANGELOG conflict resolved by keeping both histories.
+- Checklist item 1, re-checked 2026-11-21: `node:22-bookworm-slim` resolves in
+  Docker Hub to the multi-arch OCI index digest
+  `sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee`, so
+  the default tag's digest is resolvable for both recipes' lock pin; its amd64
+  image config sets `NODE_VERSION=22.23.5`, above Pi's `>=22.19.0` floor.
+- `origin/development` re-check on 2026-11-21: npm registry metadata confirms `@earendil-works/pi-coding-agent@1.5.0`, `engines.node >=22.19.0`, no install-time scripts and native dependency `@silvia-odwyer/photon-node@0.3.4` with no install scripts; GitHub API confirms both repos non-fork with the documented descriptions; `SHA256SUMS.txt` at `v18.17.0` matches both pinned OMP hashes; the tagged Pi docs confirm `mcpServers`, `${VAR}` expansion, SSE rejection, the `~/.pi/agent` state path and the two env vars; the tagged OMP docs confirm `~/.omp/agent`, `type: http`, `~/.omp/agent/skills`, `startup.checkUpdate`/`update.auto` and the absence of the two claimed env vars.
 - `go build -o /tmp/olym-agy-pi-bin ./cmd/olym/`, `go vet ./...`, `gofmt -l .` clean; `go test ./...` green except the three pre-existing macOS-only `internal/deploy` ownership/ELF failures documented in AGENTS.md.
 - Validation ordering note: intermediate recipe fix commit `1636a15` ran `TestRecipeGoldens` prior to commit, but deferred full `go test ./...` / `go vet` / `go build` until immediately after commit. Full validation suite was executed and verified on the merged head before pushing.
 - Manual CLI check (`olym check`) against testdata fixtures requires stack variables; in compliance with AGENTS.md rules prohibiting reading or creating `.env` files, manual check was skipped. Complete offline stack loading, recipe validation, build generation and golden verification are fully covered by `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go`.
-- `TestRecipeGoldens` in `internal/eval/recipes_golden_test.go` passes cleanly against `testdata/pi/golden/` and `testdata/oh-my-pi/golden/`. Upstream links pinned to `v1.5.0` and `v18.17.0`.
+- `TestRecipeGoldens` passes against both recipes' regenerated goldens. The Pi golden now carries `package.json` and `package-lock.json` in the build context and a lockfile-derived image tag; the OMP golden carries the multi-stage Dockerfile. `TestRecipeBuildInputPins` asserts each of those pins explicitly. Both stacks still render only env references, no secret values, no published port, skills read-only and a `writable` init service for managed config. Recipe-tree-hash changes in the other goldens were regenerated with `go test ./internal/eval -update`.
 
 Known gaps:
 
-- **Legacy SSE on Pi:** Pi rejects legacy SSE endpoints. Remote MCP servers must provide streamable HTTP endpoints.
-- **No live lab run:** No QEMU on this host, so container startup, live health checks and model API calls were not exercised against a running Docker daemon.
-- **UNVERIFIED:** live interactive session behavior and token consumption.
+- **Legacy SSE on Pi:** Pi rejects legacy SSE endpoints. Remote MCP servers must provide streamable HTTP endpoints. The shared `hermes` style renders `transport: sse` for an explicit SSE stack entry, which Pi ignores; such a server would then be treated as streamable HTTP and fail to connect.
+- **No live lab run:** No QEMU or Docker daemon on this host, so the image builds, `--version` health checks, config delivery and volume persistence were not exercised. The exact run to add is in both recipe READMEs: a reset `lab/lab.sh` VM, a single-tool stack per recipe with sentinel secrets, `olym apply` with `-unsafe-dev-activator`, then `--version` via `docker compose exec`, config/reference checks, no published port, and scoped `destroy`. Not run here by instruction; the orchestrator runs lab tests.
+- **UNVERIFIED:** live interactive sessions, token consumption against active provider APIs, Pi WebSocket MCP servers (unsupported by the stack format) and OMP in-process LSP diagnostics.
 
-ADR: none added. Reuses existing recipe format, ADR 0035 (built images), ADR 0037/0047 (MCP styles) and ADR 0038 (mounted skills); no format, durable behaviour or architecture changed.
+ADR: none added in this run. The worktree merged development, which already recorded ADR 0051 (built-image inputs pinned with lockfiles and a fetch stage); both recipes now apply it. No new format, durable behaviour or architecture was introduced. Also reuses ADR 0035 (built images), ADR 0037/0047 (MCP styles) and ADR 0038 (mounted skills).
 
+
+### Lab evidence (orchestrator, 2026-11-21)
+
+Arch host (amd64, KVM, Go 1.27.4), fresh `lab/lab.sh reset` each run. Each stack had one tool, the lab stdio MCP fixture, one local skill and sentinel secrets. The lock pinned `node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee`, which matched the live Docker Hub index digest that day. The CLI ran with `-recipes` pointing at this branch's recipes and `-unsafe-dev-activator`, as the non-root sudo user.
+
+- **Pi: passed.** `apply` installed Docker, built the image and passed health in 92.6 s, exit 0. In the container:
+  - `pi --version` printed `1.5.0`.
+  - `/root/.pi/agent/mcp.json` held `"GITHUB_TOKEN": "${GITHUB_TOKEN}"`, not the value, and was writable (0600) after `pi-init` copied it.
+  - The skill was bind-mounted read-only.
+  - `/var/lib/olympus/secrets/pi/*` were all mode 0600 root, and the container had 0 restarts.
+  - No sentinel value appeared in CLI output.
+  - A follow-up `plan` that added a remote MCP server, run with the OLY-54 branch binary, printed `mcp.json (mcpServers.docs added)`.
+- **Oh My Pi: not verified live.**
+  - First attempt: `apt-get update` in the fetch stage stalled, a TCP connection idle for over 800 s inside the QEMU user-mode network. After the download was killed, `apply` reported `deploy: activation failed; server rolled back`.
+  - Second attempt: the fetch stage got through `apt`, then downloaded the 284,477,616-byte `omp-linux-x64` at about 33 KiB/s, matching the 36 KB/s the host itself got from GitHub's release CDN. The CLI was stopped at its 25-minute cap with about 17 MB fetched.
+  - Still unverified: the SHA-256 check of the binary, `omp --version`, and the config, MCP and skill files in a running container. Rerun when GitHub downloads are faster.

@@ -1,7 +1,8 @@
 # Pi recipe
 
 Sources checked **2026-11-06** against official repository documentation and
-the npm registry.
+the npm registry; the pinned version and install inputs were re-checked against
+the registry and the tagged upstream docs on **2026-11-21**.
 
 ## Checked facts
 
@@ -13,20 +14,31 @@ the npm registry.
   Created by Mario Zechner (`badlogic`), maintained under Earendil Works.
 - **Package.** Published on npm as `@earendil-works/pi-coding-agent`
   (<https://registry.npmjs.org/@earendil-works/pi-coding-agent>).
-- **Version pin.** Pinned to exact version `1.5.0` (`latest` on 2026-11-06).
-  Verified with `npm view @earendil-works/pi-coding-agent@1.5.0 version` → `1.5.0`.
-- **Package scripts & install egress.** Verified with
-  `npm view @earendil-works/pi-coding-agent@1.5.0 scripts`. There is no
-  `postinstall` script downloading external binaries or assets. The package
-  requires Node.js `>=22.19.0` (`npm view @earendil-works/pi-coding-agent@1.5.0 engines`).
+- **Version pin.** `package.json` pins the exact version `1.5.0` (`latest` on
+  2026-11-06), re-checked against the npm registry on 2026-11-21. The committed
+  `package-lock.json` (lockfile v3) pins every transitive package by integrity
+  hash and `npm ci` installs only those packages (OLY-62, ADR 0051). To move the
+  pin, edit `package.json` and run
+  `npm install --package-lock-only --ignore-scripts` here.
+- **Package scripts & install egress.** The pinned package has no install-time
+  script that downloads external binaries or assets (its `scripts` are build and
+  publish helpers only), and its native dependency
+  `@silvia-odwyer/photon-node@0.3.4` declares none. Following upstream's
+  containerization guide, the Dockerfile passes `--ignore-scripts` to `npm ci`
+  so no transitive install script can reach the network. The package requires
+  Node.js `>=22.19.0` (npm registry metadata, re-checked 2026-11-21); the
+  `node:22-bookworm-slim` tag currently carries Node `22.23.5` (image config,
+  re-checked 2026-11-21), and the lock pins its digest.
 - **No official maintained container image.** Upstream documentation
   (`packages/coding-agent/docs/containerization.md` at tag `v1.5.0`,
-  <https://github.com/earendil-works/pi/blob/v1.5.0/packages/coding-agent/docs/containerization.md>)
-  documents containerization with a Dockerfile running
+  <https://github.com/earendil-works/pi/blob/v1.5.0/packages/coding-agent/docs/containerization.md>,
+  re-read 2026-11-21) documents containerization with a Dockerfile running
   `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`. The recipe
-  uses `build` with a recipe-supplied Dockerfile based on `node:22-bookworm-slim`,
-  installing into `--prefix /opt/pi` and putting `/opt/pi/bin` on `PATH` with
-  normalized timestamps, matching `recipes/claude-code` and `recipes/codex`.
+  uses `build` with a recipe-supplied Dockerfile based on `node:22-bookworm-slim`
+  that `COPY`s the two lockfiles and installs them into `/opt/pi` with
+  `npm ci --omit=dev --ignore-scripts`, putting `/opt/pi/node_modules/.bin` on
+  `PATH` with normalized timestamps, matching `recipes/codex` and
+  `recipes/gemini-cli` after OLY-62.
 - **Resources.** Node.js coding agent with QuickJS codemode, ripgrep, and AST parsing.
   Pinned upstream documentation (`packages/coding-agent/docs/containerization.md` at tag `v1.5.0`,
   <https://github.com/earendil-works/pi/blob/v1.5.0/packages/coding-agent/docs/containerization.md>)
@@ -70,9 +82,17 @@ the npm registry.
   It is not a configuration pack for Pi and cannot be layered into Pi as an extension;
   it is packaged separately in `recipes/oh-my-pi`.
 
-## Gaps and unverified items
+## Gaps and lab verification
 
-- **No live lab run.** No QEMU is available on the macOS test harness, so live
-  container execution was not run.
+- **No live lab run for this change.** No QEMU or Docker daemon was available
+  here, so the image build, `pi --version` health check and volume persistence
+  were not exercised; the offline golden covers rendering only.
+- **Lab run to add** on a reset `lab/lab.sh` VM with `source <(lab/lab.sh env)`:
+  apply a single-tool stack using only the `pi` recipe and sentinel secrets, then
+  check `docker compose exec -T pi pi --version` prints `1.5.0`, that
+  `/root/.pi/agent/mcp.json` keeps `${GITHUB_TOKEN}` rather than its value, that
+  the shared skill is readable, that no host port is published, and that
+  `olym destroy` removes the tool while keeping `olympus_pi_home` unless
+  delete-data is requested. Use `-unsafe-dev-activator` with a development CLI.
 - **UNVERIFIED:** live interactive sessions, token consumption against active model
   provider APIs, and WebSocket MCP servers (unsupported by stack format).

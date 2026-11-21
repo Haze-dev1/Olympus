@@ -4,12 +4,51 @@ import (
 	"bytes"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
+
+// TestRecipeBuildInputPins checks that both Pi recipes' generated build context
+// contains the pinned install inputs required by ADR 0051.
+func TestRecipeBuildInputPins(t *testing.T) {
+	for _, tc := range []struct{ dir, tool, file, want string }{
+		{"pi", "pi", "package.json", `"@earendil-works/pi-coding-agent": "1.5.0"`},
+		{"pi", "pi", "package-lock.json", `"lockfileVersion": 3`},
+		{"oh-my-pi", "oh-my-pi", "Dockerfile", "COPY --from=fetch /usr/local/bin/omp /usr/local/bin/omp"},
+	} {
+		t.Run(tc.dir+"/"+tc.file, func(t *testing.T) {
+			dir := filepath.Join("../../testdata", tc.dir)
+			s, d := stack.Load(filepath.Join(dir, "stack.yaml"))
+			if len(d.Errors) > 0 {
+				t.Fatal(d.Errors)
+			}
+			in, errs := Load(s, "../../recipes", dir)
+			if len(errs) > 0 {
+				t.Fatal(errs)
+			}
+			image := in.Recipes[s.Agents[tc.tool].Recipe].Image
+			in.Images = map[string]string{tc.tool: image + "@sha256:" + strings.Repeat("d", 64)}
+			g, err := Build(in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []byte
+			for p, b := range g.Files {
+				if path.Base(p) == tc.file {
+					got = b
+					break
+				}
+			}
+			if !bytes.Contains(got, []byte(tc.want)) {
+				t.Errorf("generated %s does not contain %q", tc.file, tc.want)
+			}
+		})
+	}
+}
 
 // TestRecipeGoldens renders each single-recipe fixture stack with a fake digest
 // for the recipe's own image and compares it with <dir>/golden.

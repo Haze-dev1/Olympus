@@ -1,7 +1,8 @@
 # Oh My Pi recipe
 
 Sources checked **2026-11-06** against official repository documentation and
-GitHub releases.
+GitHub releases; the release checksums and pinned docs were re-checked on
+**2026-11-21**.
 
 ## Checked facts
 
@@ -22,6 +23,13 @@ GitHub releases.
   - `arm64`: `a9423fd7a69d869bf514931226b21d4ff55474225f574e2911fec457fc470e68`
   Downloaded directly from GitHub Releases:
   `https://github.com/can1357/oh-my-pi/releases/download/v18.17.0/omp-linux-${ARCH}`.
+  Re-checked against the release's `SHA256SUMS.txt` on 2026-11-21 (both hashes
+  unchanged). No lockfile is needed: the only downloaded input is this
+  checksum-verified binary.
+- **Build inputs (OLY-62, ADR 0051).** Unpinned `apt` packages (`ca-certificates`,
+  `curl`) stay in a `fetch` stage; the final image starts from the digest-pinned
+  base and only `COPY`s the verified `omp` binary out of that stage, matching
+  `recipes/goose`.
 - **Resources.** Multi-model coding agent with native AST patching and embedded tooling.
   `resources.min_ram: 4GB` is an Olympus sizing choice for coding agents with native AST
   parsing and embedded tooling, matching `recipes/claude-code`, `recipes/codex`, and `recipes/pi`.
@@ -74,9 +82,18 @@ GitHub releases.
   (<https://github.com/can1357/oh-my-pi/blob/v18.17.0/docs/skills.md>).
   The recipe declares `supports.skills.dir: /root/.omp/agent/skills` with `mode: mount`.
 
-## Gaps and unverified items
+## Gaps and lab verification
 
-- **No live lab run.** No QEMU is available on the macOS test harness, so live
-  container execution was not run.
+- **No live lab run for this change.** No QEMU or Docker daemon was available
+  here, so the multi-stage build, `omp --version` health check and volume
+  persistence were not exercised; the offline golden covers rendering only.
+- **Lab run to add** on a reset `lab/lab.sh` VM with `source <(lab/lab.sh env)`:
+  apply a single-tool stack using only the `oh-my-pi` recipe and sentinel
+  secrets, then check `docker compose exec -T oh-my-pi omp --version` prints
+  `18.17.0`, that `/root/.omp/agent/mcp.json` keeps `${GITHUB_TOKEN}` rather than
+  its value, that `config.yml` still has `checkUpdate: false` and `auto: false`,
+  that the shared skill is readable, that no host port is published, and that
+  `olym destroy` removes the tool while keeping `olympus_oh-my-pi_home` unless
+  delete-data is requested. Use `-unsafe-dev-activator` with a development CLI.
 - **UNVERIFIED:** live interactive sessions, token consumption against active model
   provider APIs, and LSP in-process diagnostics.

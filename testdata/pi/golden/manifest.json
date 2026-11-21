@@ -1,17 +1,19 @@
 {
-  "id": "sha256-98a926581e0976f20d6336dcb4fb3573e8e73d38a717baa2199520db806e6ae5",
+  "id": "sha256-1710641ef2a05488b8391ac1203c134dc0c6741973c30a636456a3507e7ed117",
   "inputs": {
-    "recipes": "sha256-12888d26c7c43e3c1cd89f611a37bc10c256f16a3b188969879a529545c20596"
+    "recipes": "sha256-2f16bdfef1459a26c66b061178baa99fecb4ee9dd9a61787c23c5161985b6fab"
   },
   "olym": "0.1.0-dev",
   "tools": {
     "pi": {
       "files": {
-        "/root/.olympus-build/Dockerfile": "sha256-f256d56414728754588e4703d41402494077689f05c7db14f8ab9c5827e142d6",
+        "/root/.olympus-build/Dockerfile": "sha256-8722ca9ef2ef9ae333a40a1036a13f93e9b460c7696d85c048e9e308ad3c126b",
+        "/root/.olympus-build/package-lock.json": "sha256-1c14b81414a5fda61d722505c668f92ab41bf5a137482df4e239435e7a566906",
+        "/root/.olympus-build/package.json": "sha256-07a7507000f2916267578ec673c20ab97e6855e312c7fa581b2ad5c19df3ffe6",
         "/root/.pi/agent/mcp.json": "sha256-cb25d562f30323513dfad7dec91bba1a638dd9d286fcfbb609a29512f60c5775",
         "/root/.pi/agent/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-93090ef29ea63402c6c70e24bc321f574588ace89d2e2ad6fb9166315de05fce",
+      "hash": "sha256-731305dff28114dfdb744e037394a22e6b7c3eb724180d2e715e373ab3a23037",
       "health": {
         "command": [
           "pi",
@@ -19,7 +21,7 @@
         ],
         "timeout": "60s"
       },
-      "image": "olympus/pi:sha256-383520e7f744",
+      "image": "olympus/pi:sha256-c3d316e32bb5",
       "secrets": [
         "github-token",
         "model-key"

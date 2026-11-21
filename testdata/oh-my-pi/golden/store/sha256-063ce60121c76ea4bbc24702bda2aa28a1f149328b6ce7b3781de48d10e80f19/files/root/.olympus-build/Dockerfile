@@ -3,7 +3,9 @@
 # BASE_IMAGE is supplied by the generation from the digest-pinned recipe image;
 # this Dockerfile is content-addressed.
 ARG BASE_IMAGE
-FROM ${BASE_IMAGE}
+# apt packages are not version-pinned, so they stay in this fetch stage; only
+# the checksum-verified binary reaches the final image (OLY-62, ADR 0051).
+FROM ${BASE_IMAGE} AS fetch
 
 # Exact GitHub release verified against api.github.com/repos/can1357/oh-my-pi/releases/tags/v18.17.0, 2026-11-06.
 ARG OMP_VERSION=18.17.0
@@ -26,7 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && curl -fsSLo /usr/local/bin/omp "https://github.com/can1357/oh-my-pi/releases/download/v${OMP_VERSION}/omp-linux-${OMP_ARCH}" \
  && echo "${OMP_SHA256}  /usr/local/bin/omp" | sha256sum -c - \
  && chmod 0755 /usr/local/bin/omp \
- && rm -rf /var/lib/apt/lists/* \
  && touch -d @0 /usr/local/bin/omp
+
+FROM ${BASE_IMAGE}
+COPY --from=fetch /usr/local/bin/omp /usr/local/bin/omp
 
 WORKDIR /root
