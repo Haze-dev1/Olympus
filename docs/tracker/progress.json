@@ -142,6 +142,12 @@
       "file": "features/user-docs.md",
       "updated": "2026-11-06",
       "summary": "OLY-35: user-facing documentation including Quickstart in README.md, command-by-command reference in docs/usage/commands.md derived strictly from CLI output, stack.yaml reference in docs/usage/stack-reference.md derived from JSON Schema and spec, and complete full-stack example in examples/full-stack/stack.yaml."
+    },
+    "lint-baseline": {
+      "status": "in_progress",
+      "file": "features/lint-baseline.md",
+      "updated": "2026-11-21",
+      "summary": "golangci-lint config adapted from Caddy; 55 existing findings listed, 3 security-relevant; lint gates only changed lines until cleared."
     }
   },
   "decisions": [
