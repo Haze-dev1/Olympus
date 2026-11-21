@@ -25,6 +25,13 @@ The first `up` after `down` failed with "VM did not answer on SSH within 3 minut
 
 Evidence: `reset`, then `down` immediately after first boot, then `up`, twice. Shutdowns took 4 and 5 seconds, restarts 9 and 7 seconds; the host key was unchanged and SSH worked after each restart.
 
+## Fix: TestLabM1 after the release activator check (2026-11-21)
+
+- `TestLabM1` failed on `development` at `3e103ef`: `status: exit 1 ... deploy: cannot read activator`. Since OLY-34 a development build given no `-activator` looks for a bundled `olym-activator_linux_<arch>` beside the CLI, and the test passed `-activator` to `apply` but not to `status`. OLY-34 and OLY-61 merged without a lab run, so the break went unnoticed.
+- With that fixed, `status --json` failed to parse: the test read stdout and stderr together, and the development-build warning on stderr came before the JSON.
+- The test now passes `-activator` to `status`, keeps stderr apart from stdout, checks both for sentinel secrets, and prints stderr on a failed exit. No product code changed.
+- Run on Arch (amd64, KVM, Go 1.27.4), fresh `lab/lab.sh reset`: `OLYMPUS_LAB=1 go test -tags=lab ./internal/cli -run '^TestLabM1$'` passed in 115.4 s, covering apply, status, no-op and selective changes, health-failure rollback, CLI kill with autonomous rollback, gc and both destroys. `TestLabDeploy` and `TestLabRealStack` were not run (the real stack needs the private catalog credential).
+
 ## Not done
 
 - The CLI has no setting yet for a custom `known_hosts` path; it lands with the `olym plan` wiring.
