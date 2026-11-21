@@ -57,8 +57,8 @@
     "core-plan-apply": {
       "status": "done",
       "file": "features/core-plan-apply.md",
-      "updated": "2026-11-05",
-      "summary": "M1 full CLI cycle verified on reset Ubuntu lab in 77.902 s: pinned apply/no-op/selective changes, rollback, health failure, contention, real CLI kill, GC and scoped destroy. OLY-30 closed the selective-recreation and revert gaps server-side; the lab was not re-run for it (no QEMU on the current host)."
+      "updated": "2026-11-21",
+      "summary": "M1 full CLI cycle verified on reset Ubuntu lab (TestLabM1 119.9 s on 2026-11-21). OLY-30 closed selective recreation; OLY-54 adds config-key diffs in plan (YAML/TOML/JSON, dotted paths, no values printed), verified live on the lab VM."
     },
     "lock-file": {
       "status": "done",
@@ -112,7 +112,8 @@
     },
     "test-lab": {
       "status": "done",
-      "file": "features/test-lab.md"
+      "file": "features/test-lab.md",
+      "updated": "2026-11-21"
     },
     "deploy": {
       "status": "done",
@@ -142,6 +143,12 @@
       "file": "features/user-docs.md",
       "updated": "2026-11-06",
       "summary": "OLY-35: user-facing documentation including Quickstart in README.md, command-by-command reference in docs/usage/commands.md derived strictly from CLI output, stack.yaml reference in docs/usage/stack-reference.md derived from JSON Schema and spec, and complete full-stack example in examples/full-stack/stack.yaml."
+    },
+    "lint-baseline": {
+      "status": "in_progress",
+      "file": "features/lint-baseline.md",
+      "updated": "2026-11-21",
+      "summary": "golangci-lint config adapted from Caddy; 55 existing findings listed, 3 security-relevant; lint gates only changed lines until cleared."
     }
   },
   "decisions": [

@@ -517,15 +517,15 @@ All client server commands share stack connection settings and the known_hosts s
 
 Resolve `current -> generations/<n>` once and resolve that numbered link to `/var/lib/olympus/store/gen-<manifest-id>`. Read the bounded manifest there, verify its version, identity and canonical hash, then hash each recorded file at `tools/<tool>/files/<container path>` in that same generation with `sha256sum`. An absent current is an empty server; malformed/dangling links, unreadable state and hashing failures are errors. A missing regular file counts as drift. Non-root readers first verify `sudo -n id -u`, then run all generation reads with `sudo -n`. All commands use quoted argument lists; no shell script or write command runs remotely.
 
-Output lists added/removed tools, changed file paths, image changes and drift paths, plus an unchanged count and add/remove/restart totals. Other tool-manifest changes, including health or secret-name changes, use `configuration changed`. File contents, old/new values and semantic managed-key diffs are not printed. Drift makes `--detailed-exitcode` return 2 even when the desired tool manifest is unchanged. Default success is 0; errors are 1.
+Output lists added/removed tools, changed file paths, image changes and drift paths, plus an unchanged count and add/remove/restart totals. For managed config files (YAML/TOML/JSON), `plan` prints which keys are added, changed or removed using dotted paths, falling back to the file path alone if unparsable. Secret values and raw file contents are never printed (rule A1). Other tool-manifest changes, including health or secret-name changes, use `configuration changed`. Drift makes `--detailed-exitcode` return 2 even when the desired tool manifest is unchanged. Default success is 0; errors are 1.
 
-The example below illustrates the wider v1 output, including future semantic and secret-value diffs:
+The example below illustrates the plan output:
 
 ```text
 Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)
 
   + opencode     new tool
-  ~ hermes       config: /opt/data/config.yaml (mcp_servers: +docs)
+  ~ hermes       config: /opt/data/config.yaml (mcp_servers.docs added)
   ~ codex        secret changed: login_token
   ! open-spaces  drift: /app/config.json changed on server
   - old-agent    removed
