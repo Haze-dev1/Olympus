@@ -263,3 +263,25 @@ func mustUnmarshal(t *testing.T, format string, b []byte) any {
 	}
 	return v
 }
+
+// A changed lockfile must change the built image tag, or ADR 0041 would reuse
+// the image built from the old dependency set.
+func TestBuildFilesFeedImageTag(t *testing.T) {
+	in := realInputs(t)
+	g, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock := toolFile(t, g, "codex", "/root/.olympus-build/package-lock.json")
+	if !bytes.Equal(lock, in.Templates["codex"]["package-lock.json"]) {
+		t.Fatal("lockfile is not next to the Dockerfile")
+	}
+	before := g.Manifest.Tools["codex"].Image
+	in.Templates["codex"]["package-lock.json"] = append(append([]byte{}, lock...), ' ')
+	if g, err = Build(in); err != nil {
+		t.Fatal(err)
+	}
+	if after := g.Manifest.Tools["codex"].Image; after == before {
+		t.Fatalf("image tag %s did not change with the lockfile", after)
+	}
+}

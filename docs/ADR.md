@@ -46,15 +46,17 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0039](#0039-configure-hermes-channels-as-environment-variables) | Configure Hermes channels as environment variables | Accepted |
 
 | [0040](#0040-resolve-optional-catalog-refs-to-locked-commits) | Resolve optional catalog refs to locked commits | Accepted |
-| [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted |
+| [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted, amended by 0051 |
 | [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
 | [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032 |
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
 | [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
 | [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
-| [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) | Carry an explicit remote transport for MCP servers | Accepted, amends 0037 |
+| [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) | Carry an explicit remote transport for MCP servers | Accepted, amends 0037, amended by 0050 |
 | [0048](#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build) | Cross-compile release binaries and verify activator checksum against release build | Accepted, amends 0029, amended by 0049 |
 | [0049](#0049-require-an-explicit-opt-in-for-unsigned-development-activators) | Require an explicit opt-in for unsigned development activators | Accepted, amends 0048 |
+| [0050](#0050-honour-or-reject-sse-for-hermes-codex-and-opencode) | Honour or reject SSE for Hermes, Codex and OpenCode | Accepted, amends 0047 |
+| [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage) | Pin built-image inputs with committed lockfiles and a fetch stage | Accepted, amends 0041 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1174,7 +1176,7 @@ No local git executable or new dependency is needed.
 
 ## 0041. Prepare content-addressed built images before starting services
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by 0051
 - **Date:** 2026-10-20
 - **Amends:** [0035](#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile), [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service)
 
@@ -1465,7 +1467,7 @@ The recipe declares no `supports` block. The pinned docs define OpenBot's own lo
 
 ## 0047. Carry an explicit remote transport for MCP servers
 
-- **Status:** Accepted, amends 0037
+- **Status:** Accepted, amends 0037, amended by 0050
 - **Date:** 2026-11-06
 
 ### Context
@@ -1567,6 +1569,71 @@ We will:
 - **Trust any activator whose version string matches:** That is the behaviour F3 reports; a version string is attacker-controlled.
 - **Prompt interactively instead of a flag:** Server commands already run unattended in tests and CI; an interactive prompt would need a second bypass for automation and break the non-interactive `--yes` contract.
 - **Require a trusted expected digest supplied by the user for development:** Useful for advanced users but does not remove the need for a short local override; left as a future option rather than adding a second input format now.
+
+## 0050. Honour or reject SSE for Hermes, Codex and OpenCode
+
+- **Status:** Accepted, amends 0047
+- **Date:** 2026-11-19
+
+### Context
+
+ADR 0047 rendered `transport` only for the `claude-code` and `gemini-cli` styles and left `hermes`, `codex` and `opencode` ignoring it, on the assumption that those tools accept a single remote form. A stack that set `transport: sse` on a server shared with Codex therefore rendered a Streamable HTTP entry that fails at runtime, and `check` said nothing (OLY-58). Checking the pinned upstream source showed the assumption was wrong for two of the three tools:
+
+- Codex `rust-v0.116.0`, `codex-rs/core/src/config/types.rs`: `McpServerTransportConfig` has only `Stdio` and `StreamableHttp`. There is no SSE client.
+- Hermes Agent `v0.22.7`, `tools/mcp_tool_transport.py`: a server entry with `transport: sse` selects the SSE client; otherwise it uses Streamable HTTP and may fall back to SSE.
+- OpenCode `v1.0.196`, `packages/opencode/src/mcp/index.ts`: every `type: remote` entry tries `StreamableHTTPClientTransport` and then `SSEClientTransport`, with no config key choosing between them.
+
+### Decision
+
+We will:
+1. `hermes`: write `transport: sse` next to `url` and `headers` when the stack sets `sse`. Write nothing for `http` or an absent field, so existing output stays byte-identical.
+2. `codex`: fail evaluation for a remote server with `transport: sse`. The error names the tool and the server (`<tool>: MCP <server>: transport sse is not supported by Codex …`).
+3. `opencode`: render unchanged, because OpenCode's own fallback reaches an SSE server.
+
+### Consequences
+
+- No style drops `transport` silently: each one renders it, reaches SSE through its own fallback, or refuses at `check`/`build`.
+- A stack that shares an SSE-only server with Codex must drop that server from Codex or use a Streamable HTTP endpoint.
+- `testdata/golden-real` is unchanged, since it sets no `transport`.
+- Upstream changes to these transports need a recheck when a recipe's pinned version moves.
+
+### Alternatives considered
+
+- **Warn instead of failing for Codex:** The entry cannot work, so a warning would still deploy a broken connection. Failing closed matches how Codex secret rendering already treats what it cannot express.
+- **Write `transport` for OpenCode too:** OpenCode has no such key; an unknown key would be at best ignored and at worst rejected by its config schema.
+- **Always write `transport` for Hermes:** Changes every existing Hermes config for no behaviour change.
+
+## 0051. Pin built-image inputs with committed lockfiles and a fetch stage
+
+- **Status:** Accepted, amends 0041
+- **Date:** 2026-11-19
+
+### Context
+
+Security review finding F2 (OLY-62, rule A7): the recipes that build on the server pinned the base image by digest and the top-level package version, but `npm install -g pkg@X` resolved transitive npm dependencies at build time, and Goose's build installed unpinned apt packages into the shipped image. A later rebuild of the same generation could therefore produce different bytes under the same content-addressed tag. The build context was only the Dockerfile, so a recipe had no way to ship a lockfile.
+
+### Decision
+
+We will:
+1. Add an optional `build.files` list to the recipe format: recipe-folder files copied as generation files next to `build.dst`, under their base names, so they sit in the Compose build context. Names must be confined relative paths and must not repeat each other or the Dockerfile's name.
+2. Feed each build file's name and bytes into the built image tag together with the Dockerfile and base reference, so a changed lockfile changes the tag and is not served by an image reused under ADR 0041. A recipe without `build.files` keeps its previous tag.
+3. Give `codex`, `claude-code` and `gemini-cli` a committed `package.json` (exact top-level version) and `package-lock.json` (every package with an integrity hash, including all platform optional packages), and install with `npm ci --omit=dev`, which refuses a lockfile that does not match.
+4. Make Goose multi-stage: apt and curl run in a `fetch` stage that verifies the release checksum, and only the verified binary is copied into a fresh base stage.
+
+### Consequences
+
+- Every byte that reaches an npm-built image is named by the lock, the committed lockfile or the Dockerfile; npm verifies integrity hashes on install.
+- Moving a pin means editing `package.json` and running `npm install --package-lock-only --ignore-scripts`, then reviewing the lockfile diff.
+- Native install scripts (Claude Code's postinstall, Gemini CLI's optional `node-pty` and `keytar`) still run at build time; their inputs are pinned, but their outputs are not verified byte-for-byte.
+- The base image still carries whatever packages its digest contains; that remains the lock's job.
+- Built-image tags and generation hashes for these four recipes changed once.
+
+### Alternatives considered
+
+- **Record the first built image's digest and refuse a different rebuild:** Docker builds are not byte-reproducible across BuildKit versions and hosts even with fixed inputs, so this would reject legitimate rebuilds; it also detects drift instead of preventing it.
+- **Inline the lockfile into the Dockerfile with a heredoc:** No format change, but a several-hundred-line Dockerfile is hard to review and to regenerate.
+- **Publish prebuilt images:** Out of scope for OLY-62.
+- **Pin apt package versions for Goose:** Debian removes superseded versions from the mirror, so pins break; a fetch stage avoids shipping them at all.
 
 ## Template
 

@@ -24,7 +24,7 @@ The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-cu
 | `secrets` | no | Secret names the tool needs and the environment variable each is delivered as; the stack file provides values |
 | `supports` | no | What shared features the tool accepts (below) |
 | `writable` | no | Managed files the tool rewrites at runtime; delivered by the init service (below) |
-| `build` | no | `src` Dockerfile in the recipe folder and `dst` path inside a volume; the core builds the image with Compose (below) |
+| `build` | no | `src` Dockerfile in the recipe folder and `dst` path inside a volume; optional `files`, recipe-folder files copied next to the Dockerfile (such as an npm lockfile). The core builds the image with Compose (below) |
 | `templates` | no | `source -> destination` pairs for files with no structured form. Never used for YAML, TOML or JSON keys the core manages through `supports` ([ADR 0018](../ADR.md#0018-build-structured-config-as-data-and-publish-json-schemas)). |
 | `hooks.post_install` | no | Command run once inside the container after first start. Escape hatch; prefer declarative fields. |
 | `runtime` | no | Container runtime limits rendered as fixed Compose keys: `shm_size`, `stop_grace_period`, `no_new_privileges` and `seccomp` (below) ([ADR 0045](../ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)). |
@@ -68,13 +68,13 @@ runtime:
 
 The stack defines each MCP server once. The core rewrites its `${NAME}` references to the environment variable of the recipe secret that provides them, then encodes it in the tool's own shape; no secret value is written to a file.
 
-- **Hermes:** `command`, `args`, `env` with `${VAR}`, or `url`, `headers`.
-- **Codex:** `command`, `args`, `env_vars` (variable names only), or `url`, `bearer_token_env_var` / `env_http_headers`. Codex has no interpolation, so anything that is neither a whole variable reference nor an HTTP header reference fails closed.
-- **OpenCode:** `{type: local, command: [...], environment: {VAR: "{env:VAR}"}}`, or `{type: remote, url, headers: {H: "{env:VAR}"}}`.
+- **Hermes:** `command`, `args`, `env` with `${VAR}`, or `url`, `headers`, plus `transport: sse` when the stack asks for SSE (Hermes defaults to Streamable HTTP).
+- **Codex:** `command`, `args`, `env_vars` (variable names only), or `url`, `bearer_token_env_var` / `env_http_headers`. Codex has no interpolation, so anything that is neither a whole variable reference nor an HTTP header reference fails closed. Codex has no SSE client, so a remote server with `transport: sse` fails evaluation.
+- **OpenCode:** `{type: local, command: [...], environment: {VAR: "{env:VAR}"}}`, or `{type: remote, url, headers: {H: "{env:VAR}"}}`. OpenCode tries Streamable HTTP and then SSE for every remote entry, so `transport` adds no key.
 - **Claude Code:** `command`, `args`, `env` with `${VAR}`, or `type`, `url`, `headers`, where `type` is `http` for the default transport or `sse` when the stack asks for it. Claude Code rejects a remote entry without `type`.
 - **Gemini CLI:** `command`, `args`, `env` with `${VAR}`, or `httpUrl` and `headers` for the default transport, or `url` and `headers` for `sse`. Exactly one of the two URL keys is written, because Gemini CLI prefers `httpUrl` and would otherwise ignore the other.
 
-`transport` is meaningless for stdio servers and for tools that only accept one remote form; those recipes ignore it. Only Claude Code and Gemini CLI render it ([ADR 0047](../ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers)).
+`transport` is meaningless for stdio servers. Every style either renders it, falls back to SSE on its own (OpenCode) or rejects `sse` (Codex); none drops it silently ([ADR 0047](../ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers), [0050](../ADR.md#0050-honour-or-reject-sse-for-hermes-codex-and-opencode)).
 
 Compose delivers the actual values as environment variables through `/var/lib/olympus/secrets/<tool>/environment`.
 
@@ -88,11 +88,11 @@ The stack file and the recipe set remain the source of truth: edits the tool mak
 
 `image` must still resolve in a registry so the lock can pin a digest. When `build` is present, the lock pins the base image's digest and Compose builds the tool image on the server from the recipe's Dockerfile:
 
-1. the Dockerfile is a generation file at `build.dst`, bind-mounted read-only;
-2. the service gets a content-addressed local tag, `olympus/<tool>:sha256-<12 hex>`, derived from the Dockerfile bytes and the pinned base reference;
+1. the Dockerfile is a generation file at `build.dst`, bind-mounted read-only, and each `build.files` entry is a generation file with the same base name in the same directory, so the Dockerfile can `COPY` it;
+2. the service gets a content-addressed local tag, `olympus/<tool>:sha256-<12 hex>`, derived from the Dockerfile bytes, each build file's name and bytes, and the pinned base reference;
 3. Compose `build.context` is the directory holding the generated Dockerfile, `build.dockerfile` is its base name, and `BASE_IMAGE` carries the pinned base reference ([ADR 0035](../ADR.md#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile)).
 
-The tool and its init service share the build declaration. Activation pulls with `--ignore-buildable`, builds each missing local image once, then starts with `--no-build --pull never`. Existing built images are reused during rollback. Package installs in recipe Dockerfiles must use exact versions; Codex also fixes build and installed-file timestamps ([ADR 0041](../ADR.md#0041-prepare-content-addressed-built-images-before-starting-services)).
+The tool and its init service share the build declaration. Activation pulls with `--ignore-buildable`, builds each missing local image once, then starts with `--no-build --pull never`. Existing built images are reused during rollback. Package installs in recipe Dockerfiles must pin every package that reaches the image: npm installs use a committed `package-lock.json` with `npm ci`, and unpinned apt packages stay in a fetch stage that copies out only a checksum-verified artifact. Recipes also fix build and installed-file timestamps ([ADR 0041](../ADR.md#0041-prepare-content-addressed-built-images-before-starting-services), [0051](../ADR.md#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage)).
 
 ## Templates
 

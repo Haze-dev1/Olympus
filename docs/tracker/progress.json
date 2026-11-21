@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-08",
+  "updated": "2026-11-19",
   "phase": "implementation",
   "milestones": [
     {
@@ -95,7 +95,7 @@
     "shared-mcps-skills": {
       "status": "done",
       "file": "features/shared-mcps-skills.md",
-      "updated": "2026-10-22",
+      "updated": "2026-11-19",
       "summary": "Real three-tool lab lifecycle passed: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
     },
     "channels": {
@@ -134,8 +134,8 @@
     "security-review": {
       "status": "in_progress",
       "file": "features/security-review.md",
-      "updated": "2026-11-08",
-      "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. Security data-flow note added in docs/security/data-flow.md. F1 live checks, F2 and F4 remain open."
+      "updated": "2026-11-19",
+      "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. Security data-flow note added in docs/security/data-flow.md. OLY-62 fixes F2 offline: npm recipes install from committed lockfiles with npm ci and Goose ships only its verified binary (no image built yet). F1 live checks and F4 remain open."
     },
     "user-docs": {
       "status": "done",
@@ -176,6 +176,8 @@
     "ADR 0044 preflight the server before plan and apply",
     "ADR 0045 recipe runtime limits as fixed Compose keys",
     "ADR 0046 vendor OpenBot's seccomp profile and pin an exact release",
-    "ADR 0048 cross-compile release binaries and verify activator checksum against release build"
+    "ADR 0048 cross-compile release binaries and verify activator checksum against release build",
+    "ADR 0050 honour or reject SSE per MCP style",
+    "ADR 0051 pin built-image inputs with committed lockfiles"
   ]
 }

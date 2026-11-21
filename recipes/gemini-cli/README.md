@@ -56,8 +56,11 @@ than for running the CLI host-side; the documented install is an exact npm
 release. So the recipe uses the existing `build` mechanism (ADR 0035) on
 `node:22-bookworm-slim` and installs the pinned package:
 
-- `ARG GEMINI_CLI_VERSION=0.67.0`, installed to `/opt/gemini-cli` and put on
-  `PATH`; the npm cache is removed and file timestamps normalized so a rebuild
+- `package.json` pins `@google/gemini-cli@0.67.0` and `package-lock.json`
+  pins every transitive package by integrity hash; `npm ci` installs them to
+  `/opt/gemini-cli` and `node_modules/.bin` goes on `PATH` (ADR 0051). To move
+  the pin, edit `package.json` and run
+  `npm install --package-lock-only --ignore-scripts` here; the npm cache is removed and file timestamps normalized so a rebuild
   does not depend on the build clock (ADR 0041).
 - Read-only `BASE_IMAGE` is supplied by the generation from the digest-pinned
   recipe image, so the lock controls the base (A7).

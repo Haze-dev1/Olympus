@@ -104,6 +104,14 @@ func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 			} else {
 				in.Templates[t.Recipe][r.Build.Src] = b
 			}
+			for i, f := range r.Build.Files {
+				b, e := recipe.ReadFile(r.Dir, f)
+				if e != nil {
+					d.Add(fmt.Sprintf("/build/files/%d", i), "cannot read confined build file")
+				} else {
+					in.Templates[t.Recipe][f] = b
+				}
+			}
 		}
 		if rt := r.RuntimeOptions(); rt.Seccomp != "" {
 			b, e := recipe.ReadFile(r.Dir, rt.Seccomp)
@@ -274,7 +282,7 @@ func Build(in Inputs) (*generation.Generation, error) {
 			}
 			translated, err := translateMCP(obj, r.Supports.MCPs.Style)
 			if err != nil {
-				return nil, fmt.Errorf("%s: %w", name, err)
+				return nil, fmt.Errorf("%s: MCP %s: %w", name, mcpName, err)
 			}
 			mcps[mcpName] = translated
 		}
@@ -314,7 +322,19 @@ func Build(in Inputs) (*generation.Generation, error) {
 				return nil, fmt.Errorf("%s: unsafe or colliding build destination", name)
 			}
 			files[r.Build.Dst] = source
-			service.Image = builtImage(name, source, baseRef)
+			// Build files share the Dockerfile's directory, which is the build
+			// context, and feed the image tag so a changed lockfile rebuilds.
+			hashed := source
+			for _, f := range r.Build.Files {
+				content, ok := in.Templates[entry.Recipe][f]
+				dst := path.Join(path.Dir(r.Build.Dst), path.Base(f))
+				if !ok || files[dst] != nil {
+					return nil, fmt.Errorf("%s: missing or colliding build file", name)
+				}
+				files[dst] = content
+				hashed = bytes.Join([][]byte{hashed, []byte(path.Base(f)), content}, []byte{0})
+			}
+			service.Image = builtImage(name, hashed, baseRef)
 			buildDst, buildBase = r.Build.Dst, baseRef
 		}
 		managed := map[string]map[string]any{}
@@ -622,12 +642,20 @@ func translateMCP(obj map[string]any, style string) (map[string]any, error) {
 		if style == "claude-code" {
 			out["type"] = mcpTransport(obj)
 		}
+		// Hermes defaults to Streamable HTTP; only an explicit sse selects its SSE client.
+		if style == "hermes" && mcpTransport(obj) == "sse" {
+			out["transport"] = "sse"
+		}
 		if style == "gemini-cli" && mcpTransport(obj) == "http" {
 			out["httpUrl"] = url
 			delete(out, "url")
 		}
 		return out, nil
 	case "codex":
+		if hasURL && mcpTransport(obj) == "sse" {
+			// Codex 0.116.0 has only stdio and Streamable HTTP transports.
+			return nil, fmt.Errorf("transport sse is not supported by Codex (Streamable HTTP only)")
+		}
 		if hasURL {
 			out := map[string]any{"url": url}
 			headers, _ := obj["headers"].(map[string]any)
@@ -679,6 +707,7 @@ func translateMCP(obj map[string]any, style string) (map[string]any, error) {
 		}
 		return out, nil
 	case "opencode":
+		// OpenCode tries Streamable HTTP, then SSE, for every remote entry, so transport needs no key.
 		if hasURL {
 			out := map[string]any{"type": "remote", "url": url}
 			headers, _ := obj["headers"].(map[string]any)
