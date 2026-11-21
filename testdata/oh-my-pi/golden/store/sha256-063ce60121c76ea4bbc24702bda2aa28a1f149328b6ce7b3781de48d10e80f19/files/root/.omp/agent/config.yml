@@ -1,0 +1,7 @@
+# Olympus-managed Oh My Pi configuration.
+# Oh My Pi rewrites this file (/settings, omp config set), so the recipe marks
+# it writable and Compose copies it into the volume first.
+startup:
+  checkUpdate: false
+update:
+  auto: false
