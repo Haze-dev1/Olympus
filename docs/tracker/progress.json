@@ -112,7 +112,8 @@
     },
     "test-lab": {
       "status": "done",
-      "file": "features/test-lab.md"
+      "file": "features/test-lab.md",
+      "updated": "2026-11-21"
     },
     "deploy": {
       "status": "done",

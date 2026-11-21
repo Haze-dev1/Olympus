@@ -107,7 +107,13 @@ func TestLabM1(t *testing.T) {
 		t.Helper()
 		cmd := exec.CommandContext(ctx, binary, argsFor(command, extra...)...)
 		cmd.Stdin = strings.NewReader("y\n")
-		b, e := cmd.CombinedOutput()
+		// Keep stderr apart so warnings cannot corrupt --json output on stdout.
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		b, e := cmd.Output()
+		if bytes.Contains(stderr.Bytes(), []byte("OLYM_SENTINEL_")) {
+			t.Fatal("secret leaked in CLI stderr")
+		}
 		code := 0
 		if e != nil {
 			if exit, ok := e.(*exec.ExitError); ok {
@@ -120,7 +126,7 @@ func TestLabM1(t *testing.T) {
 			t.Fatal("secret leaked in CLI output")
 		}
 		if code != want {
-			t.Fatalf("%s: exit %d, want %d: %s", command, code, want, b)
+			t.Fatalf("%s: exit %d, want %d: %s%s", command, code, want, b, stderr.Bytes())
 		}
 		t.Logf("%s: exit %d", command, code)
 		return string(b)
@@ -147,7 +153,7 @@ func TestLabM1(t *testing.T) {
 	run("apply", 0, saved, "--yes", "-activator", binary)
 	firstIDs := ids()
 	var status []activate.ToolStatus
-	if err = json.Unmarshal([]byte(run("status", 0, "--json")), &status); err != nil || len(status) != 2 {
+	if err = json.Unmarshal([]byte(run("status", 0, "--json", "-activator", binary)), &status); err != nil || len(status) != 2 {
 		t.Fatalf("status: %v", err)
 	}
 	for _, row := range status {
