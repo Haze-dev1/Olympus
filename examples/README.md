@@ -43,6 +43,8 @@ olym status -f examples/getting-started/01-first-agent/stack.yaml
 
 `olym plan` and `olym apply` connect to the server over SSH. `olym check` runs offline.
 
+`-recipes ./recipes` uses the recipes in your clone of this repository. Leave it out to use the published catalog named in `inputs.recipes` (the default is `github:Haze-dev1/Olympus/recipes`), which Olympus pins in `stack.lock`.
+
 ## Examples
 
 ### Getting started

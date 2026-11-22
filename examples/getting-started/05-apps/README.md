@@ -48,6 +48,6 @@ olym status -f examples/getting-started/05-apps/stack.yaml
 ## What you should see
 
 - `olym check` prints `Stack is valid.`
-- `olym plan` shows one app to create.
+- `olym plan` lists `+ openclaw  new tool` and `1 to add`.
 - `olym apply` connects to the server, installs what is needed, and starts OpenClaw.
 - `olym status` shows `openclaw` as running and healthy.

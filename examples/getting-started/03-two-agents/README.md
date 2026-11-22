@@ -46,6 +46,6 @@ olym status -f examples/getting-started/03-two-agents/stack.yaml
 ## What you should see
 
 - `olym check` prints `Stack is valid.`
-- `olym plan` shows two agents to create.
+- `olym plan` lists `+ hermes` and `+ opencode` as new tools and `2 to add`.
 - `olym apply` connects to the server, installs what is needed, and starts both agents.
 - `olym status` shows `hermes` and `opencode` as running and healthy.

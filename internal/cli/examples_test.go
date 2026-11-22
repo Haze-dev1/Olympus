@@ -36,7 +36,6 @@ func TestExamples(t *testing.T) {
 	}
 
 	for _, stackPath := range stacks {
-		stackPath := stackPath
 		name, err := filepath.Rel(examples, filepath.Dir(stackPath))
 		if err != nil {
 			t.Fatal(err)

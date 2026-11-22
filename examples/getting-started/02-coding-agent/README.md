@@ -45,6 +45,6 @@ olym status -f examples/getting-started/02-coding-agent/stack.yaml
 ## What you should see
 
 - `olym check` prints `Stack is valid.`
-- `olym plan` shows one agent to create.
+- `olym plan` lists `+ codex  new tool` and `1 to add`.
 - `olym apply` connects to the server, installs what is needed, and starts Codex.
 - `olym status` shows `codex` as running and healthy.
