@@ -42,6 +42,7 @@ const (
 	DefaultRetryInterval = 2 * time.Second
 	// DefaultHealthTimeout is the per-tool health timeout from TRD 8.5.
 	DefaultHealthTimeout = 120 * time.Second
+	postInstallTimeout   = 120 * time.Second
 	// DefaultKeep is how many generations `gc` keeps by default.
 	DefaultKeep = 5
 )
@@ -65,6 +66,7 @@ type Clock interface {
 // Runner runs Docker Compose for the "olympus" project. Implementations build
 // argument lists, never shell strings (A2).
 type Runner interface {
+	PostInstall(ctx context.Context, composeFile, tool string, args []string) error
 	Pull(ctx context.Context, composeFile string) error
 	Build(ctx context.Context, composeFile string) error
 	// Recreate starts the named services again with their secret files on
@@ -260,6 +262,9 @@ func (a *Activator) Activate(ctx context.Context, id string) error {
 	if err := a.startWithSecrets(ctx, t, changed); err != nil {
 		return a.revertOrDown(ctx, t, err, bk)
 	}
+	if err := a.postInstall(ctx, t); err != nil {
+		return a.revertOrDown(ctx, t, err, bk)
+	}
 	// A confirmation left behind by an earlier activation is never reused.
 	if err := a.clearConfirm(); err != nil {
 		return a.revertOrDown(ctx, t, err, bk)
@@ -407,6 +412,37 @@ func (a *Activator) startWithSecrets(ctx context.Context, t target, changed []st
 		return fmt.Errorf("start %s: %w", t.id, err)
 	}
 	return a.healthy(ctx, t)
+}
+
+// postInstall runs only on forward activation under the activation lock.
+func (a *Activator) postInstall(ctx context.Context, t target) error {
+	for _, name := range schema.Keys(t.manifest.Tools) {
+		args := t.manifest.Tools[name].PostInstall
+		if len(args) == 0 {
+			continue
+		}
+		marker := filepath.Join(a.root(), "post-install", name)
+		info, err := os.Lstat(marker)
+		if err == nil {
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("invalid post-install completion marker for %s", name)
+			}
+			continue
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("check post-install completion for %s: %w", name, err)
+		}
+		hookCtx, cancel := context.WithTimeout(ctx, postInstallTimeout)
+		err = a.Runner.PostInstall(hookCtx, t.composeFile(), name, args)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("post-install hook for %s: %w", name, err)
+		}
+		if err := writeFile(marker, nil, 0o600); err != nil {
+			return fmt.Errorf("record post-install completion for %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 // revertDown takes the project down when no generation was live before.
@@ -604,7 +640,13 @@ func (a *Activator) load(id string) (target, error) {
 		if !stack.ValidName(tool) {
 			return target{}, fmt.Errorf("activate: generation %s names the tool %q", id, tool)
 		}
-		for _, name := range manifest.Tools[tool].Secrets {
+		declared := manifest.Tools[tool]
+		for i, arg := range declared.PostInstall {
+			if (i == 0 && arg == "") || strings.ContainsRune(arg, 0) {
+				return target{}, fmt.Errorf("activate: tool %s has an invalid post-install argument", tool)
+			}
+		}
+		for _, name := range declared.Secrets {
 			if !safeName(name) {
 				return target{}, fmt.Errorf("activate: tool %s declares the secret name %q", tool, name)
 			}
@@ -1037,7 +1079,7 @@ func (a *Activator) ensureRoot() error {
 	case !info.IsDir():
 		return fmt.Errorf("activate: root %s is not a directory", root)
 	}
-	for _, name := range []string{"store", "generations", "secrets", "log"} {
+	for _, name := range []string{"store", "generations", "secrets", "log", "post-install"} {
 		if err := os.MkdirAll(filepath.Join(root, name), 0o700); err != nil {
 			return fmt.Errorf("activate: %w", err)
 		}

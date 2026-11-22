@@ -2,6 +2,8 @@
 
 ## Development
 
+- OLY-63: run recipe post-install hooks inside the tool container after readiness checks. Record successful hooks by tool name across re-applies, removals and rollbacks. Failed hooks trigger activation rollback. See ADR 0052.
+
 - Corrected the stale "Phase" line in `AGENTS.md`: it said server commands were not implemented, but M1 to M3 are done and verified on the lab VM. It now points at `docs/tracker/progress.json` for current status. No ADR.
 
 - Fixed `TestLabRealStack` reading stderr together with stdout, so the development-build warning no longer breaks `status --json` parsing; both streams are still checked for sentinel secrets. With it, all three lab tests pass on merged `development`: `TestLabDeploy` (127.9 s), `TestLabM1` (118.1 s) and `TestLabRealStack` (1354.5 s, real Hermes, Codex and OpenCode). Test-only change; no ADR.

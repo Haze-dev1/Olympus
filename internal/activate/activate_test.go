@@ -116,6 +116,10 @@ func (r *fakeRunner) Exec(_ context.Context, file, tool string, args []string) e
 	return r.record("exec " + file)
 }
 
+func (r *fakeRunner) PostInstall(ctx context.Context, file, tool string, args []string) error {
+	return r.Exec(ctx, file, tool, args)
+}
+
 func (r *fakeRunner) calls() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1206,5 +1210,66 @@ func TestBuildFailureTakesFirstGenerationDown(t *testing.T) {
 	var rolled *RolledBackError
 	if !errors.As(err, &rolled) || f.runner.count("up") != 0 || f.runner.count("down") != 1 {
 		t.Fatalf("build failure did not stop activation: %v %v", err, f.runner.calls())
+	}
+}
+
+func TestPostInstall(t *testing.T) {
+	for _, name := range []string{"first activation", "reapply and re-add", "failure rolls back"} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			plain := f.addGeneration(t, "plain", map[string]generation.Tool{"other": tool()}, "services: {}\n")
+			hooked := tool()
+			hooked.PostInstall = []string{"setup", "literal ; arg"}
+			id := f.addGeneration(t, "hook", map[string]generation.Tool{"demo": hooked}, "services: {}\n")
+			f.health[id] = map[string]Health{"demo": {Command: []string{"ready"}}}
+
+			switch name {
+			case "first activation":
+				f.runner.hooks["exec"] = func() {
+					if f.checker.count("demo") != 1 {
+						t.Error("post-install ran before the health check")
+					}
+				}
+				f.activate(t, id)
+				if got := f.runner.execs; len(got) != 1 || got[0] != "demo setup literal ; arg" {
+					t.Fatalf("hook calls got %v, want one setup call", got)
+				}
+			case "reapply and re-add":
+				f.activate(t, id)
+				f.activate(t, id)
+				f.activate(t, plain)
+				result := make(chan error, 1)
+				go func() { result <- f.Rollback(context.Background()) }()
+				state := f.waitAwaiting(t)
+				if err := f.Confirm(id, state.Nonce); err != nil {
+					t.Fatal(err)
+				}
+				if err := f.wait(t, result); err != nil {
+					t.Fatal(err)
+				}
+				f.activate(t, plain)
+				f.activate(t, id)
+				if got := f.runner.count("exec"); got != 1 {
+					t.Fatalf("hook count got %d, want 1", got)
+				}
+			case "failure rolls back":
+				f.activate(t, plain)
+				f.runner.fail["exec"] = errors.New("hook failed")
+				result := make(chan error, 1)
+				go func() { result <- f.Activate(context.Background(), id) }()
+				var rolled *RolledBackError
+				if err := f.wait(t, result); !errors.As(err, &rolled) || !strings.Contains(err.Error(), "post-install") {
+					t.Fatalf("activation got %v, want post-install rollback", err)
+				}
+				if got := readlink(t, filepath.Join(f.Root, "current")); got != "generations/1" {
+					t.Fatalf("current got %q, want generations/1", got)
+				}
+				delete(f.runner.fail, "exec")
+				f.activate(t, id)
+				if got := f.runner.count("exec"); got != 2 {
+					t.Fatalf("hook count got %d, want 2", got)
+				}
+			}
+		})
 	}
 }

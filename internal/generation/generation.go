@@ -24,12 +24,14 @@ type HTTPCheck struct {
 	Path string `json:"path"`
 }
 
+// Tool describes a service in the generation manifest.
 type Tool struct {
-	Health  *Health           `json:"health,omitempty"`
-	Hash    string            `json:"hash"`
-	Image   string            `json:"image"`
-	Files   map[string]string `json:"files"`
-	Secrets []string          `json:"secrets"`
+	PostInstall []string          `json:"post_install,omitempty"`
+	Health      *Health           `json:"health,omitempty"`
+	Hash        string            `json:"hash"`
+	Image       string            `json:"image"`
+	Files       map[string]string `json:"files"`
+	Secrets     []string          `json:"secrets"`
 }
 type Manifest struct {
 	Version int               `json:"version"`

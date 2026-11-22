@@ -1,5 +1,5 @@
 {
-  "id": "sha256-7e7939bfba8704343856538714feb010ebd5ba7a3a48aa31837bea0d4d150803",
+  "id": "sha256-8304948673925385bb3bb0acf79b677d294c7e9fe18f19795a6bc0ebc4c0546a",
   "inputs": {
     "recipes": "sha256-994b243ec04d94ac2643dc41c250a411e993b3aa1d46b1deace609f186eea4a9"
   },
@@ -19,6 +19,10 @@
         "timeout": "30s"
       },
       "image": "ghcr.io/example/observatory:1.2.0",
+      "post_install": [
+        "observatory",
+        "initialize"
+      ],
       "secrets": [
         "github-token"
       ]

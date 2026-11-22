@@ -2,6 +2,7 @@ package eval
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"io/fs"
 	"os"
@@ -471,5 +472,24 @@ func TestRuntimeOptions(t *testing.T) {
 	}
 	if changed.Manifest.Tools["research"].Hash == tool.Hash {
 		t.Fatal("changed seccomp profile did not change the tool hash")
+	}
+}
+
+func TestPostInstallManifest(t *testing.T) {
+	g, err := Build(sample(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Tools map[string]struct {
+			PostInstall []string `json:"post_install"`
+		}
+	}
+	if err := json.Unmarshal(g.Files["manifest.json"], &manifest); err != nil {
+		t.Fatal(err)
+	}
+	got := manifest.Tools["research"].PostInstall
+	if want := []string{"observatory", "initialize"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("post-install args got %q, want %q", got, want)
 	}
 }
