@@ -486,7 +486,7 @@ Verification (offline, 2026-11-06, review update 2026-11-08, OLY-62 follow-up 20
 
 Known gaps:
 
-- **Legacy SSE on Pi:** Pi rejects legacy SSE endpoints, so the recipe now declares `supports.mcps.sse: false` and evaluation rejects an explicit `transport: sse` entry with a tool/server-named error ([ADR 0057](../../ADR.md#0057-let-recipes-reject-mcp-transports-they-cannot-use)). Remote MCP servers must provide streamable HTTP endpoints. The earlier silent runtime failure is closed; it was never verified live.
+- **Legacy SSE on Pi:** Pi rejects legacy SSE endpoints, so the recipe now declares `supports.mcps.sse: false` and evaluation rejects an explicit `transport: sse` entry with a tool/server-named error ([ADR 0059](../../ADR.md#0059-let-recipes-reject-mcp-transports-they-cannot-use)). Remote MCP servers must provide streamable HTTP endpoints. The earlier silent runtime failure is closed; it was never verified live.
 - **No live lab run:** No QEMU or Docker daemon on this host, so the image builds, `--version` health checks, config delivery and volume persistence were not exercised. The exact run to add is in both recipe READMEs: a reset `lab/lab.sh` VM, a single-tool stack per recipe with sentinel secrets, `olym apply` with `-unsafe-dev-activator`, then `--version` via `docker compose exec`, config/reference checks, no published port, and scoped `destroy`. Not run here by instruction; the orchestrator runs lab tests.
 - **UNVERIFIED:** live interactive sessions, token consumption against active provider APIs, Pi WebSocket MCP servers (unsupported by the stack format) and OMP in-process LSP diagnostics.
 

@@ -68,7 +68,7 @@ generation never conflicts with its published ports. See
 
 ## Finding 7 follow-up, 2026-11-22
 
-The missing-platforms warning now has an actionable remedy: `olym update` fetches the index for digest-pinned images and verifies its bytes against the pinned digest before writing platforms. `plan` and `apply` still make no registry call for this check. [ADR 0059](../../ADR.md#0059-resolve-platforms-for-digest-pinned-images-on-update) amends 0044; red-before evidence is in [catalog-lock.md](catalog-lock.md). No lab run for this follow-up.
+The missing-platforms warning now has an actionable remedy: `olym update` fetches the index for digest-pinned images and verifies its bytes against the pinned digest before writing platforms. `plan` and `apply` still make no registry call for this check. [ADR 0061](../../ADR.md#0061-resolve-platforms-for-digest-pinned-images-on-update) amends 0044; red-before evidence is in [catalog-lock.md](catalog-lock.md). No lab run for this follow-up.
 
 ## Limits
 

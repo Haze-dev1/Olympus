@@ -49,7 +49,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted, amended by 0051 |
 | [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
 | [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032 |
-| [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted, amended by 0059 |
+| [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted, amended by 0061 |
 | [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
 | [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
 | [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) | Carry an explicit remote transport for MCP servers | Accepted, amends 0037, amended by 0050 |
@@ -62,9 +62,9 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0054](#0054-bound-and-verify-semantic-plan-reads) | Bound and verify semantic plan reads | Accepted |
 | [0055](#0055-bind-managed-init-policy-to-tool-identity) | Bind managed init policy to tool identity | Accepted, amends 0036 |
 | [0056](#0056-keep-npm-lifecycle-scripts-out-of-built-images) | Keep npm lifecycle scripts out of built images | Accepted, amends 0051 |
-| [0057](#0057-let-recipes-reject-mcp-transports-they-cannot-use) | Let recipes reject MCP transports they cannot use | Accepted, amends 0047 and 0050 |
-| [0058](#0058-allow-repeated-argv-entries) | Allow repeated argv entries | Accepted, amends the recipe and stack schemas |
-| [0059](#0059-resolve-platforms-for-digest-pinned-images-on-update) | Resolve platforms for digest-pinned images on update | Accepted, amends 0044 |
+| [0059](#0059-let-recipes-reject-mcp-transports-they-cannot-use) | Let recipes reject MCP transports they cannot use | Accepted, amends 0047 and 0050 |
+| [0060](#0060-allow-repeated-argv-entries) | Allow repeated argv entries | Accepted, amends the recipe and stack schemas |
+| [0061](#0061-resolve-platforms-for-digest-pinned-images-on-update) | Resolve platforms for digest-pinned images on update | Accepted, amends 0044 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1357,7 +1357,7 @@ To make step 3 possible offline, `update` and a lock-creating `check` record the
 index's `os/architecture` pairs in a new optional `platforms` array on each lock
 tool. The field is canonical (sorted, de-duplicated) and validated as
 `os/architecture`. Digest-pinned references originally recorded nothing and
-warned; [0059](#0059-resolve-platforms-for-digest-pinned-images-on-update) now
+warned; [0061](#0061-resolve-platforms-for-digest-pinned-images-on-update) now
 has `update` fetch and verify their index so new locks record platforms.
 
 ### Consequences
@@ -1762,7 +1762,7 @@ All npm-built recipe Dockerfiles install with `npm ci --omit=dev --ignore-script
 - **Add a checksum-verified fetch stage for each native binary:** duplicates npm's integrity-pinned tarballs and adds architecture-specific URLs and hashes for binaries already shipped inside the lock.
 - **Replace the Claude Code bin stub in the recipe:** reimplements upstream platform detection and link logic instead of running the audited script.
 
-## 0057. Let recipes reject MCP transports they cannot use
+## 0059. Let recipes reject MCP transports they cannot use
 
 - **Status:** Accepted, amends [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) and [0050](#0050-honour-or-reject-sse-for-hermes-codex-and-opencode)
 - **Date:** 2026-11-22
@@ -1788,7 +1788,7 @@ A recipe may set `supports.mcps.sse: false`. Evaluation then rejects a remote MC
 - **Reject SSE in the Hermes style:** breaks Hermes, which selects its SSE client on `transport: sse`.
 - **Document the limitation only:** keeps the silent runtime failure the release review found.
 
-## 0058. Allow repeated argv entries
+## 0060. Allow repeated argv entries
 
 - **Status:** Accepted, amends the recipe and stack schema formats
 - **Date:** 2026-11-22
@@ -1812,7 +1812,7 @@ Drop `uniqueItems` from those four argv lists. Keep it on semantic sets where a 
 - **Keep uniqueness and ask users to avoid repeats:** rejects valid invocations with a misleading diagnostic.
 - **Drop uniqueness everywhere:** would allow duplicate volumes, ports and managed files with ambiguous results.
 
-## 0059. Resolve platforms for digest-pinned images on update
+## 0061. Resolve platforms for digest-pinned images on update
 
 - **Status:** Accepted, amends [0044](#0044-preflight-the-server-before-plan-and-apply)
 - **Date:** 2026-11-22
