@@ -30,7 +30,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0022](#0022-atomically-replace-owned-local-build-directories) | Atomically replace owned local build directories | Accepted |
 | [0023](#0023-hash-the-extracted-catalog-tree-in-a-canonical-form) | Hash the extracted catalog tree in a canonical form | Accepted |
 | [0024](#0024-resolve-image-digests-with-the-standard-library) | Resolve image digests with the standard library | Accepted |
-| [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted |
+| [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted, amended by 0052 |
 | [0026](#0026-wire-github-catalogs-and-preserve-local-development-overrides) | Wire GitHub catalogs and preserve local development overrides | Accepted |
 | [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted, amended by 0028 |
 | [0028](#0028-store-health-checks-in-the-generation-manifest) | Store health checks in the generation manifest | Accepted |
@@ -57,6 +57,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0049](#0049-require-an-explicit-opt-in-for-unsigned-development-activators) | Require an explicit opt-in for unsigned development activators | Accepted, amends 0048 |
 | [0050](#0050-honour-or-reject-sse-for-hermes-codex-and-opencode) | Honour or reject SSE for Hermes, Codex and OpenCode | Accepted, amends 0047 |
 | [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage) | Pin built-image inputs with committed lockfiles and a fetch stage | Accepted, amends 0041 |
+| [0053](#0053-select-the-test-lab-guest-os-and-architecture) | Select the test lab guest OS and architecture | Accepted, amends 0025 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -739,6 +740,7 @@ v1 supports public registries with anonymous bearer auth only. Docker credential
 
 - **Status:** Accepted
 - **Date:** 2026-10-19
+- **Amended by:** [0053](#0053-select-the-test-lab-guest-os-and-architecture)
 
 ### Context
 
@@ -1634,6 +1636,31 @@ We will:
 - **Inline the lockfile into the Dockerfile with a heredoc:** No format change, but a several-hundred-line Dockerfile is hard to review and to regenerate.
 - **Publish prebuilt images:** Out of scope for OLY-62.
 - **Pin apt package versions for Goose:** Debian removes superseded versions from the mirror, so pins break; a fetch stage avoids shipping them at all.
+
+## 0053. Select the test lab guest OS and architecture
+
+- **Status:** Accepted
+- **Date:** 2026-11-22
+- **Amends:** [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)
+
+### Context
+
+OLY-32 needs to exercise the supported server distributions and arm64 before release. The lab previously booted only Ubuntu 24.04 amd64.
+
+### Decision
+
+Select Ubuntu 24.04, Ubuntu 22.04 or Debian 12 and amd64 or arm64 through environment variables. Keep Ubuntu 24.04 amd64 as the default and preserve its existing state directory. Store each additional guest's image and VM state in its own directory under `.lab/`. Verify new official cloud images against the publisher's SHA-256 (Ubuntu) or SHA-512 (Debian) manifest before caching them. Boot arm64 with QEMU TCG and local UEFI firmware.
+
+### Consequences
+
+- Each guest retains its own overlay, SSH identity and known hosts across restarts. The same loopback port pair can be reused after shutdown.
+- Arm64 needs a separate QEMU binary and firmware. Emulation takes longer and the deployment test cross-compiles the activator for that guest.
+- The real VPS release checks remain required.
+
+### Alternatives considered
+
+- **Reuse one overlay and SSH state for all guests:** switching images could reopen a different guest's disk or collide with a saved host key.
+- **Use a VPS for each lab configuration:** suitable for release validation, with additional provisioning and cost for local iteration.
 
 ## Template
 

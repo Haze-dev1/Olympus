@@ -563,7 +563,7 @@ Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)
 | Golden | `build` output for sample stacks | Committed expected generations under `testdata/`; byte comparison |
 | Purity | Same inputs → identical output; different secret values → identical output; shuffled map order → identical output | Build twice in one test and compare hashes |
 | Recipe | Every catalog recipe validates and builds; image digests resolve | CI job over `recipes/` |
-| Integration | The full cycle on a real server: apply, re-apply, upgrade, rollback, kill-the-CLI, destroy | The disposable lab VM from `lab/lab.sh` ([ADR 0025](ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)); one real VPS run before release |
+| Integration | The full cycle on a real server: apply, re-apply, upgrade, rollback, kill-the-CLI, destroy | The disposable QEMU lab from `lab/lab.sh` supports selecting Ubuntu 24.04, Ubuntu 22.04 or Debian 12 on amd64 or arm64 ([ADR 0053](ADR.md#0053-select-the-test-lab-guest-os-and-architecture)). A real VPS run is required before release. |
 | Security | Rules A1–A12; leak search using sentinel secret values (`OLYM_SENTINEL_…`) in all output, logs, lock and server files | Integration suite plus the project's security review skill |
 
 Every case in [edgecases/apply.md](edgecases/apply.md) becomes a test at one of these levels, or is listed as a gap.
@@ -632,6 +632,7 @@ Release archives and `SHA256SUMS` carry GitHub build provenance attestations; co
 - [x] Skills: a shared read-only mount for Codex and OpenCode, a copy into the volume for Hermes, selected by `supports.skills.mode` ([ADR 0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
 - [x] Tools that rewrite their own config files: a Compose one-shot init service copies the rendered file into the volume ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
 - [x] Activation prepares missing built images before up and reuses them on rollback ([ADR 0041](ADR.md#0041-prepare-content-addressed-built-images-before-starting-services)).
-- [x] Integration test servers: a local QEMU VM from the Ubuntu cloud image ([ADR 0025](ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)), plus one VPS run before release.
+- [x] Disposable local QEMU lab with selectable Ubuntu and Debian cloud images ([ADR 0053](ADR.md#0053-select-the-test-lab-guest-os-and-architecture)).
+- [ ] Integration run on a real VPS before release.
 - [ ] The final URL scheme for the catalog input and whether `git` is ever required locally.
 - [ ] CLI framework: `cobra` or the standard library.

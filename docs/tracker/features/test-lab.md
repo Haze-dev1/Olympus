@@ -2,9 +2,9 @@
 
 - **Status:** Done
 - **Milestone:** M1 (supports slices 3–5)
-- **Decision:** [ADR 0025](../../ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)
+- **Decisions:** [ADR 0025](../../ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) and [ADR 0053](../../ADR.md#0053-select-the-test-lab-guest-os-and-architecture)
 
-`lab/lab.sh` starts a disposable Ubuntu 24.04 server for testing Olympus against: the official cloud image under QEMU with KVM, cloud-init, a lab-only SSH key and a passwordless-sudo user, reachable only at `127.0.0.1:2222`. Everything lives in `.lab/`.
+`lab/lab.sh` starts a disposable QEMU VM from an official cloud image, with cloud-init, a lab-only SSH identity and a passwordless-sudo user. By default it boots Ubuntu 24.04 amd64 and forwards SSH to `127.0.0.1:2222`. Ubuntu 22.04 and Debian 12 are selectable alongside arm64. All state lives under `.lab/`.
 
 ## Evidence (2026-10-19)
 
@@ -44,3 +44,32 @@ After PRs #37, #44, #45 and #46 merged (`development` at `9af4c04`), on a fresh 
 
 - The CLI has no setting yet for a custom `known_hosts` path; it lands with the `olym plan` wiring.
 - Port exposure from outside, SSH lockout and arm64 still need a VPS run before release.
+
+## OLY-32 local OS matrix (2026-11-22)
+
+QEMU 11.1.2 used TCG on a Linux amd64 host without `/dev/kvm`. Both official
+images passed checksum verification and the guests reported the expected OS
+and `x86_64` over SSH. Each test started with its own fresh reset.
+
+| Guest | Image checksum | TestLabDeploy | TestLabM1 |
+| --- | --- | ---: | ---: |
+| Ubuntu 22.04 amd64 | Ubuntu SHA-256 | Pass, 106.31 s | Pass, 80.83 s |
+| Debian 12 amd64 | Debian SHA-512 | Pass, 157.17 s | Pass, 111.68 s |
+
+- `TestLabDeploy` installed Docker and Compose through sudo, activated and
+  confirmed a generation, and verified rollback of an unconfirmed generation.
+  `TestLabM1` passed the CLI lifecycle and checked for sentinel leaks in CLI
+  output, durable artifacts, activation logs and container logs.
+- Debian's cloud-init 22.4.2 used the HTTP seed via `ds=nocloud-net`, which also
+  worked on Ubuntu 22.04. Debian's first reset took 41.15 s including download
+  and verification, and the cached reset took 8.84 s. Ubuntu took 157.38 s
+  and 15.68 s, respectively. Both VMs stopped and both lab ports were released.
+  [cloud-init NoCloud documentation](https://docs.cloud-init.io/en/22.4.2/topics/datasources/nocloud.html)
+- The selector regression check failed against the baseline and passed with
+  the change. An offline fixture exercised matching and mismatched checksums.
+  Go build, vet, unit tests, race tests, formatting and lint passed. Initial
+  sandbox runs blocked DNS, loopback sockets and writes to the default Go
+  cache. Reruns used network access and a temporary Go cache.
+- Linux arm64 cross-compilation passed. Live arm64 is open because the host
+  had neither the emulator nor AArch64 UEFI firmware. Real VPS and macOS
+  validation remain open. This pass required no Olympus product fixes.
