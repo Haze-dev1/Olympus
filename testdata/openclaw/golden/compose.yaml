@@ -28,7 +28,7 @@ services:
       target: /home/node/.openclaw
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-d5f81f34dde0d75402f490e7eccc120b0d4b131def237709439a87d34156d1c8/files/home/node/.openclaw/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-34b90a1fbc04d5122de6db829e20730d2f9e3d077bf4a26525ea0640267de74a/files/home/node/.openclaw/skills/deploy-checklist/SKILL.md
       target: /home/node/.openclaw/skills/deploy-checklist/SKILL.md
       type: bind
 volumes:

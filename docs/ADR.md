@@ -35,7 +35,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted, amended by 0028, 0032, 0043 and 0052 |
 | [0028](#0028-store-health-checks-in-the-generation-manifest) | Store health checks in the generation manifest | Accepted |
 | [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result) | Verify deployment uploads and retain the activation result | Accepted |
-| [0030](#0030-address-rendered-files-by-tool-hash-across-generations) | Address rendered files by tool hash across generations | Accepted |
+| [0030](#0030-address-rendered-files-by-tool-hash-across-generations) | Address rendered files by tool hash across generations | Accepted, amended by 0058 |
 | [0031](#0031-bind-activation-confirmation-and-saved-plans-to-one-request) | Bind activation confirmation and saved plans to one request | Accepted |
 | [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs) | Fingerprint secrets with a server key and restore partial installs | Accepted |
 | [0033](#0033-record-image-tag-overrides-in-the-image-lock) | Record image tag overrides in the image lock | Accepted |
@@ -60,8 +60,9 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0052](#0052-record-post-install-completion-by-stack-tool-name) | Record post-install completion by stack tool name | Accepted, amends 0027 |
 | [0053](#0053-select-the-test-lab-guest-os-and-architecture) | Select the test lab guest OS and architecture | Accepted, amends 0025 |
 | [0054](#0054-bound-and-verify-semantic-plan-reads) | Bound and verify semantic plan reads | Accepted |
-| [0055](#0055-bind-managed-init-policy-to-tool-identity) | Bind managed init policy to tool identity | Accepted, amends 0036 |
+| [0055](#0055-bind-managed-init-policy-to-tool-identity) | Bind managed init policy to tool identity | Accepted, amends 0036, amended by 0058 |
 | [0056](#0056-keep-npm-lifecycle-scripts-out-of-built-images) | Keep npm lifecycle scripts out of built images | Accepted, amends 0051 |
+| [0058](#0058-make-tool-store-files-readable-to-the-container-user) | Make tool store files readable to the container user | Accepted, amends 0030 and 0055 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -906,6 +907,7 @@ Server commands use the real Compose runner and health checker. Until the separa
 ## 0030. Address rendered files by tool hash across generations
 
 - **Status:** Accepted
+- **Amended by:** [0058](#0058-make-tool-store-files-readable-to-the-container-user)
 - **Date:** 2026-10-20
 - **Amends:** [0021](#0021-keep-the-first-generation-contract-offline), [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result)
 
@@ -1714,6 +1716,7 @@ Plan and apply still report file changes when the installed activator is missing
 ## 0055. Bind managed init policy to tool identity
 
 - **Status:** Accepted, amends [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service)
+- **Amended by:** [0058](#0058-make-tool-store-files-readable-to-the-container-user)
 - **Date:** 2026-11-22
 
 ### Context
@@ -1757,6 +1760,28 @@ All npm-built recipe Dockerfiles install with `npm ci --omit=dev --ignore-script
 - **Leave scripts enabled and document them:** keeps the unpinned execution path in the build and relies on future lockfile reviews to catch new scripts.
 - **Add a checksum-verified fetch stage for each native binary:** duplicates npm's integrity-pinned tarballs and adds architecture-specific URLs and hashes for binaries already shipped inside the lock.
 - **Replace the Claude Code bin stub in the recipe:** reimplements upstream platform detection and link logic instead of running the audited script.
+
+## 0058. Make tool store files readable to the container user
+
+- **Status:** Accepted, amends [0030](#0030-address-rendered-files-by-tool-hash-across-generations) and [0055](#0055-bind-managed-init-policy-to-tool-identity)
+- **Date:** 2026-11-22
+
+### Context
+
+Rendered config and skills were extracted as root-owned 0600 files. A non-root container could not read the resulting bind mounts. The init services that copy managed files also lacked their main service's security options.
+
+### Decision
+
+Stage non-secret tool files as 0644 and their entry directories as 0755 before publishing them. The Olympus root and store directory remain root-owned 0700. Generation metadata and secret files remain 0600, and secret values stay outside the store. Tool identity includes the store policy so the first apply can publish new entries without mutating old ones. Init inherits its tool's security options and copies file contents without preserving store ownership.
+
+### Consequences
+
+The first apply with this policy changes the identity and bind sources of tools with stored files. Rollback to an older generation preserves its original modes and init configuration, including the old non-root readability limitation. A rebuilt stack gets the new behavior. Newly copied files are owned by the effective init user, which matches the tool's user.
+
+### Alternatives considered
+
+- **Chown to the recipe user:** this requires resolving the image's default or named user on the server, and ties the store permissions to an image UID even when a tool can mount the same non-secret data read-only.
+- **Update permissions on reuse:** this mutates published entries and can change the behavior of pre-existing generations.
 
 ## Template
 

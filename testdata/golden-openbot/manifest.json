@@ -1,5 +1,5 @@
 {
-  "id": "sha256-af4edf2776ad823378800911a20a6bae17ee7e0ef435e71178a8e409b9fb1731",
+  "id": "sha256-30dbf7e2f63fa84700c4fe2b2269a9b0b8594d93a70712f55d0bab09a477db9f",
   "inputs": {
     "recipes": "sha256-64e5f7a3e637bc965aa08fc6cb2cf54c06cfda9f551e583390d0907f5eae1795"
   },
@@ -9,7 +9,7 @@
       "files": {
         "/data/.olympus/seccomp.json": "sha256-665289e6a1c41045f55166d0b01993c929f71df78e3a3b264f3252bb8e0b3d9e"
       },
-      "hash": "sha256-3b0528d4f24742062b51b1b5c93e66779001ce3c31c7f425a0810b964539ae55",
+      "hash": "sha256-ef6019b00e686f1948891a40dcc8dfb70154191caabe6f43447fbfc0e052c42d",
       "health": {
         "command": [
           "openbot",

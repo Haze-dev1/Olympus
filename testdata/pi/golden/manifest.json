@@ -1,5 +1,5 @@
 {
-  "id": "sha256-23cefd5a7cb001505d0808c5f2193cfcaf09075e31ceabecf1a174b576709640",
+  "id": "sha256-9792cb666e7666a5262cd112612964e3f3d3c6585d597d18356775f5ff78c3cb",
   "inputs": {
     "recipes": "sha256-2f16bdfef1459a26c66b061178baa99fecb4ee9dd9a61787c23c5161985b6fab"
   },
@@ -13,7 +13,7 @@
         "/root/.pi/agent/mcp.json": "sha256-cb25d562f30323513dfad7dec91bba1a638dd9d286fcfbb609a29512f60c5775",
         "/root/.pi/agent/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-f75a786f8b1a051d07896f04e7eec69d74f28a60b8714dc1580bb39846982582",
+      "hash": "sha256-fa296d358018689ce68d3f0168e3154a23483212d64a98d11431611cdba3a6b5",
       "health": {
         "command": [
           "pi",

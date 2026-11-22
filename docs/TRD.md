@@ -328,8 +328,8 @@ The build directory is tool-owned only when it contains a valid version-1 Olympu
   lock                                    flock target
   lock.json                               who holds the lock: pid, user, command, started
   key                                     32 random bytes, 0600; fingerprints secrets (8.4)
-  store/
-    <tool hash>/files/<container path>    rendered files for one tool
+  store/                              root:root 0700
+    <tool hash>/files/<container path>    0644 non-secret files under 0755 entry directories
     gen-<generation hash>/
       compose.yaml
       manifest.json
@@ -344,9 +344,9 @@ The build directory is tool-owned only when it contains a valid version-1 Olympu
   log/<timestamp>-<command>.log           activator logs
 ```
 
-Local builds mirror tool entries at `store/<tool hash>/files/<container path without leading slash>`. Generation entries upload only `compose.yaml` and `manifest.json`. Tool hashes cover rendered paths/bytes and service configuration before generated config bind mounts are added; their absolute sources are derived from that hash. Unchanged tools therefore keep identical bind sources across generations. See [ADR 0030](ADR.md#0030-address-rendered-files-by-tool-hash-across-generations).
+Local builds mirror tool entries at `store/<tool hash>/files/<container path without leading slash>`. Generation entries upload only `compose.yaml` and `manifest.json`. Tool hashes cover rendered paths/bytes, the tool store policy, and service configuration before generated config bind mounts are added; their absolute sources are derived from that hash. Unchanged tools therefore keep identical bind sources across generations. See [ADR 0030](ADR.md#0030-address-rendered-files-by-tool-hash-across-generations).
 
-Store paths are immutable once written: uploads go to `store/.incoming/<random>/` and are renamed into place only after their hash is verified, so a dropped connection never leaves a half-written entry.
+Store paths are immutable once written: uploads go to `store/.incoming/<random>/` and are renamed into place only after their hash is verified, so a dropped connection never leaves a half-written entry. The root-only store contains rendered non-secret data. See [ADR 0058](ADR.md#0058-make-tool-store-files-readable-to-the-container-user).
 
 ### 7.2 Server preparation
 
@@ -383,7 +383,7 @@ One project named `olympus`, one service per tool:
 - `shm_size:`, `stop_grace_period:` and `security_opt:` come only from the recipe's `runtime` block; `no-new-privileges:true` is opt-in and a seccomp profile is referenced by its `/var/lib/olympus/store/…` path ([ADR 0045](ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)).
 - One project network; tools reach each other by service name. No host networking.
 
-A file a tool rewrites at runtime cannot be a read-only bind. Recipes list it under `writable`; the evaluator removes the bind, and the init service copies the rendered file into the tool's named volume before the tool starts. The stack file remains the source of truth, so tool edits are overwritten on the next apply. Any managed-file copy failure exits the init service and prevents Compose from starting the dependent tool. This replaces the former open question in [section 16](#16-open-technical-questions).
+A file a tool rewrites at runtime cannot be a read-only bind. Recipes list it under `writable`; the evaluator removes the bind, and the init service copies the rendered file into the tool's named volume before the tool starts. Init runs with the tool's user and security options. New copies belong to the effective container user. The stack file remains the source of truth, so tool edits are overwritten on the next apply. Any managed-file copy failure exits the init service and prevents Compose from starting the dependent tool. This replaces the former open question in [section 16](#16-open-technical-questions).
 
 ## 8. Activation
 

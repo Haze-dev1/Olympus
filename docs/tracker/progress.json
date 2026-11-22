@@ -121,7 +121,8 @@
     "deploy": {
       "status": "done",
       "file": "features/deploy.md",
-      "updated": "2026-10-20"
+      "updated": "2026-11-22",
+      "summary": "OLY-68 versions readable non-secret tool store entries and gives managed-copy init services the tool's security options (ADR 0058). Offline validation, the fresh-VM M1 cycle, and the UID 1000 OpenClaw apply and file checks passed."
     },
     "preflight": {
       "status": "done",

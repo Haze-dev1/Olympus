@@ -443,6 +443,7 @@ func TestUnchangedToolKeepsMountSource(t *testing.T) {
 func TestRuntimeOptions(t *testing.T) {
 	in := sample(t)
 	r := in.Recipes["observatory"]
+	r.Writable = []string{"/opt/observatory/config.yaml"}
 	r.Runtime = &recipe.Runtime{ShmSize: "1g", StopGracePeriod: "60s", NoNewPrivileges: true, Seccomp: "profile.json"}
 	in.Templates["observatory"][r.Runtime.Seccomp] = []byte(`{"defaultAction":"SCMP_ACT_ERRNO"}`)
 	g, err := Build(in)
@@ -463,6 +464,20 @@ func TestRuntimeOptions(t *testing.T) {
 		if !strings.Contains(compose, want) {
 			t.Fatalf("compose lacks %q:\n%s", want, compose)
 		}
+	}
+
+	doc, err := encode.Unmarshal("yaml", g.Files["compose.yaml"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	services := object(t, object(t, doc, "compose")["services"], "services")
+	main := object(t, services["research"], "research")
+	init := object(t, services["research-init"], "research-init")
+	if got, want := init["security_opt"], main["security_opt"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("init security_opt = %v, want %v", got, want)
+	}
+	if script := init["entrypoint"].([]any)[2].(string); strings.Contains(script, "cp -a ") {
+		t.Error("init copy preserves the store owner's metadata")
 	}
 
 	in.Templates["observatory"][r.Runtime.Seccomp] = []byte(`{"defaultAction":"SCMP_ACT_ALLOW"}`)

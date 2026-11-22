@@ -218,6 +218,13 @@ func (c *Client) uploadEntry(ctx context.Context, entry string, files map[string
 	if _, err = c.run(ctx, []string{"tar", "-x", "-f", "-", "--no-same-owner", "-C", stage}, &archive); err != nil {
 		return err
 	}
+	// Tool entries contain only rendered files. The store itself is root-only,
+	// while files bind-mounted from it must be readable by the container user.
+	if !strings.HasPrefix(entry, "gen-") {
+		if _, err = c.run(ctx, []string{"chmod", "-R", "u=rwX,go=rX", "--", stage}, nil); err != nil {
+			return err
+		}
+	}
 	if err = c.verifyFiles(ctx, stage, files); err != nil {
 		return err
 	}

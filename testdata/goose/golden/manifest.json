@@ -1,5 +1,5 @@
 {
-  "id": "sha256-ed5593128c9d8547d0937ce14b2f13d03e889035a0ebf29f4cff77342dcdf3ac",
+  "id": "sha256-4a9d04de7fe877c8e53d2dc4756fef6f2340d08fd3016fb405be4037ea860242",
   "inputs": {
     "recipes": "sha256-266f85ffca59ceb0beba07be7e673ba7c1c05a6980c83538ad31652719114c73"
   },
@@ -10,7 +10,7 @@
         "/root/.agents/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0",
         "/root/.olympus-build/Dockerfile": "sha256-0cf4cedc96f787c16d6df003430f0c90bfcc05222026e3b4bcd393e6f8d63875"
       },
-      "hash": "sha256-8299dd8a8fd7f374f26ef155c498cde38278a467a5bf5c51a6581790476cd684",
+      "hash": "sha256-edda755a1c384ec0e208e7529b02ec0060775a50c2cea0947060a39a74fc3408",
       "health": {
         "command": [
           "goose",
