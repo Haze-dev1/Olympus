@@ -27,6 +27,16 @@ func TestLabDeploy(t *testing.T) {
 	if os.Getenv("OLYMPUS_LAB") != "1" {
 		t.Skip("set OLYMPUS_LAB=1 and pass lab.sh env settings")
 	}
+	arch := os.Getenv("OLYMPUS_LAB_ARCH")
+	timeout := 10 * time.Minute
+	switch arch {
+	case "", "amd64":
+		arch = "amd64"
+	case "arm64":
+		timeout = 110 * time.Minute
+	default:
+		t.Fatalf("unsupported OLYMPUS_LAB_ARCH %q", arch)
+	}
 	for _, name := range []string{"OLYMPUS_LAB_HOST", "OLYMPUS_LAB_PORT", "OLYMPUS_LAB_USER", "OLYMPUS_LAB_SSH_KEY", "OLYMPUS_LAB_KNOWN_HOSTS", "XDG_CACHE_HOME"} {
 		if os.Getenv(name) == "" {
 			t.Fatalf("%s is required", name)
@@ -40,7 +50,7 @@ func TestLabDeploy(t *testing.T) {
 	defer c.Conn.Close()
 	// The lab builds a development activator with no embedded release checksum.
 	c.UnsafeDevActivator = true
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	defer cancel()
 	if _, _, err = c.Conn.Run(ctx, remote.Sudo([]string{"docker", "info"}), nil); err == nil {
 		t.Fatal("reset the lab VM first; Docker already exists")
@@ -51,7 +61,7 @@ func TestLabDeploy(t *testing.T) {
 	t.Log("reset VM: Docker and Compose installed through sudo")
 	binary := filepath.Join(t.TempDir(), "olym")
 	build := exec.CommandContext(ctx, "go", "build", "-o", binary, "../../cmd/olym")
-	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64")
+	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH="+arch)
 	if output, e := build.CombinedOutput(); e != nil {
 		t.Fatalf("build: %v %s", e, output)
 	}
