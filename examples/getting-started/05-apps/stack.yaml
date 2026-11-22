@@ -1,0 +1,23 @@
+# The server Olympus will set up over SSH.
+server:
+  # The IP address or hostname of your server.
+  host: 203.0.113.10
+  # The SSH user. It needs root or sudo access.
+  user: root
+  # The SSH port. Defaults to 22 if you leave it out.
+  port: 22
+  # How many old generations to keep on the server.
+  keep: 5
+  # How long the server waits for confirmation after apply.
+  confirm_timeout: 60s
+
+# Apps are non-agent tools. They use the same recipe format as agents.
+apps:
+  # OpenClaw is a personal agent harness.
+  openclaw:
+    # Which recipe to use from the recipes/ directory.
+    recipe: openclaw
+    # Secret values the recipe needs. Values come from .env.
+    secrets:
+      model-key: ${OPENCLAW_MODEL_KEY}
+      gateway-token: ${OPENCLAW_GATEWAY_TOKEN}

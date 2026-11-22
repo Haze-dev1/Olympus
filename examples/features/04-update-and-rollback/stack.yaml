@@ -1,0 +1,26 @@
+# Source repository for Olympus recipes
+inputs:
+  # Official Olympus recipes repository
+  recipes: github:Haze-dev1/Olympus/recipes
+
+# Target server deployment configuration
+server:
+  # Host IP address (TEST-NET placeholder)
+  host: 203.0.113.10
+  # SSH user with root access
+  user: root
+  # Number of past generations to retain during garbage collection
+  keep: 5
+  # Countdown duration the activator waits for confirmation before auto-rollback
+  confirm_timeout: 60s
+
+# Agents deployed on the server
+agents:
+  # Codex coding agent
+  codex:
+    # Recipe name from the catalog
+    recipe: codex
+    # Secrets required by the Codex recipe
+    secrets:
+      # OpenAI API key for model inference
+      api-key: ${CODEX_API_KEY}

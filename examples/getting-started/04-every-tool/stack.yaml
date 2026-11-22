@@ -1,0 +1,53 @@
+# The server Olympus will set up over SSH.
+server:
+  # The IP address or hostname of your server.
+  host: 203.0.113.10
+  # The SSH user. It needs root or sudo access.
+  user: root
+
+# One entry per recipe in recipes/. This shows the full catalog.
+# Each tool is named after its recipe.
+agents:
+  # Aider: a coding agent that works in your terminal.
+  aider:
+    recipe: aider
+
+  # Claude Code: Anthropic's coding agent.
+  claude-code:
+    recipe: claude-code
+
+  # Codex: OpenAI's coding agent.
+  codex:
+    recipe: codex
+
+  # Gemini CLI: Google's coding agent.
+  gemini-cli:
+    recipe: gemini-cli
+
+  # Goose: Block's coding agent.
+  goose:
+    recipe: goose
+
+  # Hermes: a general agent harness.
+  hermes:
+    recipe: hermes
+
+  # Oh My Pi: a coding agent built on Pi.
+  oh-my-pi:
+    recipe: oh-my-pi
+
+  # OpenBot: a self-hosted agent workspace.
+  openbot:
+    recipe: openbot
+
+  # OpenClaw: a personal agent harness.
+  openclaw:
+    recipe: openclaw
+
+  # OpenCode: a coding agent with a web UI.
+  opencode:
+    recipe: opencode
+
+  # Pi: a coding agent.
+  pi:
+    recipe: pi

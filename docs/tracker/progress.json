@@ -146,8 +146,8 @@
     "user-docs": {
       "status": "done",
       "file": "features/user-docs.md",
-      "updated": "2026-11-06",
-      "summary": "OLY-35: user-facing documentation including Quickstart in README.md, command-by-command reference in docs/usage/commands.md derived strictly from CLI output, stack.yaml reference in docs/usage/stack-reference.md derived from JSON Schema and spec, and complete full-stack example in examples/full-stack/stack.yaml."
+      "updated": "2026-11-22",
+      "summary": "OLY-35: user-facing documentation including Quickstart in README.md, command-by-command reference in docs/usage/commands.md derived strictly from CLI output, stack.yaml reference in docs/usage/stack-reference.md derived from JSON Schema and spec, and complete full-stack example in examples/full-stack/stack.yaml. Added getting-started examples (01-first-agent, 02-coding-agent, 03-two-agents, 04-every-tool, 05-apps), examples/README.md with a full index including planned features examples, examples/full-stack/.env.example, and internal/cli/examples_test.go to validate every examples/**/stack.yaml offline."
     },
     "lint-baseline": {
       "status": "done",

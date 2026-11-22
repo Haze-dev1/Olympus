@@ -1,0 +1,46 @@
+# Source repository for Olympus recipes
+inputs:
+  # Official Olympus recipes repository
+  recipes: github:Haze-dev1/Olympus/recipes
+
+# Target server deployment configuration
+server:
+  # Host IP address (TEST-NET placeholder)
+  host: 203.0.113.10
+  # SSH user with root access
+  user: root
+
+# Agents deployed on the server
+agents:
+  # Hermes agent harness connected to chat channels
+  hermes:
+    # Recipe name from the catalog
+    recipe: hermes
+    # Secrets required by the Hermes recipe
+    secrets:
+      # Anthropic API key for model inference
+      model-key: ${ANTHROPIC_API_KEY}
+      # Telegram bot token from @BotFather
+      telegram-token: ${TELEGRAM_BOT_TOKEN}
+      # Discord bot token from Discord Developer Portal
+      discord-token: ${DISCORD_BOT_TOKEN}
+    # Chat channels configured for Hermes
+    channels:
+      # Telegram bot channel configuration
+      telegram:
+        # Bot token variable reference matching secrets.telegram-token
+        token: ${TELEGRAM_BOT_TOKEN}
+        # Authorized numeric Telegram user IDs (usernames like @alice are rejected)
+        allow:
+          - "123456789"
+          - "987654321"
+      # Discord bot channel configuration
+      discord:
+        # Bot token variable reference matching secrets.discord-token
+        token: ${DISCORD_BOT_TOKEN}
+        # Authorized numeric Discord user IDs
+        allow:
+          - "112233445566778899"
+        # Optional list of authorized numeric Discord role IDs
+        roles:
+          - "998877665544332211"

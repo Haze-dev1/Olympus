@@ -1,0 +1,16 @@
+# The server Olympus will set up over SSH.
+server:
+  # The IP address or hostname of your server.
+  host: 203.0.113.10
+  # The SSH user. It needs root or sudo access.
+  user: root
+
+# The agents that should run on the server.
+agents:
+  # "codex" is the name you give this agent.
+  codex:
+    # Which recipe to use from the recipes/ directory.
+    recipe: codex
+    # Secret values the recipe needs. Values come from .env.
+    secrets:
+      api-key: ${CODEX_API_KEY}
