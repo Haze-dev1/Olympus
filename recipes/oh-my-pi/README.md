@@ -84,16 +84,18 @@ GitHub releases; the release checksums and pinned docs were re-checked on
 
 ## Gaps and lab verification
 
-- **No live lab run for this change.** No QEMU or Docker daemon was available
-  here, so the multi-stage build, `omp --version` health check and volume
-  persistence were not exercised; the offline golden covers rendering only.
-- **Lab run to add** on a reset `lab/lab.sh` VM with `source <(lab/lab.sh env)`:
-  apply a single-tool stack using only the `oh-my-pi` recipe and sentinel
-  secrets, then check `docker compose exec -T oh-my-pi omp --version` prints
-  `18.17.0`, that `/root/.omp/agent/mcp.json` keeps `${GITHUB_TOKEN}` rather than
-  its value, that `config.yml` still has `checkUpdate: false` and `auto: false`,
-  that the shared skill is readable, that no host port is published, and that
-  `olym destroy` removes the tool while keeping `olympus_oh-my-pi_home` unless
-  delete-data is requested. Use `-unsafe-dev-activator` with a development CLI.
-- **UNVERIFIED:** live interactive sessions, token consumption against active model
-  provider APIs, and LSP in-process diagnostics.
+- **Lab attempts made 2026-11-21, not completed.** A QEMU VM was available and
+  the recipe was applied twice with a development CLI (`-unsafe-dev-activator`)
+  and sentinel secrets. The first attempt stalled in the fetch stage's
+  `apt-get update` (one TCP connection idle for over 800 s) and rolled back.
+  The second got through `apt` but downloaded the 284,477,616-byte
+  `omp-linux-x64` binary at about 33 KiB/s from GitHub's release CDN and was
+  stopped at the 25-minute cap with about 17 MB fetched. The offline golden
+  covers rendering only.
+- **UNVERIFIED:** the release binary's SHA-256 check during build,
+  `omp --version` in a running container, `/root/.omp/agent/mcp.json` keeping
+  `${GITHUB_TOKEN}` as a reference, `config.yml` seeding
+  `startup.checkUpdate: false` / `update.auto: false`, the shared skill mount,
+  and volume persistence. Rerun when the release download is fast enough.
+- **UNVERIFIED:** live interactive sessions, token consumption against active
+  model provider APIs, and LSP in-process diagnostics.

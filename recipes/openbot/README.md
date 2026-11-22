@@ -1,6 +1,8 @@
 # OpenBot recipe
 
-Sources checked 2026-11-06 against release `v0.62.0` (published 2026-11-05):
+Sources checked 2026-11-06 against release `v0.62.0` (published 2026-11-05);
+the upstream "Not confirmed" list and registry metadata were re-read on
+**2026-11-22**:
 
 - `docs/docker.md`, `docs/self-hosted-server.md`, `docker/compose.yaml`,
   `docker/seccomp.json` and `LICENSE` at
@@ -50,7 +52,9 @@ Sources checked 2026-11-06 against release `v0.62.0` (published 2026-11-05):
   network namespaces. Without it the container stops. Do not replace it with
   `seccomp=unconfined`, `--privileged` or `--no-sandbox`.
 - Health: `openbot status` answers over the container's control socket and
-  needs no sign-in. It reports the version, the account and the server state.
+  reports the version, the account and the server state. The claim that it needs
+  no sign-in is an inference from the control-socket design, not an explicit
+  upstream statement (see UNVERIFIED).
 - Secrets: `XAI_API_KEY`, `CURSOR_API_KEY` and `CLINE_API_KEY` are the only
   provider keys `docs/docker.md` lists as environment variables. Agents inherit
   the environment of OpenBot, so they can read these values. Other providers
@@ -92,15 +96,19 @@ it that way. Root owns the release, so agents cannot change the program.
 
 ## UNVERIFIED
 
-- No lab run: `lab/lab.sh` needs QEMU, which is not available on this machine,
-  so nothing in this recipe has been started against a disposable server. The
-  compose rendering is covered by `internal/eval` golden test
-  `testdata/golden-openbot`.
-- Not tested by upstream either (`docs/docker.md`, "Not confirmed"): `openbot
-  login` inside a container, remote use of a container from the app, Podman,
-  Kubernetes, rootless Docker, hosts that restrict user namespaces with
+- **No lab run in this change.** This recipe was not applied to the disposable
+  QEMU VM, so nothing here was started against a server. Compose rendering is
+  covered by `internal/eval` golden test `testdata/golden-openbot`.
+- **Not confirmed by upstream either.** The "Not confirmed" list in
+  `docs/docker.md` at `v0.62.0`, re-read 2026-11-22, matches these items exactly:
+  `openbot login` inside a container, remote use of a container from the app,
+  Podman, Kubernetes, rootless Docker, hosts that restrict user namespaces with
   AppArmor (Ubuntu 23.10 or newer), Computer Use and remote desktop in the
   container, and agents with Workspace-only access (Codex bubblewrap may fail
   under the default AppArmor profile).
-- The image tag was confirmed through the GHCR registry, not by pulling it;
-  Docker is not installed here.
+- **Image contents not pulled.** The GHCR index, both per-architecture manifests
+  and the `seccomp.json` hash were checked against the release on 2026-11-22,
+  but the image was not pulled in this change, so its contents were not
+  inspected.
+- **`openbot status` without sign-in.** Inferred from the control-socket design;
+  upstream does not state this explicitly.

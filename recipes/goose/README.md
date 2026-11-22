@@ -1,18 +1,23 @@
 # Goose recipe
 
 Sources checked **2026-11-06** against Block / Agentic AI Foundation's Goose
-documentation and repository releases.
+documentation and repository releases; the image and health output were
+re-checked on **2026-11-22**.
 
 ## Checked facts
 
-- **No maintained container image.** Goose documentation describes Docker usage as
-  building from source (`docker-compose build` with a repository Dockerfile in
-  `documentation/docs/docker/Dockerfile`) rather than providing a maintained
-  container image (<https://goose-docs.ai/docs/tutorials/docker/>). Legacy image
-  tags on `ghcr.io/block/goose` stopped at `1.9.0` (January 2025) and
-  `ghcr.io/aaif-goose/goose` stopped at `1.30.0` (April 2026). The recipe
-  therefore uses `build` with a recipe-supplied Dockerfile on
-  `node:22-bookworm-slim`, a registry base image that the lock pins by digest.
+- **Container images.** The docs describe building from source
+  (`documentation/docs/docker/Dockerfile`), but an official image does exist at
+  the pin: `https://ghcr.io/v2/aaif-goose/goose/manifests/1.57.0` returns an OCI
+  index with `linux/amd64`
+  `sha256:e617564e88479da5f279a75be38b2a130fb555b3f08652d0bea1084444c2da8d`
+  and `linux/arm64`
+  `sha256:5634003869fcd0dcfc1093e6ff89501440227ad6eefc153cb828d01025f5e212`
+  (checked 2026-11-22). The older claim that no maintained image existed after
+  `1.30.0` was wrong. The recipe deliberately keeps its checksum-verified binary
+  build: switching to the release image would change the runtime user,
+  entrypoint and config/skills paths, and the build keeps inputs pinned by
+  digest (A7). Source: <https://goose-docs.ai/docs/tutorials/docker/>.
 - **Install.** The documented Linux CLI install downloads precompiled binary
   releases from GitHub Releases (<https://goose-docs.ai/docs/getting-started/installation/>).
   The Dockerfile downloads the exact-version static binary tarball
@@ -25,11 +30,12 @@ documentation and repository releases.
   Verified with:
   `curl -sL https://api.github.com/repos/aaif-goose/goose/releases/tags/v1.57.0 | jq -r .tag_name` → `v1.57.0`.
   Source: <https://github.com/aaif-goose/goose/releases/tag/v1.57.0>.
-- **Resources.** 4 GB+ RAM is standard for local agent execution. The recipe
-  sets `resources.min_ram: 4GB`.
-- **Health.** `goose --version` prints the version (`goose 1.57.0`) and exits 0
-  without requiring credentials or network access. There is no HTTP endpoint for
-  the CLI, so the recipe declares a command health check.
+- **Resources.** Upstream documents no minimum; `resources.min_ram: 4GB` is an
+  Olympus sizing choice for local agent execution, not an upstream requirement.
+- **Health.** `goose --version` exits 0 without credentials or network access.
+  The pinned release binary prints ` 1.57.0` (a leading space, no `goose`
+  prefix), not `goose 1.57.0`; the recipe's command check only needs the zero
+  exit status. There is no HTTP endpoint for the CLI.
 - **Model key and provider.** Goose supports multiple providers (OpenAI, Anthropic,
   Databricks, Ollama, etc.). In Goose, `GOOSE_PROVIDER` and `GOOSE_MODEL` have no
   default and "must be configured" (see `documentation/docs/guides/environment-variables.md`
@@ -80,9 +86,10 @@ the PR.
 
 - **Interactive model request.** No live model inference or session run was
   executed against an active provider API key.
-- **Image build and health check on a real server.** No QEMU lab VM was
-  available for this change, so `docker build` and container execution were
-  not run against a live daemon. Offline generation rendering was verified.
+- **Full stack apply on a server.** `docs/tracker/features/security-review.md`
+  records an arm64 Docker image build and `goose --version` health output on a
+  daemon on 2026-11-19, so the earlier claim that nothing ran against a live
+  daemon was too strong. No full VM apply of this recipe has been recorded.
 
 ## Reproducibility
 
