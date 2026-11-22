@@ -49,7 +49,8 @@ the API-key claim was re-checked against the pinned source on **2026-11-22**:
 `@openai/codex@0.116.0` exists in the
 [npm registry](https://registry.npmjs.org/@openai/codex/0.116.0), checked
 2026-10-20. The recipe installs this exact release, including its exact-version
-platform package. Builds are reproducible in their inputs (base digest, package version,
+platform package. No package in the lock has a lifecycle script, so the Dockerfile
+installs with `npm ci --ignore-scripts` (R5). Builds are reproducible in their inputs (base digest, package version,
 Dockerfile content), not byte-identical: a clean rebuild in the lab produced a
 different image ID even with `SOURCE_DATE_EPOCH=0` and normalized install
 timestamps. On a server, the content-addressed tag means the same generation

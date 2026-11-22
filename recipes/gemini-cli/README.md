@@ -47,7 +47,7 @@ were re-checked on 2026-11-22. Paths are relative to
 | User skills directory | `~/.gemini/skills/` (an `~/.agents/skills/` alias also exists) | `docs/cli/skills.md` |
 | Auto-update default | `general.enableAutoUpdate` defaults to `true` and updates the installed package | `docs/reference/configuration.md` |
 | `/settings` persistence | `/settings` edits are written back to `settings.json` | `docs/cli/settings.md` |
-| npm install egress | npm registry only; no install script reaches another host | root package has no install scripts; `@github/keytar@7.10.6` copies a bundled prebuild and `node-pty@1.0.0` deletes local files (checked 2026-11-22) |
+| npm install egress | npm registry only, with lifecycle scripts off (`--ignore-scripts`) | root package has no install scripts; `@github/keytar@7.10.6` would copy a bundled prebuild and `node-pty@1.0.0` would delete local files, neither needed for `gemini` (checked 2026-11-22, R5) |
 | First-run settings write | no unconditional rewrite: `load()` returns `{}` when the file is missing and a migration writes only when it modified the document; `/settings` persists | `packages/cli/src/config/settings.ts` at `v0.67.0` (checked 2026-11-22) |
 | MCP trust prompt | no user-level MCP server-trust prompt; a first-run folder-trust dialog (`security.folderTrust.enabled=true`) gates stdio servers and asks confirmation per tool call | `docs/tools/mcp-server.md` and `docs/reference/configuration.md` at `v0.67.0` (checked 2026-11-22) |
 
@@ -61,8 +61,9 @@ release. So the recipe uses the existing `build` mechanism (ADR 0035) on
 `node:22-bookworm-slim` and installs the pinned package:
 
 - `package.json` pins `@google/gemini-cli@0.67.0` and `package-lock.json`
-  pins every transitive package by integrity hash; `npm ci` installs them to
-  `/opt/gemini-cli` and `node_modules/.bin` goes on `PATH` (ADR 0051). To move
+  pins every transitive package by integrity hash; `npm ci --ignore-scripts`
+  installs them to `/opt/gemini-cli` and `node_modules/.bin` goes on `PATH`
+  (ADR 0051). To move
   the pin, edit `package.json` and run
   `npm install --package-lock-only --ignore-scripts` here; the npm cache is removed and file timestamps normalized so a rebuild
   does not depend on the build clock (ADR 0041).

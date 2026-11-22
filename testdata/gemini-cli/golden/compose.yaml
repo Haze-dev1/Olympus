@@ -4,7 +4,7 @@ services:
     build:
       args:
         BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-      context: /var/lib/olympus/store/sha256-ec4a5634f59deceb0984968b0602fedbf9b2301fc528bfcc059743a191b24ccb/files/root/.olympus-build
+      context: /var/lib/olympus/store/sha256-df41a635b2159c2adbbbcfe58f29b960f731294c6c273de2ed21c192b765d51b/files/root/.olympus-build
       dockerfile: Dockerfile
     command:
     - sleep
@@ -14,7 +14,7 @@ services:
         condition: service_completed_successfully
     env_file:
     - /var/lib/olympus/secrets/gemini/environment
-    image: olympus/gemini:sha256-f98518958048
+    image: olympus/gemini:sha256-74ac91570b34
     labels:
       org.olympus.tool: gemini
     restart: unless-stopped
@@ -23,33 +23,33 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-ec4a5634f59deceb0984968b0602fedbf9b2301fc528bfcc059743a191b24ccb/files/root/.gemini/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-df41a635b2159c2adbbbcfe58f29b960f731294c6c273de2ed21c192b765d51b/files/root/.gemini/skills/deploy-checklist/SKILL.md
       target: /root/.gemini/skills/deploy-checklist/SKILL.md
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-ec4a5634f59deceb0984968b0602fedbf9b2301fc528bfcc059743a191b24ccb/files/root/.olympus-build/Dockerfile
+      source: /var/lib/olympus/store/sha256-df41a635b2159c2adbbbcfe58f29b960f731294c6c273de2ed21c192b765d51b/files/root/.olympus-build/Dockerfile
       target: /root/.olympus-build/Dockerfile
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-ec4a5634f59deceb0984968b0602fedbf9b2301fc528bfcc059743a191b24ccb/files/root/.olympus-build/package-lock.json
+      source: /var/lib/olympus/store/sha256-df41a635b2159c2adbbbcfe58f29b960f731294c6c273de2ed21c192b765d51b/files/root/.olympus-build/package-lock.json
       target: /root/.olympus-build/package-lock.json
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-ec4a5634f59deceb0984968b0602fedbf9b2301fc528bfcc059743a191b24ccb/files/root/.olympus-build/package.json
+      source: /var/lib/olympus/store/sha256-df41a635b2159c2adbbbcfe58f29b960f731294c6c273de2ed21c192b765d51b/files/root/.olympus-build/package.json
       target: /root/.olympus-build/package.json
       type: bind
   gemini-init:
     build:
       args:
         BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-      context: /var/lib/olympus/store/sha256-ec4a5634f59deceb0984968b0602fedbf9b2301fc528bfcc059743a191b24ccb/files/root/.olympus-build
+      context: /var/lib/olympus/store/sha256-df41a635b2159c2adbbbcfe58f29b960f731294c6c273de2ed21c192b765d51b/files/root/.olympus-build
       dockerfile: Dockerfile
     entrypoint:
     - /bin/sh
     - -c
     - |
       mkdir -p '/root/.gemini' && cp -a '/olympus-init/0' '/root/.gemini/settings.json'
-    image: olympus/gemini:sha256-f98518958048
+    image: olympus/gemini:sha256-74ac91570b34
     labels:
       org.olympus.role: init
       org.olympus.tool: gemini
@@ -59,7 +59,7 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-ec4a5634f59deceb0984968b0602fedbf9b2301fc528bfcc059743a191b24ccb/files/root/.gemini/settings.json
+      source: /var/lib/olympus/store/sha256-df41a635b2159c2adbbbcfe58f29b960f731294c6c273de2ed21c192b765d51b/files/root/.gemini/settings.json
       target: /olympus-init/0
       type: bind
 volumes:

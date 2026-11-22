@@ -1,18 +1,18 @@
 {
-  "id": "sha256-6372d9d0799fb26578a5c657ac581eb64cf097a8153c6ec4eb3aeca860670b8d",
+  "id": "sha256-ace4f02a965e508abc3e22590e8d0eb7513203e2b3af8c8e79abe74bae06dc40",
   "inputs": {
-    "recipes": "sha256-c0c6e80adcd30511a9f698a89e58efcc054e4f95a2eedce852db73e48ea1486f"
+    "recipes": "sha256-dcebb04bce984cb51bdefc17123eaf56d023adda1a193f069281f0fc461960a6"
   },
   "olym": "0.1.0-dev",
   "tools": {
     "codex": {
       "files": {
         "/root/.codex/config.toml": "sha256-2ea2eabdca78723415237f1d5d9109b95f84992b2a6da231b9aba3f17b4873bf",
-        "/root/.olympus-build/Dockerfile": "sha256-7a8472c20b8f8595036b7dfcfb063dbfe188624581131e27bce0012d0f4295dc",
+        "/root/.olympus-build/Dockerfile": "sha256-18a36d800b8debf8060ed4a3fe6891433f5d8714b229c1428e99db1e7ae79f37",
         "/root/.olympus-build/package-lock.json": "sha256-07f71ebc953b423e1b627f79842a0042a5b2f37cac4d4cfe286f32b49401eba2",
         "/root/.olympus-build/package.json": "sha256-b77493f6fd4b00226b3fca9aed37ec462012a4954e4cf596f3adc20a4bb28d0a"
       },
-      "hash": "sha256-f7fe189690b8178313c948147c7cc7c7e464652c649ea498e9cb8d096a852e60",
+      "hash": "sha256-f6538cda6148aa36efa6448315ab2f9cf825b744b9fb0ab3cf8969a253bc469c",
       "health": {
         "command": [
           "codex",
@@ -20,7 +20,7 @@
         ],
         "timeout": "60s"
       },
-      "image": "olympus/codex:sha256-4991b39a5292",
+      "image": "olympus/codex:sha256-3c8bea06f27b",
       "secrets": [
         "api-key",
         "github-token"

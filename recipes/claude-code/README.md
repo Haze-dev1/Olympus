@@ -18,10 +18,10 @@ discovery were re-checked on **2026-11-22**.
   or later).
 - **Install.** `npm install -g @anthropic-ai/claude-code`; the npm package
   requires Node.js 22 or later (<https://code.claude.com/docs/en/setup>). The
-  Dockerfile runs `npm ci` from the committed `package.json` and
-  `package-lock.json` in `/opt/claude-code` and puts `node_modules/.bin` on
-  `PATH`, so every transitive package is pinned by integrity hash (ADR 0051).
-  To move the pin, edit `package.json` and run
+  Dockerfile runs `npm ci --omit=dev --ignore-scripts` from the committed
+  `package.json` and `package-lock.json` in `/opt/claude-code` and puts
+  `node_modules/.bin` on `PATH`, so every transitive package is pinned by
+  integrity hash (ADR 0051). To move the pin, edit `package.json` and run
   `npm install --package-lock-only --ignore-scripts` in this folder.
 - **Version pin.** `@anthropic-ai/claude-code@2.1.318`, the `latest` dist-tag
   on 2026-11-06; `stable` was `2.1.311`.
@@ -33,7 +33,9 @@ discovery were re-checked on **2026-11-22**.
   `install.cjs`, the package's `postinstall` script, only links it into place;
   it does not download from another host. The build therefore needs only the
   npm registry. Checked in the 2.1.318 tarball on 2026-11-06. Do not add
-  `--omit=optional` to the install.
+  `--omit=optional` to the install. npm runs no lifecycle scripts; the
+  Dockerfile invokes only that one audited script by path after `npm ci`,
+  because the package's `bin` is an error stub until it runs (R5).
 - **Health.** `claude --version` prints the installed version
   (<https://code.claude.com/docs/en/setup>). There is no documented HTTP
   endpoint for the CLI, so the recipe uses a command check.

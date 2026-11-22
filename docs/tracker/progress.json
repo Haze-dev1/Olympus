@@ -108,7 +108,7 @@
       "status": "in_progress",
       "file": "features/recipe-catalog.md",
       "updated": "2026-11-22",
-      "summary": "Recipes added with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. Pi installs from a committed package-lock.json and Oh My Pi ships a checksum-verified binary from a fetch stage (ADR 0051). Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). Lab evidence: Pi (2026-11-21) and, from OLY-52 on 2026-11-22, Aider, Claude Code, Gemini CLI and OpenClaw; Oh My Pi's two attempts were blocked by slow GitHub downloads. OLY-52 re-checked all remaining README claims against pinned sources, corrected false statements and kept only truly unverified live model/bot/browser/MCP connections. OLY-25: no Grok bot recipe; the catalog name has no clear referent (see Sources/landscape.md)."
+      "summary": "Recipes added with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. Pi installs from a committed package-lock.json and Oh My Pi ships a checksum-verified binary from a fetch stage (ADR 0051). Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). Lab evidence: Pi (2026-11-21) and, from OLY-52 on 2026-11-22, Aider, Claude Code, Gemini CLI and OpenClaw; Oh My Pi's two attempts were blocked by slow GitHub downloads. OLY-52 re-checked all remaining README claims against pinned sources, corrected false statements and kept only truly unverified live model/bot/browser/MCP connections. OLY-25: no Grok bot recipe; the catalog name has no clear referent (see Sources/landscape.md). OLY-66 disables npm lifecycle scripts in the claude-code, codex and gemini-cli builds; fresh single-tool lab applies with sentinel secrets passed for all three with pinned --version output (ADR 0056)."
     },
     "test-lab": {
       "status": "done",
@@ -137,7 +137,7 @@
       "status": "in_progress",
       "file": "features/security-review.md",
       "updated": "2026-11-22",
-      "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. Security data-flow note added in docs/security/data-flow.md. OLY-62 fixes F2 offline: npm recipes install from committed lockfiles with npm ci and Goose ships only its verified binary (no image built yet). F1 live checks and F4 remain open."
+      "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. Security data-flow note added in docs/security/data-flow.md. OLY-62 fixes F2 offline: npm recipes install from committed lockfiles with npm ci and Goose ships only its verified binary (no image built yet). OLY-66 resolves 2026-11-22 review R5: npm lifecycle scripts disabled in all three npm-built recipes, with audited explicit Claude Code postinstall; lab applies passed with sentinel secrets (ADR 0056). F1 live checks, remaining 2026-11-22 findings and F4 remain open."
     },
     "user-docs": {
       "status": "done",

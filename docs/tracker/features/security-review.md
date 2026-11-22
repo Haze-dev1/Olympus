@@ -1,7 +1,7 @@
 # Security review
 
-- **Status:** In progress — F1 live verification and F4 remain open; F2 fixed offline (OLY-62)
-- **Updated:** 2026-11-08
+- **Status:** In progress — F1 live verification and F4 remain open; F2 fixed offline (OLY-62); 2026-11-22 review R5 resolved (OLY-66)
+- **Updated:** 2026-11-22
 
 OLY-33 records the pre-release source review in [the report](../../security/review-2026-11-06.md). No product fixes were made. ADR reviewed; no decision is introduced by a findings-only review. `govulncheck ./...` found no reachable vulnerabilities and one non-reachable module advisory. Build and vet passed; gofmt was clean; the full suite failed on the three known macOS cases `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, and `TestToolEntryReuseAndVerification`. No QEMU lab, live release or server testing was performed. Relative Markdown links and anchors in `docs/` resolved, and tracker JSON parsed successfully.
 
@@ -31,7 +31,13 @@ Verification evidence:
 
 - 2026-11-19 image build on Docker 29.9.2 (`linux/arm64`, base `node:22-bookworm-slim`, `BASE_IMAGE` passed as the generation does): all four recipe Dockerfiles built, and the health commands printed `codex-cli 0.116.0`, `2.1.318 (Claude Code)`, `0.67.0` (Gemini CLI) and `1.57.0` (Goose). The Goose final image has no `curl`, confirming apt stays in the fetch stage.
 
-Remaining limits: `linux/amd64` builds and a full lab apply were not run (no QEMU); native install scripts still run at build time.
+Remaining limits: `linux/amd64` builds and a full lab apply were not run (no QEMU); native install scripts still run at build time. OLY-66 later removed those scripts (R5 below), so this limit applies only to the 2026-11-19 evidence.
+
+## R5 resolved (2026-11-22, OLY-66)
+
+Finding R5 of [the 2026-11-22 review](../../security/review-2026-11-22.md) — enabled npm lifecycle scripts could add unpinned build inputs — is resolved for `claude-code`, `codex` and `gemini-cli`. All three Dockerfiles install with `npm ci --omit=dev --ignore-scripts`. The install scripts at the pinned tarball versions were read as data: Codex has none; Gemini CLI's keytar prebuild copy and node-pty cleanup are optional helpers the CLI does not need; Claude Code's postinstall only links the platform binary shipped inside an integrity-pinned optional-dependency tarball. Claude Code invokes that single audited script explicitly by path because its `bin` remains an error stub otherwise. [ADR 0056](../../ADR.md#0056-keep-npm-lifecycle-scripts-out-of-built-images) amends 0051.
+
+`TestRecipeNpmInstallScriptsDisabled` failed on all three Dockerfiles before the edit and passes after. Fresh single-tool lab applies with sentinel secrets passed for all three recipes: status `running healthy`, 0 restarts, pinned `claude --version` 2.1.318 / `codex --version` 0.116.0 / `gemini --version` 0.67.0, 0600 per-tool secrets, no published ports and no sentinel in CLI output, store, logs or container logs. Full validation including race and branch-scoped lint passed. Fix-verification result: **fixed** (root cause, no new surface, all instances, legitimate path intact). Dependency advisory scans named in the review remain a separate pre-release task.
 
 ## Security data-flow note (2026-11-08)
 

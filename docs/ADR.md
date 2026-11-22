@@ -56,9 +56,10 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0048](#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build) | Cross-compile release binaries and verify activator checksum against release build | Accepted, amends 0029, amended by 0049 |
 | [0049](#0049-require-an-explicit-opt-in-for-unsigned-development-activators) | Require an explicit opt-in for unsigned development activators | Accepted, amends 0048 |
 | [0050](#0050-honour-or-reject-sse-for-hermes-codex-and-opencode) | Honour or reject SSE for Hermes, Codex and OpenCode | Accepted, amends 0047 |
-| [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage) | Pin built-image inputs with committed lockfiles and a fetch stage | Accepted, amends 0041 |
+| [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage) | Pin built-image inputs with committed lockfiles and a fetch stage | Accepted, amends 0041, amended by 0056 |
 | [0052](#0052-record-post-install-completion-by-stack-tool-name) | Record post-install completion by stack tool name | Accepted, amends 0027 |
 | [0053](#0053-select-the-test-lab-guest-os-and-architecture) | Select the test lab guest OS and architecture | Accepted, amends 0025 |
+| [0056](#0056-keep-npm-lifecycle-scripts-out-of-built-images) | Keep npm lifecycle scripts out of built images | Accepted, amends 0051 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1608,7 +1609,7 @@ We will:
 
 ## 0051. Pin built-image inputs with committed lockfiles and a fetch stage
 
-- **Status:** Accepted, amends 0041
+- **Status:** Accepted, amends 0041, amended by 0056
 - **Date:** 2026-11-19
 
 ### Context
@@ -1627,7 +1628,7 @@ We will:
 
 - Every byte that reaches an npm-built image is named by the lock, the committed lockfile or the Dockerfile; npm verifies integrity hashes on install.
 - Moving a pin means editing `package.json` and running `npm install --package-lock-only --ignore-scripts`, then reviewing the lockfile diff.
-- Native install scripts (Claude Code's postinstall, Gemini CLI's optional `node-pty` and `keytar`) still run at build time; their inputs are pinned, but their outputs are not verified byte-for-byte.
+- Native install scripts (Claude Code's postinstall, Gemini CLI's optional `node-pty` and `keytar`) originally ran at build time with pinned inputs but unverified outputs. [0056](#0056-keep-npm-lifecycle-scripts-out-of-built-images) supersedes that behaviour: lifecycle scripts now stay off.
 - The base image still carries whatever packages its digest contains; that remains the lock's job.
 - Built-image tags and generation hashes for these four recipes changed once.
 
@@ -1685,6 +1686,32 @@ Select Ubuntu 24.04, Ubuntu 22.04 or Debian 12 and amd64 or arm64 through enviro
 
 - **Reuse one overlay and SSH state for all guests:** switching images could reopen a different guest's disk or collide with a saved host key.
 - **Use a VPS for each lab configuration:** suitable for release validation, with additional provisioning and cost for local iteration.
+
+## 0056. Keep npm lifecycle scripts out of built images
+
+- **Status:** Accepted, amends [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage)
+- **Date:** 2026-11-22
+
+### Context
+
+Security review R5 (2026-11-22) noted that ADR 0051 pinned npm tarballs by integrity hash but left their install scripts enabled in the `claude-code`, `codex` and `gemini-cli` builds. A pinned package can still run arbitrary code at build time, and a script that fetches mutable artifacts would make two builds from the same lock differ. Auditing the lockfiles at their pinned versions found: `codex` has no lifecycle scripts; `gemini-cli` has two optional helpers (a keytar prebuild copy and node-pty's local cleanup) that the CLI does not need; `claude-code` has one postinstall that links the platform binary shipped inside an integrity-pinned optional-dependency tarball over a 500-byte error stub. None of the audited scripts downloads anything.
+
+### Decision
+
+All npm-built recipe Dockerfiles install with `npm ci --omit=dev --ignore-scripts`. `codex` and `gemini-cli` need no further steps. `claude-code` invokes its one audited `install.cjs` explicitly by path after the install; it reads only the pinned optional package already in `node_modules` and writes `bin/claude.exe`, with no network access. A future lockfile revision that adds an install script will not run it without a recipe change and review.
+
+### Consequences
+
+- No package lifecycle script runs implicitly during a build; only the explicitly named, audited Claude Code script executes.
+- The Claude Code Dockerfile names one upstream script path, so a release that renames it must be reviewed together with the pin move.
+- The Gemini CLI image no longer copies keytar's bundled prebuild or compiles node-pty; both are optional and the helpers are not needed for CLI startup.
+- The built-image tags and generation hashes for the three recipes changed once; goldens were regenerated.
+
+### Alternatives considered
+
+- **Leave scripts enabled and document them:** keeps the unpinned execution path in the build and relies on future lockfile reviews to catch new scripts.
+- **Add a checksum-verified fetch stage for each native binary:** duplicates npm's integrity-pinned tarballs and adds architecture-specific URLs and hashes for binaries already shipped inside the lock.
+- **Replace the Claude Code bin stub in the recipe:** reimplements upstream platform detection and link logic instead of running the audited script.
 
 ## Template
 
