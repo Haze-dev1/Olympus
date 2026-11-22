@@ -1,7 +1,7 @@
 # Source repository for Olympus recipes pinned to a git reference
 inputs:
   # Catalog URL with an explicit ?ref= query parameter (branch, tag, or commit)
-  recipes: github:Haze-dev1/Olympus/recipes?ref=v1.0.0
+  recipes: github:Haze-dev1/Olympus/recipes?ref=development
 
 # Target server deployment configuration
 server:

@@ -11,7 +11,7 @@ You can specify where recipes are fetched by configuring `inputs.recipes`:
   inputs:
     recipes: github:Haze-dev1/Olympus/recipes
   ```
-- **Pinned to a release tag:**
+- **Pinned to a release tag** (once release tags are published):
   ```yaml
   inputs:
     recipes: github:Haze-dev1/Olympus/recipes?ref=v1.0.0
@@ -33,7 +33,7 @@ When you run `olym check` or `olym update` against a remote catalog, Olympus cre
   "version": 1,
   "inputs": {
     "recipes": {
-      "url": "github:Haze-dev1/Olympus/recipes?ref=v1.0.0",
+      "url": "github:Haze-dev1/Olympus/recipes?ref=development",
       "rev": "9d41b659c03b134d40237c87c88b49e29a8a7e02",
       "hash": "sha256-abc123..."
     }

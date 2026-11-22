@@ -11,9 +11,9 @@ This walkthrough demonstrates the full Olympus deployment lifecycle:
 
 ## The Olympus Generation Model
 
-Olympus deploys infrastructure as immutable, content-addressed **generations** (stored under `/var/lib/olympus/store/gen-<hash>/`). A symlink at `/var/lib/olympus/current` points to the active generation.
+Olympus deploys infrastructure as immutable, content-addressed **generations** (stored under `/var/lib/olympus/store/`). `/var/lib/olympus/current` points to the active generation.
 
-This model enables zero-downtime atomic activations and instant rollbacks.
+Because older generations stay on the server, rolling back does not rebuild anything.
 
 ## Step-by-Step Walkthrough
 
@@ -103,15 +103,11 @@ Only tools whose container image digest or configuration hash changed will be re
 
 Olympus incorporates an automatic safety rollback mechanism (ADR 0017):
 
-1. During `apply`, the server activator starts the new containers and checks their health.
-2. The activator updates `/var/lib/olympus/current` to point to the new generation and arms a countdown timer (`server.confirm_timeout`, default `60s`).
-3. The CLI must disconnect and establish a fresh SSH connection to confirm the deployment.
-4. **If anything fails** (a container crashes or fails health checks, the network disconnects, or the CLI crashes before confirming):
-   - The confirmation countdown expires on the server.
-   - The server activator automatically initiates a rollback by itself.
-   - It restores `/var/lib/olympus/current` to the previous generation.
-   - It restores the previous generation's secret files and restarts previous containers.
-   - Your server safely returns to the working state without manual intervention.
+1. During `apply`, the activator on the server starts the new generation and runs each recipe's health check.
+2. If a health check fails, the activator re-activates the previous generation right away and `apply` exits with an error. `current` never moves.
+3. If the checks pass, the activator waits for confirmation for `server.confirm_timeout` (default `60s`). The CLI opens a **new** SSH connection and runs `olym confirm`, which proves SSH still works after the change.
+4. If no confirmation arrives in time (the network dropped, or the CLI was killed), the activator rolls back by itself: it restarts the previous generation's containers and restores its secret files.
+5. Only after confirmation does the activator point `/var/lib/olympus/current` at the new generation.
 
 ### 7. Manual Rollback (`olym rollback`)
 
