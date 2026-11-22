@@ -24,19 +24,19 @@ cp .env.example .env
 Check the stack file and recipes:
 
 ```sh
-olym check -f examples/getting-started/05-apps/stack.yaml -recipes ./recipes
+olym check -f examples/getting-started/05-apps/stack.yaml
 ```
 
 Preview what Olympus will do on the server:
 
 ```sh
-olym plan -f examples/getting-started/05-apps/stack.yaml -recipes ./recipes
+olym plan -f examples/getting-started/05-apps/stack.yaml
 ```
 
 Apply it to the server:
 
 ```sh
-olym apply -f examples/getting-started/05-apps/stack.yaml -recipes ./recipes
+olym apply -f examples/getting-started/05-apps/stack.yaml
 ```
 
 Check the result:
@@ -47,7 +47,7 @@ olym status -f examples/getting-started/05-apps/stack.yaml
 
 ## What you should see
 
-- `olym check` prints `Stack is valid.`
+- `olym check` prints `Stack is valid.` and writes `stack.lock`, which pins the recipe revision and image digests. Commit it.
 - `olym plan` lists `+ openclaw  new tool` and `1 to add`.
 - `olym apply` connects to the server, installs what is needed, and starts OpenClaw.
 - `olym status` shows `openclaw` as running and healthy.

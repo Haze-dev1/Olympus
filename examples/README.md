@@ -17,22 +17,22 @@ cp examples/getting-started/01-first-agent/.env.example examples/getting-started
 
 ## Run an example
 
-From the repository root, check the stack file and recipes:
+Check the stack file, fetch the recipes and write `stack.lock`:
 
 ```sh
-olym check -f examples/getting-started/01-first-agent/stack.yaml -recipes ./recipes
+olym check -f examples/getting-started/01-first-agent/stack.yaml
 ```
 
 Preview the changes on the server:
 
 ```sh
-olym plan -f examples/getting-started/01-first-agent/stack.yaml -recipes ./recipes
+olym plan -f examples/getting-started/01-first-agent/stack.yaml
 ```
 
 Apply the stack to the server:
 
 ```sh
-olym apply -f examples/getting-started/01-first-agent/stack.yaml -recipes ./recipes
+olym apply -f examples/getting-started/01-first-agent/stack.yaml
 ```
 
 Check what is running:
@@ -43,7 +43,11 @@ olym status -f examples/getting-started/01-first-agent/stack.yaml
 
 `olym plan` and `olym apply` connect to the server over SSH. `olym check` runs offline.
 
-`-recipes ./recipes` uses the recipes in your clone of this repository. Leave it out to use the published catalog named in `inputs.recipes` (the default is `github:Haze-dev1/Olympus/recipes`), which Olympus pins in `stack.lock`.
+The first `olym check` fetches the recipe catalog named in `inputs.recipes` (default `github:Haze-dev1/Olympus/recipes`) and writes `stack.lock`, which pins the catalog revision and every image digest. `apply` needs that lock. Commit it next to `stack.yaml`.
+
+To validate an example offline from a clone of this repository, add `-recipes ./recipes` to `check` or `build`. That path writes no lock, so use it for validation only.
+
+> The catalog on the default branch currently ships Hermes, Codex and OpenCode. Examples that use other recipes need `inputs.recipes: github:Haze-dev1/Olympus/recipes?ref=development` until the next release.
 
 ## Examples
 

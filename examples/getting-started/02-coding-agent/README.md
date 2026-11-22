@@ -21,19 +21,19 @@ cp .env.example .env
 Check the stack file and recipes:
 
 ```sh
-olym check -f examples/getting-started/02-coding-agent/stack.yaml -recipes ./recipes
+olym check -f examples/getting-started/02-coding-agent/stack.yaml
 ```
 
 Preview what Olympus will do on the server:
 
 ```sh
-olym plan -f examples/getting-started/02-coding-agent/stack.yaml -recipes ./recipes
+olym plan -f examples/getting-started/02-coding-agent/stack.yaml
 ```
 
 Apply it to the server:
 
 ```sh
-olym apply -f examples/getting-started/02-coding-agent/stack.yaml -recipes ./recipes
+olym apply -f examples/getting-started/02-coding-agent/stack.yaml
 ```
 
 Check the result:
@@ -44,7 +44,7 @@ olym status -f examples/getting-started/02-coding-agent/stack.yaml
 
 ## What you should see
 
-- `olym check` prints `Stack is valid.`
+- `olym check` prints `Stack is valid.` and writes `stack.lock`, which pins the recipe revision and image digests. Commit it.
 - `olym plan` lists `+ codex  new tool` and `1 to add`.
 - `olym apply` connects to the server, installs what is needed, and starts Codex.
 - `olym status` shows `codex` as running and healthy.

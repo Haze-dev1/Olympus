@@ -60,7 +60,7 @@ Adds user-facing documentation for Olympus (OLY-35): a Quickstart in `README.md`
 
 ## Evidence, 2026-11-22
 
-Added getting-started examples and an offline validation test for all example stacks.
+Added `examples/` (getting-started by opencode, features by agy, reviewed by Claude) and an offline validation test for every example stack.
 
 1. **Examples added:**
    - `examples/README.md`: setup, run commands, and an index table covering getting-started, planned `examples/features/*` examples, and `examples/full-stack/`.
@@ -73,7 +73,11 @@ Added getting-started examples and an offline validation test for all example st
 
 2. **Validation test:**
    - Added `internal/cli/examples_test.go` (`TestExamples`). It walks `examples/**/stack.yaml`, copies each example to a temp dir, writes `.env` from `.env.example` or synthesizes fake values from `${NAME}` refs, then runs `olym check` and `olym build` with `-recipes ./recipes`.
-   - The test picks up future `examples/features/*` stacks automatically.
+   - The test picks up `examples/features/*` automatically: 12 subtests pass (full-stack, 5 getting-started, 6 features).
+
+   **Review fixes:** restored 2-space indent in `progress.json` (the worker had reindented the whole file); matched expected `plan` output to the real CLI (`+ <tool>  new tool`); `06-catalog-pin` used a nonexistent `?ref=v1.0.0` and now uses `?ref=development`; the rollback walkthrough wrongly said `current` moves before confirmation and cited a `--no-confirm` flag the CLI does not have, both corrected. Found live: `check -recipes` writes no `stack.lock` and `apply` then fails with `apply requires digest-pinned images`, so run commands no longer pass `-recipes`; the READMEs say `-recipes ./recipes` is for offline validation only.
+
+   **Catalog gap:** the default branch (`main`) ships only Hermes, Codex and OpenCode, so examples using other recipes need `?ref=development` until `development` is promoted. `examples/README.md` says so.
 
 3. **Verification:**
    - `go run ./cmd/olym check -f examples/getting-started/01-first-agent/stack.yaml -recipes ./recipes` with `.env.example` copied to `.env`: `Stack is valid.`; build produced `sha256-1982ce76ab69664110ac589f5093412570071a64dd4074f785f7d89c96c4bb58`. `.env` removed.
@@ -86,5 +90,10 @@ Added getting-started examples and an offline validation test for all example st
    - `go test ./...`: PASS.
    - `gofmt -l .`: empty.
    - `golangci-lint run ./...`: 0 issues.
+
+   **Live (lab VM, Ubuntu 24.04, sentinel `.env.example` values, catalog `?ref=development` resolved to `7c27562`):**
+   - `getting-started/01-first-agent`: check wrote `stack.lock` (tools `hermes`); plan, apply, status (`hermes running healthy`), re-apply `No changes.`, destroy all exit 0.
+   - `features/05-multi-agent-team`: check wrote `stack.lock` (claude, codex, hermes, opencode); plan, apply exit 0; status shows all four `running healthy`; re-apply `No changes.`; destroy exit 0, volumes kept. No sentinel value in any output.
+   - Not run live: the other ten examples (offline check and build only), real chat or model calls.
 
 4. **ADR:** No ADR change warranted. This adds documentation, examples, and a validation test; it does not change architecture, file formats, durable behavior, or an important tradeoff.

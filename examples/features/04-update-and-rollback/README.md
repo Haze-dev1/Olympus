@@ -28,7 +28,7 @@ cp .env.example .env
 Validate the stack offline:
 
 ```sh
-olym check -f stack.yaml -recipes ../../../recipes
+olym check -f stack.yaml
 ```
 
 `check` validates your YAML syntax, verifies recipes, and creates `stack.lock` if it does not already exist.

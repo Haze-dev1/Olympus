@@ -52,13 +52,13 @@ Set the required environment variables:
 Validate the stack offline:
 
 ```sh
-olym check -f stack.yaml -recipes ../../../recipes
+olym check -f stack.yaml
 ```
 
 Build the local generation:
 
 ```sh
-olym build -f stack.yaml -recipes ../../../recipes -o /tmp/build-03
+olym build -f stack.yaml -o /tmp/build-03
 ```
 
 Preview server changes:
@@ -83,7 +83,6 @@ olym status -f stack.yaml
 
 - `olym check` confirms the stack is valid and passes channel validation:
   ```
-  Local -recipes override: skipping the lock's catalog pin.
   Stack is valid.
   ```
 - `olym status` shows `hermes` running and healthy.

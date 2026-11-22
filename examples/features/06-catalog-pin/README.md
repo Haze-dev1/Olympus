@@ -87,7 +87,8 @@ When `-recipes` is provided:
 - GitHub network requests are skipped.
 - Catalog extraction limits (10,000 tar entries, 272 MiB expanded data) are skipped.
 - The build manifest records a local content hash instead of a remote git revision.
-- Note: `olym update -recipes` is refused because `update` is strictly intended for remote sources.
+- `check` does not write `stack.lock`, and `apply` refuses to run without digest-pinned images. Run `olym check` once without `-recipes` (or `olym update`) to create the lock first.
+- `olym update -recipes` is refused because `update` only works with remote sources.
 
 ## What You Need
 
@@ -102,28 +103,28 @@ Set the required environment variables:
 
 ## Commands
 
-Validate using the local recipe override:
+Validate against the pinned catalog. This fetches it from GitHub and writes `stack.lock`:
 
 ```sh
-olym check -f stack.yaml -recipes ../../../recipes
+olym check -f stack.yaml
 ```
 
 Build the local generation:
 
 ```sh
-olym build -f stack.yaml -recipes ../../../recipes -o /tmp/build-06
+olym build -f stack.yaml -o /tmp/build-06
 ```
 
 Preview changes against your server:
 
 ```sh
-olym plan -f stack.yaml -recipes ../../../recipes
+olym plan -f stack.yaml
 ```
 
 Deploy:
 
 ```sh
-olym apply -f stack.yaml -recipes ../../../recipes
+olym apply -f stack.yaml
 ```
 
 Check status:
@@ -134,14 +135,7 @@ olym status -f stack.yaml
 
 ## What You Should See
 
-- `olym check` reports:
-  ```
-  Local -recipes override: skipping the lock's catalog pin.
-  Stack is valid.
-  ```
-- `olym build` outputs:
-  ```
-  Local -recipes override: skipping the lock's catalog pin.
-  Built sha256-...
-  ```
-- The generated manifest in `/tmp/build-06/store/manifest.json` uses the locked tool configuration and pinned recipe settings.
+- `olym check` prints `Stack is valid.` and writes `stack.lock` with the resolved `rev` for `?ref=development`.
+- `olym build` prints `Built sha256-...`.
+- `olym plan` lists `+ hermes  new tool`.
+- `olym status` shows `hermes` running and healthy.

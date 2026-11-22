@@ -52,13 +52,13 @@ Set the required environment variables:
 Validate the stack offline:
 
 ```sh
-olym check -f stack.yaml -recipes ../../../recipes
+olym check -f stack.yaml
 ```
 
 Build the local generation to inspect the rendered configs:
 
 ```sh
-olym build -f stack.yaml -recipes ../../../recipes -o /tmp/build-01
+olym build -f stack.yaml -o /tmp/build-01
 ```
 
 Inspect the rendered configs in `/tmp/build-01/store/`:
@@ -87,7 +87,6 @@ olym status -f stack.yaml
 
 - `olym check` confirms:
   ```
-  Local -recipes override: skipping the lock's catalog pin.
   Stack is valid.
   ```
 - `olym plan` reports:

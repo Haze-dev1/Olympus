@@ -89,13 +89,13 @@ Set the required environment variables:
 Validate the stack offline:
 
 ```sh
-olym check -f stack.yaml -recipes ../../../recipes
+olym check -f stack.yaml
 ```
 
 Build the local generation:
 
 ```sh
-olym build -f stack.yaml -recipes ../../../recipes -o /tmp/build-05
+olym build -f stack.yaml -o /tmp/build-05
 ```
 
 Preview server changes:
@@ -120,7 +120,6 @@ olym status -f stack.yaml
 
 - `olym check` confirms:
   ```
-  Local -recipes override: skipping the lock's catalog pin.
   Stack is valid.
   ```
 - `olym apply` starts all four agent containers and verifies health checks.

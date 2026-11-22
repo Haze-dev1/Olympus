@@ -14,23 +14,23 @@ This stack is for checking and learning the layout. Running all of these tools o
 Check the stack file and recipes:
 
 ```sh
-olym check -f examples/getting-started/04-every-tool/stack.yaml -recipes ./recipes
+olym check -f examples/getting-started/04-every-tool/stack.yaml
 ```
 
 Preview what Olympus will do on the server:
 
 ```sh
-olym plan -f examples/getting-started/04-every-tool/stack.yaml -recipes ./recipes
+olym plan -f examples/getting-started/04-every-tool/stack.yaml
 ```
 
 Build the generation locally without touching a server:
 
 ```sh
-olym build -f examples/getting-started/04-every-tool/stack.yaml -recipes ./recipes -o /tmp/olympus-every-tool
+olym build -f examples/getting-started/04-every-tool/stack.yaml -o /tmp/olympus-every-tool
 ```
 
 ## What you should see
 
-- `olym check` prints `Stack is valid.`
+- `olym check` prints `Stack is valid.` and writes `stack.lock`, which pins the recipe revision and image digests. Commit it.
 - `olym plan` shows one entry for each recipe.
 - `olym build` writes a generation with the rendered Compose file and configs.
