@@ -59,3 +59,9 @@ No live GitHub, private repository or registry requests were made. Private regis
 ## OLY-65 extraction budgets, 2026-11-22
 
 The downloader caps the complete expanded stream at 272 MiB, including skipped content and the archive suffix. Extraction caps logical entries at 10,000 before filtering, including directories, and keeps the existing per-file and written-tree budgets. Go consumes extension metadata internally under the expanded cap. `TestExpandedArchiveBudget` and `TestArchiveEntryBudget` pass. ADR review found no separate decision needed for this extraction limit change. The lock and tree hash formats stay the same.
+
+## Release-review findings 6 and 7, 2026-11-22
+
+Finding 6 needed no code change: the intended R2 limits and their exact errors (`catalog: extract {owner repo recipes }: tarball has more than 10000 entries` and `catalog: extract {owner repo recipes }: expanded tarball exceeds 285212672 bytes`) are now in [the stack-file spec](../../specs/stack-file.md), [commands](../../usage/commands.md) and [the stack reference](../../usage/stack-reference.md).
+
+Finding 7 changed `internal/lock.Resolve`: a digest-pinned reference fetches its index by digest, verifies the bytes hash to the pin, and returns the sorted platforms. The lock writer stores them, so `olym update` clears the preflight warning. Red-before `TestResolvePinnedImage` failed on the old code with empty platforms and accepted a mismatched registry body; it passes with the fix, as do the tag-resolution cases. [ADR 0059](../../ADR.md#0059-resolve-platforms-for-digest-pinned-images-on-update) amends 0044. No live registry or lab run; fake registries cover both paths.

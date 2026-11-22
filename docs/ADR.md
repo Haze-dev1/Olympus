@@ -49,7 +49,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted, amended by 0051 |
 | [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
 | [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032 |
-| [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
+| [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted, amended by 0059 |
 | [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
 | [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
 | [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) | Carry an explicit remote transport for MCP servers | Accepted, amends 0037, amended by 0050 |
@@ -62,6 +62,9 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0054](#0054-bound-and-verify-semantic-plan-reads) | Bound and verify semantic plan reads | Accepted |
 | [0055](#0055-bind-managed-init-policy-to-tool-identity) | Bind managed init policy to tool identity | Accepted, amends 0036 |
 | [0056](#0056-keep-npm-lifecycle-scripts-out-of-built-images) | Keep npm lifecycle scripts out of built images | Accepted, amends 0051 |
+| [0057](#0057-let-recipes-reject-mcp-transports-they-cannot-use) | Let recipes reject MCP transports they cannot use | Accepted, amends 0047 and 0050 |
+| [0058](#0058-allow-repeated-argv-entries) | Allow repeated argv entries | Accepted, amends the recipe and stack schemas |
+| [0059](#0059-resolve-platforms-for-digest-pinned-images-on-update) | Resolve platforms for digest-pinned images on update | Accepted, amends 0044 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1353,8 +1356,9 @@ from `ss` is stripped of control characters before it reaches a message (A1).
 To make step 3 possible offline, `update` and a lock-creating `check` record the
 index's `os/architecture` pairs in a new optional `platforms` array on each lock
 tool. The field is canonical (sorted, de-duplicated) and validated as
-`os/architecture`. A digest-pinned reference already in the stack has no fetched
-index, so it records nothing and warns.
+`os/architecture`. Digest-pinned references originally recorded nothing and
+warned; [0059](#0059-resolve-platforms-for-digest-pinned-images-on-update) now
+has `update` fetch and verify their index so new locks record platforms.
 
 ### Consequences
 
@@ -1757,6 +1761,80 @@ All npm-built recipe Dockerfiles install with `npm ci --omit=dev --ignore-script
 - **Leave scripts enabled and document them:** keeps the unpinned execution path in the build and relies on future lockfile reviews to catch new scripts.
 - **Add a checksum-verified fetch stage for each native binary:** duplicates npm's integrity-pinned tarballs and adds architecture-specific URLs and hashes for binaries already shipped inside the lock.
 - **Replace the Claude Code bin stub in the recipe:** reimplements upstream platform detection and link logic instead of running the audited script.
+
+## 0057. Let recipes reject MCP transports they cannot use
+
+- **Status:** Accepted, amends [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) and [0050](#0050-honour-or-reject-sse-for-hermes-codex-and-opencode)
+- **Date:** 2026-11-22
+
+### Context
+
+Release review finding 2: Pi uses the `hermes` MCP config shape, but Pi rejects legacy SSE endpoints. The shared style writes `transport: sse` for an explicit SSE stack entry, so `check` and `build` passed and the server failed silently in the container. Codex's SSE rejection lived in its style branch, which was not reusable by another recipe with the same limitation.
+
+### Decision
+
+A recipe may set `supports.mcps.sse: false`. Evaluation then rejects a remote MCP entry with `transport: sse` before writing any config, naming the tool and MCP server. Omission or `sse: true` preserves the style's existing behavior. Pi declares the new field; Codex keeps its existing style-level rejection.
+
+### Consequences
+
+- The recipe schema has one optional boolean; old recipes need no change and their content hashes stay the same.
+- Pi's recipe content hash and golden manifest changed once, as expected for any recipe edit.
+- A stack that shares an SSE-only server with Pi now fails early with a clear error instead of producing a config Pi cannot use.
+- The tool-level check covers only SSE; other transport limitations remain style-specific until a recipe needs them.
+
+### Alternatives considered
+
+- **Add a Pi-specific MCP style:** duplicates the Hermes config shape and gives future tools with the same limitation no general answer.
+- **Reject SSE in the Hermes style:** breaks Hermes, which selects its SSE client on `transport: sse`.
+- **Document the limitation only:** keeps the silent runtime failure the release review found.
+
+## 0058. Allow repeated argv entries
+
+- **Status:** Accepted, amends the recipe and stack schema formats
+- **Date:** 2026-11-22
+
+### Context
+
+Release review finding 5: `uniqueItems` on `post_install` rejected legitimate commands such as `[cp, -a, /x, /x]`. The same mistake was present on `command` and `health.command` in recipes and on `mcps.args` in stacks. Repeated flags and paths are ordinary argv values, not duplicate declarations.
+
+### Decision
+
+Drop `uniqueItems` from those four argv lists. Keep it on semantic sets where a duplicate has no meaning: volumes, ports, writable paths, templates, build files, skills, MCP names and channel allow-lists.
+
+### Consequences
+
+- Repeated argv items validate in `check`, `build` and direct schema use; no evaluator or command construction changes.
+- Existing stacks and recipes remain valid, and duplicate detection still protects the paths and names that need it.
+- No ADR on uniqueness existed to amend; this decision records the boundary for future schema additions.
+
+### Alternatives considered
+
+- **Keep uniqueness and ask users to avoid repeats:** rejects valid invocations with a misleading diagnostic.
+- **Drop uniqueness everywhere:** would allow duplicate volumes, ports and managed files with ambiguous results.
+
+## 0059. Resolve platforms for digest-pinned images on update
+
+- **Status:** Accepted, amends [0044](#0044-preflight-the-server-before-plan-and-apply)
+- **Date:** 2026-11-22
+
+### Context
+
+Release review finding 7: the apply preflight warns when `stack.lock` has no image platforms and suggests `olym update`, but `update` never fetched an index for an image already pinned by digest, so the warning could not be cleared. ADR 0044 chose to store platforms in the lock precisely so preflight needs no registry access.
+
+### Decision
+
+`update` fetches the OCI index or Docker manifest list for digest-pinned references by digest, verifies the returned bytes hash to that digest, and records the same sorted `os/architecture` list it records for tag references. A pinned digest whose registry bytes differ fails the update. Old locks without platforms still warn; they are not rewritten until update runs.
+
+### Consequences
+
+- `update` makes one registry request per digest-pinned tool; `plan` and `apply` still make none for the platform check.
+- A registry serving a single-platform manifest for a pinned digest fails with the existing multi-arch-only error, consistent with tag resolution.
+- The lock format is unchanged; only locks produced by this and later versions gain platforms for digest-pinned images.
+
+### Alternatives considered
+
+- **Reword the preflight warning:** leaves users without a way to fill platforms for digest-pinned images.
+- **Query the registry during preflight:** needs network and credentials on the apply path, which ADR 0044 rejected.
 
 ## Template
 

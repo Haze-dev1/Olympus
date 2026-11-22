@@ -68,8 +68,10 @@ the registry and the tagged upstream docs on **2026-11-21**.
     (<https://github.com/earendil-works/pi/blob/v1.5.0/packages/coding-agent/docs/mcp.md>).
   - Shape: stdio servers use `command`, `args`, and `env` with `${VAR}` expansion;
     HTTP servers use `url` and `headers` with `${VAR}` expansion.
-  - Style: matches Olympus's `hermes` style exactly (`supports.mcps.style: hermes`).
-  - Note: Pi rejects legacy SSE endpoints (`"sse"`). Streamable HTTP servers are supported.
+  - Style: matches Olympus's `hermes` style (`supports.mcps.style: hermes`), with
+    `supports.mcps.sse: false` because Pi rejects legacy SSE endpoints. An entry
+    with `transport: sse` now fails `check` and `build` instead of failing silently
+    in the container. Streamable HTTP servers are supported.
   - Delivery (`writable`): Pi rewrites `/root/.pi/agent/mcp.json` when adding or modifying tools,
     so the file is marked `writable` and delivered into the volume by the `pi-init` service.
     Olympus owns this file: re-applying the stack re-evaluates `mcp.json` from the stack and recipe,

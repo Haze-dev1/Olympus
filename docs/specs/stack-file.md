@@ -84,7 +84,9 @@ Either a local command (stdio) or a remote URL (HTTP), not both.
 | `transport` | Remote wire protocol: `http` (streamable HTTP, the default) or `sse`. Only valid with `url`; any other value is rejected. |
 | `env` | Environment variables for the server; values may be `${NAME}` |
 
-Tools differ in how they name the two remote transports, so recipes translate `transport` per tool ([ADR 0047](../ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers)): Claude Code writes `type: http|sse`, Gemini CLI writes `httpUrl` for `http` and `url` for `sse`, Hermes Agent writes `transport: sse` only for `sse`, OpenCode needs no key because it falls back to SSE itself, and Codex, which has no SSE client, fails evaluation for `sse` ([ADR 0050](../ADR.md#0050-honour-or-reject-sse-for-hermes-codex-and-opencode)).
+Tools differ in how they name the two remote transports, so recipes translate `transport` per tool ([ADR 0047](../ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers)): Claude Code writes `type: http|sse`, Gemini CLI writes `httpUrl` for `http` and `url` for `sse`, Hermes Agent writes `transport: sse` only for `sse`, OpenCode needs no key because it falls back to SSE itself, and Codex, which has no SSE client, fails evaluation for `sse` ([ADR 0050](../ADR.md#0050-honour-or-reject-sse-for-hermes-codex-and-opencode)). A recipe can also declare `supports.mcps.sse: false`; Pi does, so an SSE entry fails with `<tool>: MCP <name>: transport sse is not supported by this tool (Streamable HTTP only)` ([ADR 0057](../ADR.md#0057-let-recipes-reject-mcp-transports-they-cannot-use)).
+
+An MCP server's `args` is an argv list, so values may repeat; the other lists in the stack file are sets and reject duplicates ([ADR 0058](../ADR.md#0058-allow-repeated-argv-entries)).
 
 ## `agents.<name>` and `apps.<name>`
 
@@ -108,6 +110,8 @@ Tools differ in how they name the two remote transports, so recipes translate `t
 ## Current offline commands
 
 `olym check -f stack.yaml` validates the stack, recipes and rendering, requiring each referenced secret name in the adjacent `.env` without resolving values. It creates a missing adjacent `stack.lock` from the newest selected-ref or default-branch commit and image index digests. `olym update` refreshes that lock without rendering output or checking runtime secret names. `olym build` requires an existing lock. Both `check` and `build` verify the catalog hash, use locked digests and reject missing tool entries. Change the catalog URL through `update`, rather than silently reusing an unrelated lock.
+
+Catalog tarballs are bounded while decompressing. Every tar entry counts, even entries outside `inputs.recipes` and directory entries, because a large monorepo can otherwise exhaust the fetch budget before a small recipe folder is read. The hard limits are 10,000 entries and 272 MiB of expanded tar bytes (285212672 bytes). Errors name the source fields and look like `catalog: extract {owner repo recipes }: tarball has more than 10000 entries` or `catalog: extract {owner repo recipes }: expanded tarball exceeds 285212672 bytes`. A `-recipes <directory>` override skips catalog fetching and these limits. These are deliberate hardening limits from security review R2, not a bug in the recipe folder ([ADR 0026](../ADR.md#0026-wire-github-catalogs-and-preserve-local-development-overrides)).
 
 `GITHUB_TOKEN` from the process environment authenticates only GitHub commit lookups and tarball downloads. It is never stored or printed and is never forwarded to registries or other redirect origins. Public catalogs work without it.
 
@@ -133,7 +137,7 @@ Written by Olympus only (`check` when missing, and `update`). JSON with sorted k
 }
 ```
 
-`image` pins the multi-architecture index digest. Every later run uses the locked revision and digests; `update` moves them forward ([ADR 0008](../ADR.md#0008-pin-exact-versions-in-stacklock), [0016](../ADR.md#0016-pin-the-recipe-set-as-a-flake-style-input)). `platforms` records the `os/architecture` pairs the index contains, sorted and de-duplicated, so the apply preflight can check the server without another registry call; it is absent for locks written before the field and for digest-pinned references, and the preflight then warns. `hash` is the canonical hash of the extracted catalog tree, defined in [ADR 0023](../ADR.md#0023-hash-the-extracted-catalog-tree-in-a-canonical-form).
+`image` pins the multi-architecture index digest. Every later run uses the locked revision and digests; `update` moves them forward ([ADR 0008](../ADR.md#0008-pin-exact-versions-in-stacklock), [0016](../ADR.md#0016-pin-the-recipe-set-as-a-flake-style-input)). `platforms` records the `os/architecture` pairs the index contains, sorted and de-duplicated, so the apply preflight can check the server without another registry call. `update` fetches the index for digest-pinned references too, verifying the bytes against the pinned digest, so new locks record their platforms. Only locks written before the field existed omit it; the preflight then warns and suggests `olym update` ([ADR 0059](../ADR.md#0059-resolve-platforms-for-digest-pinned-images-on-update)). `hash` is the canonical hash of the extracted catalog tree, defined in [ADR 0023](../ADR.md#0023-hash-the-extracted-catalog-tree-in-a-canonical-form).
 
 ## Generations and server layout
 

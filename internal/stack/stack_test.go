@@ -33,6 +33,7 @@ func TestValidation(t *testing.T) {
 		{"no transport", valid + "mcps:\n  docs: {args: [stdio]}\n", "exactly one"},
 		{"url", valid + "mcps:\n  docs: {url: 'file:///etc/passwd'}\n", "HTTP(S)"},
 		{"remote transport", valid + "mcps:\n  docs: {url: https://example.test, transport: sse}\n", ""},
+		{"repeated MCP args", valid + "mcps:\n  docs: {command: cp, args: [-a, /x, /x]}\n", ""},
 		{"unknown transport", valid + "mcps:\n  docs: {url: https://example.test, transport: ws}\n", "allowed choice"},
 		{"stdio transport", valid + "mcps:\n  docs: {command: run, transport: http}\n", "stdio MCP cannot have transport"},
 		{"alias", valid + "mcps: &shared {}\napps: *shared\n", "unsupported YAML node"},

@@ -63,13 +63,14 @@
     "lock-file": {
       "status": "done",
       "file": "features/lock-file.md",
-      "updated": "2026-10-20"
+      "updated": "2026-11-22",
+      "summary": "Release-review finding 7: update resolves platforms for digest-pinned images by fetching and digest-verifying the index, so preflight's missing-platform warning can be cleared (ADR 0059)."
     },
     "catalog-lock": {
       "status": "done",
       "file": "features/catalog-lock.md",
       "updated": "2026-11-22",
-      "summary": "OLY-65 adds expanded-stream and archive entry budgets to catalog extraction."
+      "summary": "OLY-65 adds expanded-stream and archive entry budgets to catalog extraction. The release-review finding 6 documents the exact entry and expanded-size limits and errors; finding 7 makes update fetch and verify digest-pinned indices so locks record their platforms (ADR 0059)."
     },
     "remote-ssh": {
       "status": "done",
@@ -85,8 +86,8 @@
     "recipe-format": {
       "status": "done",
       "file": "features/recipe-format.md",
-      "updated": "2026-11-06",
-      "summary": "OLY-55 adds a validated runtime block (shm_size, stop_grace_period, no_new_privileges, seccomp) rendering fixed Compose keys; the seccomp profile is a hashed store file. Offline tests green; lab not run (no QEMU). Real three-tool lab lifecycle passed earlier: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown."
+      "updated": "2026-11-22",
+      "summary": "OLY-55 adds a validated runtime block (shm_size, stop_grace_period, no_new_privileges, seccomp) rendering fixed Compose keys; the seccomp profile is a hashed store file. Offline tests green; lab not run (no QEMU). Real three-tool lab lifecycle passed earlier: native MCP references, skills, healthy containers, no-op/selective IDs, rollback and delete-data teardown. Release-review finding 2 adds optional supports.mcps.sse: false (Pi rejects SSE early; ADR 0057); finding 5 removes uniqueItems from argv lists (ADR 0058)."
     },
     "first-recipes": {
       "status": "done",
@@ -110,7 +111,7 @@
       "status": "in_progress",
       "file": "features/recipe-catalog.md",
       "updated": "2026-11-22",
-      "summary": "OLY-65 makes generated init fail on the first managed-file copy error. Recipes added with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. Pi installs from a committed package-lock.json and Oh My Pi ships a checksum-verified binary from a fetch stage (ADR 0051). Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). Lab evidence: Pi (2026-11-21) and, from OLY-52 on 2026-11-22, Aider, Claude Code, Gemini CLI, OpenClaw and Oh My Pi. OLY-52 re-checked all remaining README claims against pinned sources, corrected false statements and kept only truly unverified live model/bot/browser/MCP connections. OLY-25: no Grok bot recipe; the catalog name has no clear referent (see Sources/landscape.md). OLY-66 disables npm lifecycle scripts in the claude-code, codex and gemini-cli builds; fresh single-tool lab applies with sentinel secrets passed for all three with pinned --version output, and TestLabRealStack passed with the new Codex build (ADR 0056)."
+      "summary": "OLY-65 makes generated init fail on the first managed-file copy error. Recipes added with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. Pi installs from a committed package-lock.json and Oh My Pi ships a checksum-verified binary from a fetch stage (ADR 0051). Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). Lab evidence: Pi (2026-11-21) and, from OLY-52 on 2026-11-22, Aider, Claude Code, Gemini CLI, OpenClaw and Oh My Pi. OLY-52 re-checked all remaining README claims against pinned sources, corrected false statements and kept only truly unverified live model/bot/browser/MCP connections. OLY-25: no Grok bot recipe; the catalog name has no clear referent (see Sources/landscape.md). OLY-66 disables npm lifecycle scripts in the claude-code, codex and gemini-cli builds; fresh single-tool lab applies with sentinel secrets passed for all three with pinned --version output, and TestLabRealStack passed with the new Codex build (ADR 0056). Pi now declares supports.mcps.sse: false so an explicit SSE entry fails evaluation instead of silently failing in the container (ADR 0057)."
     },
     "test-lab": {
       "status": "done",
@@ -126,8 +127,8 @@
     "preflight": {
       "status": "done",
       "file": "features/preflight.md",
-      "updated": "2026-11-05",
-      "summary": "Read-only preflight in plan/apply: OS, arch vs locked image platforms, RAM, disk and occupied ports (ignoring the current olympus generation). Offline tests only; lab not run (no QEMU on this host)."
+      "updated": "2026-11-22",
+      "summary": "Read-only preflight in plan/apply: OS, arch vs locked image platforms, RAM, disk and occupied ports (ignoring the current olympus generation). Offline tests only; lab not run (no QEMU on this host). Release-review finding 7: update now fetches and digest-verifies indices for digest-pinned images, so the missing-platforms warning is actionable (ADR 0059)."
     },
     "release-pipeline": {
       "status": "done",
@@ -139,7 +140,7 @@
       "status": "in_progress",
       "file": "features/security-review.md",
       "updated": "2026-11-22",
-      "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. Security data-flow note added in docs/security/data-flow.md. OLY-62 fixes F2 offline: npm recipes install from committed lockfiles with npm ci and Goose ships only its verified binary (no image built yet). OLY-66 resolves 2026-11-22 review R5: npm lifecycle scripts disabled in all three npm-built recipes, with audited explicit Claude Code postinstall; lab applies passed with sentinel secrets (ADR 0056). F1 live checks, remaining 2026-11-22 findings and F4 remain open."
+      "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. Security data-flow note added in docs/security/data-flow.md. OLY-62 fixes F2 offline: npm recipes install from committed lockfiles with npm ci and Goose ships only its verified binary (no image built yet). OLY-66 resolves 2026-11-22 review R5: npm lifecycle scripts disabled in all three npm-built recipes, with audited explicit Claude Code postinstall; lab applies passed with sentinel secrets (ADR 0056). Release-review findings 2, 5, 6 and 7 are fixed on branch: Pi rejects SSE via recipe capability (ADR 0057), argv lists allow repeats (ADR 0058), catalog limits are documented, and update fills platforms for digest-pinned images (ADR 0059). F1 live checks, findings 1/3/4/8-13 and F4 remain open."
     },
     "user-docs": {
       "status": "done",
@@ -192,6 +193,10 @@
     "ADR 0052 record post-install completion by stack tool name",
     "ADR 0053 selectable test lab guest OS and architecture",
     "ADR 0054 bounded and verified semantic plan reads",
-    "ADR 0055 managed init copy policy in tool identity"
+    "ADR 0055 managed init copy policy in tool identity",
+    "ADR 0056 keep npm lifecycle scripts out of built images",
+    "ADR 0057 let recipes reject MCP transports they cannot use",
+    "ADR 0058 allow repeated argv entries",
+    "ADR 0059 resolve platforms for digest-pinned images on update"
   ]
 }

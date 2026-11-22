@@ -127,17 +127,43 @@ func TestResolveImageRejectsBadDigestHeader(t *testing.T) {
 	}
 }
 
-func TestResolvePinnedImageNeedsNoNetwork(t *testing.T) {
-	const pinned = "ghcr.io/acme/tool@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	got, platforms, err := Resolver{}.Resolve(context.Background(), pinned)
+func TestResolvePinnedImageReadsIndex(t *testing.T) {
+	digest := digestOf(indexBody)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/acme/tool/manifests/"+digest {
+			t.Errorf("request path = %q, want the pinned digest", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", ociIndex)
+		w.Header().Set("Docker-Content-Digest", digest)
+		w.Write([]byte(indexBody))
+	}))
+	defer srv.Close()
+
+	pinned := hostOf(t, srv.URL) + "/acme/tool@" + digest
+	got, platforms, err := (Resolver{Scheme: "http"}).Resolve(context.Background(), pinned)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != pinned {
 		t.Fatalf("got %s, want %s", got, pinned)
 	}
-	if platforms != nil {
-		t.Fatalf("pinned reference reported platforms %v without fetching the index", platforms)
+	if strings.Join(platforms, ",") != "linux/amd64,linux/arm64" {
+		t.Fatalf("platforms = %v, want the pinned index platforms", platforms)
+	}
+}
+
+func TestResolvePinnedImageRejectsMismatchedDigest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", ociIndex)
+		w.Header().Set("Docker-Content-Digest", digestOf(indexBody))
+		w.Write([]byte(indexBody))
+	}))
+	defer srv.Close()
+
+	pinned := hostOf(t, srv.URL) + "/acme/tool@sha256:" + strings.Repeat("d", 64)
+	_, _, err := (Resolver{Scheme: "http"}).Resolve(context.Background(), pinned)
+	if err == nil || !strings.Contains(err.Error(), "does not match pinned digest") {
+		t.Fatalf("got error %v, want a pinned digest mismatch", err)
 	}
 }
 

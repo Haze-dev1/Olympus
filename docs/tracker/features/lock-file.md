@@ -22,3 +22,5 @@ Pin the recipe input's git revision and hash, and each tool's image digest, in `
 Optional version-1 tool image_tag records the exact stack override. Changed overrides fail before recipe/network use with `run olym update`; update rewrites the override with the resolved digest. ADR 0033 records the additive format. Unit regression and the pinned-image full CLI lab validate the affected paths. No dependencies added.
 
 Final M1 evidence: source-complete `TestLabM1` passed in 77.902 s on a reset Ubuntu VM, 2026-10-20. Build, vet, full unit suite and formatting passed; see [core-plan-apply.md](core-plan-apply.md) for failures, exact commands and release limits.
+
+Release-review finding 7, 2026-11-22: `update` now resolves platforms for digest-pinned references by fetching the index by digest and verifying the bytes against the pin, then stores the platforms in the lock. The lock format is unchanged; only locks written after this fix gain platforms for pinned images. See [catalog-lock.md](catalog-lock.md) for red-before evidence and [ADR 0059](../../ADR.md#0059-resolve-platforms-for-digest-pinned-images-on-update).

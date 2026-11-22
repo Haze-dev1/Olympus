@@ -62,8 +62,7 @@
       "items": {
         "type": "string",
         "minLength": 1
-      },
-      "uniqueItems": true
+      }
     },
     "writable": {
       "type": "array",
@@ -149,8 +148,7 @@
           "items": {
             "type": "string",
             "minLength": 1
-          },
-          "uniqueItems": true
+          }
         },
         "timeout": {
           "type": "string",
@@ -204,6 +202,9 @@
                 "claude-code",
                 "gemini-cli"
               ]
+            },
+            "sse": {
+              "type": "boolean"
             },
             "key": {
               "type": "string",
@@ -294,7 +295,6 @@
             "type": "string",
             "minLength": 1
           },
-          "uniqueItems": true,
           "minItems": 1
         }
       },

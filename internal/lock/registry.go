@@ -43,24 +43,38 @@ type Resolver struct {
 }
 
 // Resolve turns "repo/name:tag" into "repo/name@sha256:<index digest>" and
-// reports the "os/architecture" pairs the index covers. A reference that
-// already carries a sha256 digest is returned unchanged with no platforms,
-// because its index was never fetched. Only multi-architecture indexes and
-// manifest lists are accepted, because the lock must work on both amd64 and
-// arm64.
+// reports the "os/architecture" pairs the index covers. A reference already
+// pinned by sha256 digest keeps that digest but still fetches its index, so
+// update can record platforms. Only multi-architecture indexes and manifest
+// lists are accepted, because the lock must work on both amd64 and arm64.
 func (r Resolver) Resolve(ctx context.Context, ref string) (string, []string, error) {
 	ref = strings.TrimSpace(ref)
 	if name, digest, ok := strings.Cut(ref, "@"); ok {
 		if _, _, err := splitTag(name); err != nil || !digestRE.MatchString(digest) {
 			return "", nil, fmt.Errorf("lock: invalid image reference %q", ref)
 		}
-		return name + "@" + digest, nil, nil
+		_, platforms, err := r.index(ctx, ref, name, digest)
+		if err != nil {
+			return "", nil, err
+		}
+		return name + "@" + digest, platforms, nil
 	}
 
 	name, tag, err := splitTag(ref)
 	if err != nil {
 		return "", nil, err
 	}
+	digest, platforms, err := r.index(ctx, ref, name, tag)
+	if err != nil {
+		return "", nil, err
+	}
+	return name + "@" + digest, platforms, nil
+}
+
+// index fetches the manifest named by version (a tag or a pinned digest) and
+// returns its digest and platforms. A pinned digest must match the bytes the
+// registry serves.
+func (r Resolver) index(ctx context.Context, ref, name, version string) (string, []string, error) {
 	registry, repo := splitRegistry(name)
 	scheme := r.Scheme
 	if scheme == "" {
@@ -69,7 +83,7 @@ func (r Resolver) Resolve(ctx context.Context, ref string) (string, []string, er
 	endpoint := (&url.URL{
 		Scheme: scheme,
 		Host:   registry,
-		Path:   "/v2/" + repo + "/manifests/" + tag,
+		Path:   "/v2/" + repo + "/manifests/" + version,
 	}).String()
 
 	body, mediaType, err := r.manifest(ctx, endpoint, repo)
@@ -78,6 +92,11 @@ func (r Resolver) Resolve(ctx context.Context, ref string) (string, []string, er
 	}
 	if mediaType != ociIndex && mediaType != dockerList {
 		return "", nil, fmt.Errorf("lock: %s is not a multi-arch index (media type %q)", ref, mediaType)
+	}
+	sum := sha256.Sum256(body)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	if strings.HasPrefix(version, "sha256:") && digest != version {
+		return "", nil, fmt.Errorf("lock: %s: registry manifest does not match pinned digest %s", ref, version)
 	}
 	var index struct {
 		Manifests []struct {
@@ -103,9 +122,7 @@ func (r Resolver) Resolve(ctx context.Context, ref string) (string, []string, er
 		}
 	}
 	sort.Strings(platforms)
-
-	sum := sha256.Sum256(body)
-	return name + "@sha256:" + hex.EncodeToString(sum[:]), platforms, nil
+	return digest, platforms, nil
 }
 
 func splitTag(ref string) (name, tag string, err error) {

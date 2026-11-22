@@ -1,6 +1,6 @@
 # Security review
 
-- **Status:** In progress — F1 live verification and F4 remain open; F2 fixed offline (OLY-62); 2026-11-22 review R5 resolved (OLY-66)
+- **Status:** In progress — F1 live verification and F4 remain open; 2026-11-22 release-review findings 2, 5, 6 and 7 fixed on branch; R5 resolved (OLY-66)
 - **Updated:** 2026-11-22
 
 OLY-33 records the pre-release source review in [the report](../../security/review-2026-11-06.md). No product fixes were made. ADR reviewed; no decision is introduced by a findings-only review. `govulncheck ./...` found no reachable vulnerabilities and one non-reachable module advisory. Build and vet passed; gofmt was clean; the full suite failed on the three known macOS cases `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, and `TestToolEntryReuseAndVerification`. No QEMU lab, live release or server testing was performed. Relative Markdown links and anchors in `docs/` resolved, and tracker JSON parsed successfully.
@@ -61,3 +61,15 @@ Build, vet, full and race-short Go tests, formatting and branch-scoped lint pass
 ## Release review of development against main (2026-11-22)
 
 A code-only review of everything `development` carries ahead of `main` (#19 to #60) is in [release-review-2026-11-22.md](../../security/release-review-2026-11-22.md). It has four serious findings (OpenClaw can't read its root-owned 0600 skill files; Pi accepts SSE; a secret change restarts a tool before its `-init` step, including on rollback; the port preflight reports `[::1]` and other 127.x listeners as blocking 127.0.0.1) and nine minor ones. Fixes are tracked per finding in that file. No ADR: a findings-only review.
+
+## Release-review findings 2, 5, 6 and 7 fixed (2026-11-22)
+
+Finding 2 is fixed by an optional `supports.mcps.sse: false` recipe capability. `translateMCP` now receives that capability and rejects an SSE entry before writing config, with `<tool>: MCP <name>: transport sse is not supported by this tool (Streamable HTTP only)`. Pi declares the capability; Codex keeps its style-level rejection; omission or `true` preserves Hermes and OpenCode behavior. Other bundled recipe READMEs were checked for the same gap and need no change. [ADR 0057](../../ADR.md#0057-let-recipes-reject-mcp-transports-they-cannot-use) amends 0047 and 0050.
+
+Finding 5 is fixed by removing `uniqueItems` from the four argv lists: `command`, `health.command` and `hooks.post_install` in the recipe schema, and `mcps.args` in the stack schema. Uniqueness stays on semantic sets (volumes, ports, writable paths, templates, build files, skills, MCP names and channel allow-lists). [ADR 0058](../../ADR.md#0058-allow-repeated-argv-entries) records the boundary.
+
+Finding 6 is closed by documentation only: the catalog entry and expanded-size limits, their byte values and their exact error strings are now in [the stack-file spec](../../specs/stack-file.md) and the usage docs ([commands](../../usage/commands.md), [stack reference](../../usage/stack-reference.md)). No limit or code path changed.
+
+Finding 7 is fixed in `internal/lock`: `Resolve` now fetches the index for a digest-pinned reference by its digest, verifies the returned bytes match that digest, and records the platforms. The preflight warning can now be cleared with `olym update`; a mismatched registry response fails the update. [ADR 0059](../../ADR.md#0059-resolve-platforms-for-digest-pinned-images-on-update) amends 0044.
+
+Red-before evidence and the full validation result are in `REPORT.md` at the worktree root. No lab run: no server-side behavior changed, and these fixes are covered by focused unit tests plus the full offline suite. The release-review file itself remains unchanged; its status table is updated at merge. Fix-verification verdict: **fixed** for all four findings (root cause, sibling instances, no new surface, legitimate paths intact).

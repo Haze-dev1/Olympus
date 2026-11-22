@@ -39,3 +39,5 @@ Load declarative recipes and render their templates ([spec](../../specs/recipe.m
   away. No lab run: this host has no QEMU, so container start with the profile is
   unverified. ADR 0045 records the decision and why `no_new_privileges` stays
   opt-in.
+
+- 2026-11-22 — release-review findings 2 and 5: `supports.mcps.sse: false` lets a recipe reject an SSE entry before a tool-specific config is written (Pi declares it; default and `true` keep existing style behavior), and `uniqueItems` was removed from recipe `command`, `health.command` and `hooks.post_install` argv lists plus stack `mcps.args`. Pi's golden was regenerated; red-before tests and full validation are in `REPORT.md`. [ADR 0057](../../ADR.md#0057-let-recipes-reject-mcp-transports-they-cannot-use) and [ADR 0058](../../ADR.md#0058-allow-repeated-argv-entries). No lab run: no server-side behavior changed.

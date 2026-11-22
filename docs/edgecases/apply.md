@@ -47,7 +47,7 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Port already used by something else | Fail for that tool in `plan`; name the port and the process using it. Ports published by the current `olympus` generation are ignored. |
 | Server has less RAM than a recipe's `min_ram` | Warn in `plan`; `apply` continues only after its confirmation prompt shows the warning |
 | ARM server and an image with no ARM build | Fail for that tool; name the image, the architecture and the platforms the lock recorded |
-| `stack.lock` has no image platforms (written before the field existed, or a reference already pinned by digest) | Warn in `plan` and suggest `olym update`; do not guess compatibility |
+| `stack.lock` has no image platforms (written before the field existed) | Warn in `plan` and suggest `olym update`; do not guess compatibility. `update` fills platforms for digest-pinned references by fetching and verifying their index ([ADR 0059](../ADR.md#0059-resolve-platforms-for-digest-pinned-images-on-update)) |
 | Server has less than 5 GiB free disk | Warn in `plan`; below 1 GiB fail and report the free space and path |
 | Built tool and init service share a local tag | Skip both during pull, build once before up; reuse the image on rollback |
 | Build fails before up | Restore the previous generation or take down the first failed deployment; suppress build output |

@@ -66,6 +66,8 @@ Configures the source repository for tool recipes.
 | --- | --- | --- | --- | --- |
 | `recipes` | No | String (`minLength: 1`) | `github:Haze-dev1/Olympus/recipes` | Recipe catalog source URI in format `github:<owner>/<repo>[/<path>][?ref=<ref>]`. See [inputs specification](../specs/stack-file.md#inputs). |
 
+A fetched catalog tarball is capped at 10,000 entries and 272 MiB (285212672 bytes) of expanded data, counting entries outside the selected recipe path and directory entries. Exceeding either cap fails the fetch with `catalog: extract {owner repo recipes }: tarball has more than 10000 entries` or `catalog: extract {owner repo recipes }: expanded tarball exceeds 285212672 bytes`. A large monorepo needs a smaller catalog repository or a local `-recipes` override.
+
 ---
 
 ## `server`

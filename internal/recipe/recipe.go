@@ -16,7 +16,13 @@ import (
 )
 
 type Secret struct{ Env string }
-type Managed struct{ File, Format, Style, Key string }
+
+// Managed describes a tool's managed MCP file. SSE nil means the tool accepts
+// remote servers with transport sse; false rejects them at evaluation time.
+type Managed struct {
+	File, Format, Style, Key string
+	SSE                      *bool `json:"sse,omitempty"`
+}
 type Skills struct{ Dir, Mode string }
 type Channel struct{ Env map[string]string }
 type Build struct {
