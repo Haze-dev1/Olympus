@@ -2,6 +2,12 @@
 
 ## Development
 
+- OLY-70: resolve release review findings 4, 8, 11, and 12.
+  - Finding 4 (serious): `conflictsWithLoopback` in `internal/deploy/preflight.go` now only reports conflicts on the same address (`127.0.0.1`) and wildcards (`0.0.0.0`, `[::]`, `*`, `""`), allowing distinct loopback listeners (`127.0.0.2`, `[::1]`) to bind side by side. Added table-driven red-before test `TestConflictsWithLoopback` and verified live on a disposable Ubuntu 24.04 QEMU lab VM: listeners on `[::1]:9876` and `127.0.0.2:9876` passed preflight for `127.0.0.1:9876`, while listeners on `127.0.0.1:9876` and `0.0.0.0:9876` correctly failed.
+  - Finding 8 (minor): `warnDevActivator` in `internal/cli/commands.go` now prints the development-build warning only when actionable: suppressed when `-unsafe-dev-activator` is already supplied, when embedded release checksums are present, or in release builds. `scripts/build-release.sh` now assigns distinguishable version `0.1.0-dev+<shortsha>` on untagged commits rather than bare `0.1.0-dev`. Added unit test `TestWarnDevActivator` covering warning suppression conditions. Rule A12 enforcement is unchanged.
+  - Finding 11 (minor): added doc comments to `recipe.Runtime`, `eval.DevelopmentVersion`, `eval.Version`, `eval.Service`, `eval.ServiceBuild`, `eval.Depends`, `eval.Mount`, `eval.Compose`, `eval.Load`, `eval.Build`, `recipe.Secret`, `recipe.Managed`, `recipe.Skills`, `recipe.Channel`, `recipe.Build`, `recipe.Template`, `recipe.Recipe`, `recipe.Load`, `recipe.Parse`, `recipe.CleanAbsolute`, `recipe.SafeRelative`, `recipe.Confined`, `deploy.PreflightError.Error`, `deploy.Rollback`, and `deploy.ExitCode`.
+  - Finding 12 (minor): recorded exception for linker-injected package-level mutable variables (`eval.Version` and `deploy.ReleaseChecksum*`) in `AGENTS.md`'s "State" rule, and added explanatory doc comments at their declarations.
+  - No new ADR: bugfixes and documentation adhering to ADR 0044, ADR 0048, ADR 0049 and the Go code standard.
 - OLY-67 runs managed init before recreating tools during secret rotation and automatic revert, removes orphan containers during project teardown, and checks rollback error types and the current generation in confirmation-cleanup tests. See ADR 0057.
 
 - Added `docs/security/release-review-2026-11-22.md`: a review of `development` against `main` (#19 to #60) with four serious and nine minor findings, indexed in `docs/README.md` and the security-review tracker. Documentation only; no ADR.

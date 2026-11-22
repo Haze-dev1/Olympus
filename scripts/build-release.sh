@@ -7,7 +7,14 @@ set -euo pipefail
 
 VERSION="${1:-${VERSION:-}}"
 if [ -z "$VERSION" ]; then
-  VERSION="$(git describe --tags --exact-match 2>/dev/null || echo "0.1.0-dev")"
+  if ! VERSION="$(git describe --tags --exact-match 2>/dev/null)"; then
+    SHORTSHA="$(git rev-parse --short HEAD 2>/dev/null || true)"
+    if [ -n "$SHORTSHA" ]; then
+      VERSION="0.1.0-dev+${SHORTSHA}"
+    else
+      VERSION="0.1.0-dev"
+    fi
+  fi
 fi
 VERSION="${VERSION#v}"
 

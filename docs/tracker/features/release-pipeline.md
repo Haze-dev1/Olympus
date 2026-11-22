@@ -1,7 +1,7 @@
 # Release pipeline
 
-- **Status:** Done offline (CI and release script ready; tag/release not pushed; artifact attestation configured; live release not verified)
-- **Updated:** 2026-11-06
+- **Status:** Done offline (CI and release script ready; tag/release not pushed; artifact attestation configured; dev warning refined)
+- **Updated:** 2026-11-22
 - **Milestone:** M1
 
 Cross-compiles the Olympus CLI (`darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64`) and the Linux activator (`linux/amd64`, `linux/arm64`), publishes `SHA256SUMS`, and validates the Linux activator against embedded release checksums before executing it on the target server (rule A12). Release workflow runs via GitHub Actions (`.github/workflows/release.yml`) and `scripts/build-release.sh`. See [ADR 0048](../../ADR.md#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build) and [TRD section 13](../../TRD.md#13-build-and-release).
@@ -39,3 +39,13 @@ OLY-59 configures the official `actions/attest-build-provenance` action, pinned 
 OLY-61 (security finding F3) closes the development-build bypass. `checkReleaseChecksum` in `internal/deploy/deploy.go` now requires `Client.UnsafeDevActivator` when the CLI is `0.1.0-dev` and the server architecture has no embedded release checksum; `UploadActivator` and `VerifyActivator` both call it before upload or execution. The CLI flag is `-unsafe-dev-activator`. Release builds are unchanged: missing embedded checksums still fail closed and mismatches still reject. The tagged lab tests pass the flag (or set the field) because they build development activators. ADR 0049 amends ADR 0048.
 
 Verification: the new `TestDevelopmentActivatorRequiresExplicitOptIn` failed on the previous code for both upload and verify, and passes with the guard plus opt-in cases. Build/vet/gofmt and the full test run are recorded in the OLY-61 PR. No lab VM or live release was run.
+
+## Release review fix: development-build warning and untagged release script builds (Finding 8), 2026-11-22
+
+OLY-70 fixes finding 8:
+- `internal/cli/commands.go`: `warnDevActivator` suppresses the development-build warning when `-unsafe-dev-activator` is already passed, when embedded release checksums are present (`ReleaseChecksumLinuxAmd64`/`ReleaseChecksumLinuxArm64`), or when running a release build.
+- `scripts/build-release.sh`: untagged release-script builds now generate a distinguishable version `0.1.0-dev+<shortsha>` (e.g. `0.1.0-dev+6378475`) instead of bare `0.1.0-dev`, preserving embedded checksum verification without unnecessary warnings.
+- Added unit test `TestWarnDevActivator` in `internal/cli/commands_test.go` verifying warning suppression across dev, flagged, embedded-checksum, untagged, and release build configurations.
+- Verified on QEMU lab VM that `-unsafe-dev-activator` suppresses the warning during live server operations (`olym plan`).
+- Rule A12 enforcement remains unchanged. No new ADR: adheres to ADR 0048 and ADR 0049.
+

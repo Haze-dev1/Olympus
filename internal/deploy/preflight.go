@@ -72,6 +72,7 @@ type PreflightReport struct {
 // PreflightError lists every failed check, so one run reports all of them.
 type PreflightError struct{ Problems []string }
 
+// Error returns the formatted list of all preflight failures.
 func (e *PreflightError) Error() string {
 	return "preflight failed:\n  - " + strings.Join(e.Problems, "\n  - ")
 }
@@ -198,17 +199,19 @@ func (c *Client) listeners(ctx context.Context) (map[int][]listener, error) {
 }
 
 // conflictsWithLoopback reports whether a socket on address would block a bind
-// to 127.0.0.1. A specific non-loopback address does not.
+// to 127.0.0.1. A specific non-loopback address or a different loopback
+// address (such as 127.0.0.2 or [::1]) does not.
 func conflictsWithLoopback(address string) bool {
 	host := address
 	if i := strings.LastIndexByte(host, ':'); i >= 0 {
 		host = host[:i]
 	}
 	host = strings.Trim(host, "[]")
-	switch {
-	case host == "", host == "*", host == "0.0.0.0", host == "::":
-		return true
-	case host == "localhost", host == "::1", strings.HasPrefix(host, "127."):
+	if h, _, ok := strings.Cut(host, "%"); ok {
+		host = h
+	}
+	switch host {
+	case "", "*", "0.0.0.0", "::", "127.0.0.1", "::ffff:127.0.0.1":
 		return true
 	}
 	return false
