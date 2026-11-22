@@ -64,3 +64,7 @@ Build, vet, unit and race suites, formatting, lab-tagged vet and changed-line li
 
 - The CLI has no setting yet for a custom `known_hosts` path; it lands with the `olym plan` wiring.
 - Port exposure from outside, SSH lockout and arm64 still need a VPS run before release.
+
+### Orchestrator rerun of TestLabTwoServers (2026-11-22)
+
+After merging `development`, `TestLabTwoServers` passes on two fresh Ubuntu 24.04 VMs (ports 2232 and 2282) in 90.1 s. Both servers report generation `sha256-931a824d…` and manifest `sha256-cc106b57…`, the same values as the agent's run, with identical running image and platform manifest digests and config hashes. Scope stays registry-pulled images; Dockerfile-built images are not expected to share image IDs (ADRs 0041, 0051).
