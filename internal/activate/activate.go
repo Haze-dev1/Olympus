@@ -196,8 +196,9 @@ type Activator struct {
 	PollInterval    time.Duration
 	RetryInterval   time.Duration
 
-	mu sync.Mutex
-	lg *logFile
+	removeConfirm func() error // test hook to simulate clearConfirm failure
+	mu            sync.Mutex
+	lg            *logFile
 }
 
 // target is one generation resolved from the store.
@@ -281,11 +282,13 @@ func (a *Activator) Activate(ctx context.Context, id string) error {
 	if err := a.waitConfirm(ctx, state); err != nil {
 		return a.revertOrDown(ctx, t, err, bk)
 	}
+	if err := a.clearConfirm(); err != nil {
+		return a.revertOrDown(ctx, t, err, bk)
+	}
 	n, err := a.publish(t.id)
 	if err != nil {
 		return a.revertOrDown(ctx, t, err, bk)
 	}
-	a.clearConfirm()
 	a.discardSecrets(bk)
 	a.finish(t.id, StatusConfirmed)
 	a.logf("generation %s is live as generations/%d", t.id, n)
@@ -372,10 +375,12 @@ func (a *Activator) Rollback(ctx context.Context) error {
 	if err := a.waitConfirm(ctx, state); err != nil {
 		return a.revertOrDown(ctx, prev, err, nil)
 	}
+	if err := a.clearConfirm(); err != nil {
+		return a.revertOrDown(ctx, prev, err, nil)
+	}
 	if err := a.pointCurrent(pn); err != nil {
 		return a.revertOrDown(ctx, prev, err, nil)
 	}
-	a.clearConfirm()
 	a.finish(prev.id, StatusConfirmed)
 	a.logf("generation %s is live as generations/%d", prev.id, pn)
 	return nil
@@ -1046,6 +1051,9 @@ func (a *Activator) readState() (State, error) {
 // before state.json announces a new nonce, so a confirmation can only match
 // the activation that is actually waiting.
 func (a *Activator) clearConfirm() error {
+	if a.removeConfirm != nil {
+		return a.removeConfirm()
+	}
 	if err := os.Remove(a.pendingPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("activate: discard stale confirmation: %w", err)
 	}

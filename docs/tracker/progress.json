@@ -108,7 +108,7 @@
       "status": "in_progress",
       "file": "features/recipe-catalog.md",
       "updated": "2026-11-21",
-      "summary": "Recipes added offline with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. OLY-22 follow-up: Pi installs from a committed package-lock.json with npm ci (ADR 0051); Oh My Pi ships its checksum-verified binary from a fetch stage; TestRecipeBuildInputPins asserts both and goldens are regenerated. Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). No lab run for any of them (no QEMU)."
+      "summary": "Recipes added offline with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. OLY-22 follow-up: Pi installs from a committed package-lock.json with npm ci (ADR 0051); Oh My Pi ships its checksum-verified binary from a fetch stage; TestRecipeBuildInputPins asserts both and goldens are regenerated. Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). No lab run for any of them (no QEMU). OLY-25: no Grok bot recipe — research hit the STOP rule because the catalog name has no clear referent (closed official product; official repo is a coding agent; open-source projects are alternatives); see Sources/landscape.md."
     },
     "test-lab": {
       "status": "done",
@@ -149,7 +149,7 @@
       "status": "in_progress",
       "file": "features/lint-baseline.md",
       "updated": "2026-11-21",
-      "summary": "golangci-lint config adapted from Caddy; 55 existing findings listed, 3 security-relevant; lint gates only changed lines until cleared."
+      "summary": "OLY-64: resolved all security-relevant findings (G110 decompression bomb caps, G119 redirect token confinement, clearConfirm error checking in activate/rollback) and A2 command reviews with //nolint:gosec and errcheck fixes; baseline findings down from 55 to 36."
     }
   },
   "decisions": [
