@@ -35,6 +35,19 @@ jobs:
           go-version-file: go.mod
           check-latest: true
 
+      # macOS TMPDIR sits under the /var -> /private/var symlink, which
+      # Olympus's build output refuses as an unsafe ancestor.
+      - name: Use an unsymlinked TMPDIR on macOS
+        if: runner.os == 'macOS'
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+
+      # These deploy tests emulate a Linux server locally and assert root
+      # ownership and modes; that server code only runs on Linux, and the
+      # Ubuntu job still runs them.
+      - name: Skip Linux-server emulation tests on macOS
+        if: runner.os == 'macOS'
+        run: echo "GO_TEST_SKIP=-skip=^(TestUploadGeneration|TestUploadActivatorVersionAndPublication|TestToolEntryReuseAndVerification)$" >> "$GITHUB_ENV"
+
       - name: Build
         run: go build ./...
 
@@ -45,10 +58,10 @@ jobs:
         run: go vet -tags lab ./...
 
       - name: Test
-        run: go test ./...
+        run: go test $GO_TEST_SKIP ./...
 
       - name: Test with race detector
-        run: go test -race -short ./...
+        run: go test -race -short $GO_TEST_SKIP ./...
 
   format:
     name: format

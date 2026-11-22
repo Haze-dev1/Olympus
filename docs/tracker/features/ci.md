@@ -43,6 +43,9 @@ All commands were run on this branch in the worktree with Go 1.27.4 (`golang.org
 
 ## Limits and decisions
 
+- First remote run (PR #67) caught three real problems: `runner.temp` is not allowed in job-level `env`, so GitHub rejected `ci.yml` (now set in a step); macOS lint flagged goimports grouping in `internal/cli/terminal_darwin.go`, which Linux lint never compiles (fixed); and the repository had no dependency graph, so `dependency-review` could not run (Dependabot alerts enabled, which turns it on).
+- macOS tests: `TMPDIR` on macOS runners is under the `/var` symlink, which build output refuses as an unsafe ancestor, so the job points `TMPDIR` at `$RUNNER_TEMP`. `TestUploadGeneration`, `TestUploadActivatorVersionAndPublication` and `TestToolEntryReuseAndVerification` emulate a Linux server locally and assert root ownership; they are skipped on macOS only (the known failures noted in `recipe-catalog.md`) and still run on Ubuntu.
+
 - The first remote run happens on the PR: only local commands were run here. The macOS matrix job cannot be executed on this Linux host; `setup-go` picks the latest available Go from `go.mod` on the runner.
 - `actionlint` is not installed and was not installed for this work; workflow syntax was checked with PyYAML only.
 - `lint.yml` (agy) runs golangci-lint v2.15.0 on Ubuntu and macOS, plain and with `--build-tags lab`, plus `govulncheck` and, on pull requests, `dependency-review` (fails on high severity). `.github/dependabot.yml` opens at most one grouped monthly PR each for Go modules and Actions, targeting `development`. Locally both lint runs report 0 issues; `govulncheck` was not available locally, so its first run is on the PR.
