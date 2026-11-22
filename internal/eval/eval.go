@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -188,9 +190,7 @@ func Build(in Inputs) (*generation.Generation, error) {
 			return nil, fmt.Errorf("%s: recipe was not loaded", name)
 		}
 		environment := map[string]string{}
-		for k, v := range r.Env {
-			environment[k] = v
-		}
+		maps.Copy(environment, r.Env)
 		opts := r.RuntimeOptions()
 		service := Service{Image: r.Image, User: r.User, Restart: "unless-stopped", Command: r.Command, Environment: environment, Labels: map[string]string{"org.olympus.tool": name}, ShmSize: opts.ShmSize, StopGrace: opts.StopGracePeriod}
 		if opts.NoNewPrivileges {
@@ -477,10 +477,8 @@ func Build(in Inputs) (*generation.Generation, error) {
 			if !ok {
 				return nil, fmt.Errorf("%s: missing seccomp profile", name)
 			}
-			for _, p := range r.Writable {
-				if p == seccompDst {
-					return nil, fmt.Errorf("%s: seccomp profile cannot be writable", name)
-				}
+			if slices.Contains(r.Writable, seccompDst) {
+				return nil, fmt.Errorf("%s: seccomp profile cannot be writable", name)
 			}
 			if files[seccompDst] != nil || managed[seccompDst] != nil {
 				return nil, fmt.Errorf("%s: seccomp profile collides with a generated file", name)

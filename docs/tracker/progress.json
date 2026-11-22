@@ -146,10 +146,10 @@
       "summary": "OLY-35: user-facing documentation including Quickstart in README.md, command-by-command reference in docs/usage/commands.md derived strictly from CLI output, stack.yaml reference in docs/usage/stack-reference.md derived from JSON Schema and spec, and complete full-stack example in examples/full-stack/stack.yaml."
     },
     "lint-baseline": {
-      "status": "in_progress",
+      "status": "done",
       "file": "features/lint-baseline.md",
       "updated": "2026-11-22",
-      "summary": "Resolved lint baseline findings outside concurrent packages (activate, deploy, eval, remote); fixed errcheck in cli, unused readPlan, prealloc in schema, goimports, documented errname Diagnostic exclusion in .golangci.yml, and 12 modernize suggestions across cli, catalog, lock, recipe, stack. Baseline down from 36 to 17."
+      "summary": "Cleared all remaining lint baseline findings across the entire codebase (0 issues on whole-tree golangci-lint run). Resolved final 17 findings in internal/activate, internal/deploy, internal/eval, internal/remote; verified with full offline suite, TestLabDeploy, and TestLabM1 on fresh Ubuntu 24.04 QEMU lab VM."
     }
   },
   "decisions": [

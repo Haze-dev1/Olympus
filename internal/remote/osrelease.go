@@ -27,7 +27,7 @@ const supportedList = "Ubuntu 22.04, Ubuntu 24.04 and Debian 12"
 // naming the supported list.
 func ParseOSRelease(data []byte) (OS, error) {
 	fields := map[string]string{}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

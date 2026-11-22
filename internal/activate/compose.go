@@ -176,7 +176,7 @@ func (s *syncWriter) Write(p []byte) (int, error) {
 // splitLines returns the non-empty trimmed lines of s.
 func splitLines(s string) []string {
 	var lines []string
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
 			lines = append(lines, line)
 		}

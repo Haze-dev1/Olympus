@@ -159,8 +159,12 @@ var storeRefPattern = regexp.MustCompile(`store/([^/'"\\\s]+)/`)
 
 // storeRefs collects the store entries a Compose file references.
 func storeRefs(compose []byte) []string {
-	var entries []string
-	for _, match := range storeRefPattern.FindAllSubmatch(compose, -1) {
+	matches := storeRefPattern.FindAllSubmatch(compose, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	entries := make([]string, 0, len(matches))
+	for _, match := range matches {
 		entries = append(entries, string(match[1]))
 	}
 	return entries
