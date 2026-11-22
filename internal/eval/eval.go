@@ -295,7 +295,7 @@ func Build(in Inputs) (*generation.Generation, error) {
 			if err = json.Unmarshal(b, &obj); err != nil {
 				return nil, err
 			}
-			translated, err := translateMCP(obj, r.Supports.MCPs.Style)
+			translated, err := translateMCP(obj, r.Supports.MCPs.Style, r.Supports.MCPs.SSE == nil || *r.Supports.MCPs.SSE)
 			if err != nil {
 				return nil, fmt.Errorf("%s: MCP %s: %w", name, mcpName, err)
 			}
@@ -649,10 +649,14 @@ func runtimeReferences(values map[string]string, names map[string]string) (map[s
 // translateMCP rewrites the generic stack MCP entry into the tool's own config
 // shape. Secret values are never written: they become the tool's runtime
 // reference syntax (Hermes ${VAR}, OpenCode {env:VAR}) or an environment
-// variable name (Codex).
-func translateMCP(obj map[string]any, style string) (map[string]any, error) {
+// variable name (Codex). A recipe that declares sse: false rejects remote
+// servers with transport sse instead of emitting a config its tool cannot use.
+func translateMCP(obj map[string]any, style string, supportsSSE bool) (map[string]any, error) {
 	command, hasCommand := obj["command"]
 	url, hasURL := obj["url"]
+	if !supportsSSE && hasURL && mcpTransport(obj) == "sse" {
+		return nil, fmt.Errorf("transport sse is not supported by this tool (Streamable HTTP only)")
+	}
 	switch style {
 	case "hermes", "claude-code", "gemini-cli":
 		out := map[string]any{}

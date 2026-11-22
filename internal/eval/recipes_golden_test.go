@@ -52,6 +52,27 @@ func TestRecipeBuildInputPins(t *testing.T) {
 
 // TestRecipeNpmInstallScriptsDisabled checks that npm-built recipes install
 // with lifecycle scripts off, so only audited build steps can execute (R5).
+func TestRecipeRejectsUnsupportedSSE(t *testing.T) {
+	dir := filepath.Join("../../testdata", "pi")
+	body, err := os.ReadFile(filepath.Join(dir, "stack.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body = bytes.Replace(body, []byte("url: https://mcp.example.test/mcp"), []byte("url: https://mcp.example.test/sse\n    transport: sse"), 1)
+	s, d := stack.Parse("stack.yaml", body)
+	if len(d.Errors) > 0 {
+		t.Fatal(d.Errors)
+	}
+	in, errs := Load(s, "../../recipes", dir)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	in.Images = map[string]string{"pi": in.Recipes["pi"].Image + "@sha256:" + strings.Repeat("d", 64)}
+	if _, err = Build(in); err == nil || !strings.Contains(err.Error(), "transport sse") {
+		t.Fatalf("err = %v, want SSE rejection for Pi", err)
+	}
+}
+
 func TestRecipeNpmInstallScriptsDisabled(t *testing.T) {
 	for _, tool := range []string{"claude-code", "codex", "gemini-cli"} {
 		t.Run(tool, func(t *testing.T) {

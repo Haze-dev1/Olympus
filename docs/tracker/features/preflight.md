@@ -26,8 +26,9 @@ generation never conflicts with its published ports. See
   message. All problems are reported together as `preflight failed:` with exit 1.
 - `internal/lock`: `update` and a lock-creating `check` record the resolved
   index's sorted, de-duplicated `os/architecture` pairs as `platforms` on each
-  lock tool; the field is optional and validated. A digest-pinned reference
-  fetches no index and records none.
+  lock tool; the field is optional and validated. Since release-review finding 7
+  (2026-11-22), `update` also fetches and digest-verifies the index for a
+  digest-pinned reference so it records platforms there too.
 - `internal/recipe`: `resources.min_ram` must parse as a size (`4GB`,
   `512MiB`); malformed values fail recipe validation instead of being ignored.
 - `internal/cli`: `preflightRequest` maps tool ports (and their public flag),
@@ -64,6 +65,10 @@ generation never conflicts with its published ports. See
 - New tests exercise a new entry point, so there is no red-before revision to
   compare against. The lock field and resolver changes do run against existing
   tests, which were updated alongside them.
+
+## Finding 7 follow-up, 2026-11-22
+
+The missing-platforms warning now has an actionable remedy: `olym update` fetches the index for digest-pinned images and verifies its bytes against the pinned digest before writing platforms. `plan` and `apply` still make no registry call for this check. [ADR 0061](../../ADR.md#0061-resolve-platforms-for-digest-pinned-images-on-update) amends 0044; red-before evidence is in [catalog-lock.md](catalog-lock.md). No lab run for this follow-up.
 
 ## Limits
 

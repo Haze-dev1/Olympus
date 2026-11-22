@@ -62,8 +62,7 @@
             "items": {
               "type": "string",
               "minLength": 1
-            },
-            "uniqueItems": true
+            }
           },
           "env": {
             "type": "object",

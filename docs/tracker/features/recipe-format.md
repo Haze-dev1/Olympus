@@ -39,3 +39,9 @@ Load declarative recipes and render their templates ([spec](../../specs/recipe.m
   away. No lab run: this host has no QEMU, so container start with the profile is
   unverified. ADR 0045 records the decision and why `no_new_privileges` stays
   opt-in.
+
+- 2026-11-22 — release-review findings 2 and 5: `supports.mcps.sse: false` lets a recipe reject an SSE entry before a tool-specific config is written (Pi declares it; default and `true` keep existing style behavior), and `uniqueItems` was removed from recipe `command`, `health.command` and `hooks.post_install` argv lists plus stack `mcps.args`. Pi's golden was regenerated; red-before tests and full validation are in `REPORT.md`. [ADR 0059](../../ADR.md#0059-let-recipes-reject-mcp-transports-they-cannot-use) and [ADR 0060](../../ADR.md#0060-allow-repeated-argv-entries). No lab run: no server-side behavior changed.
+
+### Orchestrator review of OLY-69 (2026-11-22)
+
+Renumbered the three ADRs to 0059 to 0061 (0057 and 0058 went to OLY-67 and OLY-68), merged `development` and regenerated the Pi golden from the merged code. The full offline set and whole-tree lint pass, and `TestLabM1` passes on a fresh Ubuntu 24.04 VM in 157.8 s. Finding 7's index fetch is verified against fake registries only, not a live registry.

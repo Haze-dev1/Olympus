@@ -36,6 +36,7 @@ The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-cu
 | `mcps.file` | Path of the config file that holds MCP servers |
 | `mcps.format` | `yaml`, `toml` or `json` |
 | `mcps.style` | Tool's shape and secret syntax: `hermes`, `codex`, `opencode`, `claude-code` or `gemini-cli` ([ADR 0037](../ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references), [0047](../ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers)) |
+| `mcps.sse` | Optional boolean; `false` means the tool has no SSE client, so an SSE entry fails evaluation. Omission or `true` keeps the style's behavior ([ADR 0059](../ADR.md#0059-let-recipes-reject-mcp-transports-they-cannot-use)) |
 | `mcps.key` | Key under which servers are listed, such as `mcp_servers` |
 | `skills.dir` | Folder the tool reads skills from |
 | `skills.mode` | `mount` for a read-only bind, or `copy` for the init service ([ADR 0038](../ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)) |
@@ -83,6 +84,10 @@ The stack defines each MCP server once. The core rewrites its `${NAME}` referenc
 - **Gemini CLI:** `command`, `args`, `env` with `${VAR}`, or `httpUrl` and `headers` for the default transport, or `url` and `headers` for `sse`. Exactly one of the two URL keys is written, because Gemini CLI prefers `httpUrl` and would otherwise ignore the other.
 
 `transport` is meaningless for stdio servers. Every style either renders it, falls back to SSE on its own (OpenCode) or rejects `sse` (Codex); none drops it silently ([ADR 0047](../ADR.md#0047-carry-an-explicit-remote-transport-for-mcp-servers), [0050](../ADR.md#0050-honour-or-reject-sse-for-hermes-codex-and-opencode)).
+
+A recipe whose tool has no SSE client can set `supports.mcps.sse: false`. A remote MCP entry with `transport: sse` then fails evaluation with `<tool>: MCP <name>: transport sse is not supported by this tool (Streamable HTTP only)`, so `check`, `build`, `plan` and `apply` stop before writing a config the tool cannot use. Omission or `sse: true` keeps the style's existing behaviour. Pi declares `sse: false`; Codex still rejects SSE through its style ([ADR 0059](../ADR.md#0059-let-recipes-reject-mcp-transports-they-cannot-use)).
+
+Recipe argv lists (`command`, `health.command`, `hooks.post_install`) and a stack MCP's `args` may repeat values: a flag or path can legitimately appear twice. Uniqueness stays required for sets such as volumes, ports, writable paths, templates, build files and channel allow-lists ([ADR 0060](../ADR.md#0060-allow-repeated-argv-entries)).
 
 Compose delivers the actual values as environment variables through `/var/lib/olympus/secrets/<tool>/environment`.
 

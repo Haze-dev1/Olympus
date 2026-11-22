@@ -18,8 +18,12 @@ import (
 // Secret declares an environment variable populated from a secret.
 type Secret struct{ Env string }
 
-// Managed declares a tool configuration file managed by Olympus.
-type Managed struct{ File, Format, Style, Key string }
+// Managed describes a tool's managed MCP file. SSE nil means the tool accepts
+// remote servers with transport sse; false rejects them at evaluation time.
+type Managed struct {
+	File, Format, Style, Key string
+	SSE                      *bool `json:"sse,omitempty"`
+}
 
 // Skills declares how a tool receives shared skills.
 type Skills struct{ Dir, Mode string }

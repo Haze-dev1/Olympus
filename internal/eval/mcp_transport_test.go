@@ -70,7 +70,7 @@ func TestTranslateMCPRemoteTransport(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := translateMCP(tc.in, tc.style)
+			got, err := translateMCP(tc.in, tc.style, true)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -82,11 +82,25 @@ func TestTranslateMCPRemoteTransport(t *testing.T) {
 }
 
 func TestTranslateMCPCodexRejectsSSE(t *testing.T) {
-	_, err := translateMCP(map[string]any{"url": "https://mcp.example.test/sse", "transport": "sse"}, "codex")
+	_, err := translateMCP(map[string]any{"url": "https://mcp.example.test/sse", "transport": "sse"}, "codex", true)
 	if err == nil || !strings.Contains(err.Error(), "Codex") {
 		t.Fatalf("err = %v, want Codex sse rejection", err)
 	}
-	if _, err = translateMCP(map[string]any{"url": "https://mcp.example.test/mcp", "transport": "http"}, "codex"); err != nil {
+	if _, err = translateMCP(map[string]any{"url": "https://mcp.example.test/mcp", "transport": "http"}, "codex", true); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTranslateMCPRecipeWithoutSSERejectsIt(t *testing.T) {
+	_, err := translateMCP(map[string]any{"url": "https://mcp.example.test/sse", "transport": "sse"}, "hermes", false)
+	if err == nil || !strings.Contains(err.Error(), "not supported") {
+		t.Fatalf("err = %v, want recipe sse rejection", err)
+	}
+	got, err := translateMCP(map[string]any{"url": "https://mcp.example.test/mcp", "transport": "http"}, "hermes", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["transport"] != nil {
+		t.Fatalf("http entry gained a transport key: %#v", got)
 	}
 }

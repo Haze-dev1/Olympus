@@ -31,6 +31,8 @@ Single and double dashes are interchangeable (`-yes` and `--yes`).
 
 Validates the stack configuration file, verifies recipe definitions, and ensures all secret variables referenced in the stack exist in an adjacent `.env` file without resolving their values. If `stack.lock` does not exist, `check` generates it by resolving the catalog revision and container image index digests.
 
+Fetching a catalog is bounded at 10,000 tar entries and 272 MiB (285212672 bytes) of expanded data. The count includes directory entries and files outside the selected recipe path, so a large monorepo can fail with `catalog: extract {owner repo recipes }: tarball has more than 10000 entries` or `catalog: extract {owner repo recipes }: expanded tarball exceeds 285212672 bytes`. Use a smaller catalog repository or a local `-recipes` override, which skips catalog fetching.
+
 ### Usage
 
 ```sh
@@ -64,7 +66,7 @@ olym build [-f stack.yaml] [-recipes recipes] [-o .olympus/build]
 
 ## update
 
-Refreshes pins in `stack.lock` from remote sources. Resolves the latest catalog revision from GitHub and queries container registries for updated multi-architecture index digests for all tools in the stack. Requires remote catalog (fails if `-recipes` is provided).
+Refreshes pins in `stack.lock` from remote sources. Resolves the latest catalog revision from GitHub and queries container registries for updated multi-architecture index digests for all tools in the stack. Images already pinned by digest keep their digest, but their index is fetched to record the platforms the apply preflight needs; a mismatch between the pinned digest and the registry's manifest fails the update. The catalog fetch limits described under `check` apply. Requires remote catalog (fails if `-recipes` is provided).
 
 ### Usage
 
