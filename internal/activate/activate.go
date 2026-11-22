@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -119,10 +120,8 @@ func (h Health) validate() error {
 			return fmt.Errorf("health check path %q does not start with /", h.HTTP.Path)
 		}
 	case len(h.Command) > 0:
-		for _, arg := range h.Command {
-			if arg == "" {
-				return errors.New("health check command has an empty argument")
-			}
+		if slices.Contains(h.Command, "") {
+			return errors.New("health check command has an empty argument")
 		}
 	default:
 		return errors.New("health check sets neither http nor command")
@@ -140,7 +139,7 @@ type State struct {
 	ID       string    `json:"id"`
 	Status   string    `json:"status"`
 	Nonce    string    `json:"nonce,omitempty"`
-	Deadline time.Time `json:"deadline,omitempty"`
+	Deadline time.Time `json:"deadline,omitzero"`
 }
 
 // pending is the confirmation file Confirm writes and Activate waits for.

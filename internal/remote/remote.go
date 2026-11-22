@@ -164,8 +164,7 @@ func (c *Client) HasPasswordlessSudo(ctx context.Context) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	var exit *ssh.ExitError
-	if errors.As(err, &exit) {
+	if _, ok := errors.AsType[*ssh.ExitError](err); ok {
 		return false, nil
 	}
 	return false, err
@@ -267,7 +266,7 @@ func appendKnownHost(path, host string, key ssh.PublicKey) error {
 	if err != nil {
 		return err
 	}
-	for _, l := range strings.Split(string(existing), "\n") {
+	for l := range strings.SplitSeq(string(existing), "\n") {
 		if strings.TrimSpace(l) == line {
 			return nil
 		}

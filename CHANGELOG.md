@@ -2,6 +2,13 @@
 
 ## Development
 
+- Cleared the remaining 17 lint baseline findings in `internal/activate`, `internal/deploy`, `internal/eval`, and `internal/remote`, bringing the repository to 0 lint findings across the entire codebase.
+  - `internal/activate`: simplified empty command arg validation with `slices.Contains` (modernize); updated `State.Deadline` struct tag to `omitzero` (modernize); ranged over `strings.SplitSeq` in `splitLines` (modernize); preallocated `entries` slice in `storeRefs` from regex submatch count (prealloc).
+  - `internal/deploy`: applied De Morgan's law simplification to ELF architecture match check in `deploy.go` (staticcheck QF1001); ranged over `strings.SplitSeq` for systemd property parsing in `deploy.go` and for socket listener, owned port, and meminfo parsing in `preflight.go` (modernize); removed redundant initial assignment `arch := ""` in `preflight.go` (wastedassign); replaced unexported `contains` helper with `slices.Contains` (modernize).
+  - `internal/eval`: replaced environment map loop with `maps.Copy` (modernize); replaced seccomp writable check loop with `slices.Contains` (modernize).
+  - `internal/remote`: ranged over `strings.SplitSeq` in `ParseOSRelease` and `appendKnownHost` (modernize); simplified SSH exit error unwrapping in `HasPasswordlessSudo` with `errors.AsType` (modernize).
+  - Baseline is now completely cleared (0 issues on `golangci-lint run ./...`). Verified with full offline suite (`go build`, `go vet`, `go test ./...`, `go test -race -short ./...`, `gofmt -l .`, `golangci-lint run ./...`) and live runs on fresh Ubuntu 24.04 QEMU lab VM (`TestLabDeploy` in 136.4 s, `TestLabM1` in 137.1 s). No ADR: mechanical, behavior-neutral cleanup.
+
 - Cleaned remaining lint baseline outside packages edited by concurrent branches (`internal/activate`, `internal/deploy`, `internal/eval`, `internal/remote`).
   - `internal/cli`: handled return values from `json.Encoder.Encode` and `out.Write` in `commands.go` (errcheck); moved test-only `readPlan` helper from `plan.go` to `plan_test.go` (unused); used `strings.Builder` in diagnostic error loop (modernize); simplified error unwrapping in `server.go` using `errors.AsType` (modernize); formatted imports in `terminal_linux.go` (goimports).
   - `cmd/olym`: formatted imports in `main.go` (goimports).

@@ -1,16 +1,14 @@
 # Lint baseline
 
-- **Status:** In progress. Config added; existing findings not fixed
+- **Status:** Done. Baseline cleared (0 issues on `golangci-lint run ./...`).
 - **Milestone:** none (quality gate)
 - **Config:** [`.golangci.yml`](../../../.golangci.yml), adapted from Caddy's
 
-`golangci-lint` v2.15.0 runs with Caddy's linter set, minus the web-server-only linters (`bodyclose`, `canonicalheader`, `promlinter`, `sloglint`, `sqlclosecheck`, `zerologlint`). Unlike Caddy, `gosec` G204 stays on, because Olympus builds remote commands and rule A2 needs every case reviewed. `AGENTS.md` runs it with `--new-from-merge-base=origin/development`, so only changed lines are checked until this backlog is cleared. When it is, drop that flag so the whole tree is checked.
+`golangci-lint` v2.15.0 runs with Caddy's linter set, minus the web-server-only linters (`bodyclose`, `canonicalheader`, `promlinter`, `sloglint`, `sqlclosecheck`, `zerologlint`). Unlike Caddy, `gosec` G204 stays on, because Olympus builds remote commands and rule A2 needs every case reviewed. The entire repository now passes `golangci-lint run ./...` with 0 issues; the `--new-from-merge-base=origin/development` flag in `AGENTS.md` can be dropped.
 
-## Findings on `development` at `3e103ef` (2026-11-21), updated in OLY-64 and round 3 lint cleanup
+## History of findings
 
-17 findings remain (down from 36): `golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 ./...`. With `--new-from-merge-base=origin/development` the tree reports 0.
-
-All 17 remaining findings are in packages actively edited by concurrent branches (`internal/activate`: 4, `internal/deploy`: 8, `internal/eval`: 2, `internal/remote`: 3). All findings outside those packages are resolved.
+Initial baseline on `development` at `3e103ef` (2026-11-21) had 55 findings. Reduced to 36 in OLY-64 (security findings resolved), to 17 in round-3 cleanup (packages outside concurrent branches), and to 0 in the final cleanup round.
 
 ### Review first (security-relevant) — ALL RESOLVED (OLY-64)
 
@@ -34,33 +32,40 @@ All 17 remaining findings are in packages actively edited by concurrent branches
   - `recipe/recipe.go:144, 299`: `strings.SplitSeq`; `:268`: `slices.Contains`.
   - `stack/stack.go:56, 59`: `maps.Copy`.
 
-### Remaining in concurrent packages (17 findings)
+### Resolved in final cleanup (17 findings cleared)
+
+All 17 findings in the concurrent packages (`internal/activate`, `internal/deploy`, `internal/eval`, `internal/remote`) resolved mechanically with zero behavior changes:
 
 - `internal/activate` (4):
-  - `activate.go:120`: slicescontains
-  - `activate.go:141`: omitzero
-  - `compose.go:170`: stringsseq
-  - `gc.go:162`: prealloc
+  - `activate.go:122`: `slices.Contains` replaces manual loop checking for empty argument (modernize).
+  - `activate.go:143`: `Deadline time.Time` uses `json:"deadline,omitzero"` tag (modernize).
+  - `compose.go:179`: `splitLines` ranges over `strings.SplitSeq` (modernize).
+  - `gc.go:162`: `storeRefs` preallocates `entries` slice with `make([]string, 0, len(matches))` (prealloc).
 - `internal/deploy` (8):
-  - `deploy.go:484`: stringsseq
-  - `preflight.go:182, 226, 227, 250`: stringsseq
-  - `preflight.go:315`: slicescontains
-  - `deploy.go:340`: staticcheck QF1001 (De Morgan simplification)
-  - `preflight.go:94`: wastedassign
+  - `deploy.go:340`: De Morgan's law simplification on ELF machine architecture check (staticcheck QF1001).
+  - `deploy.go:484`: ranges over `strings.SplitSeq` for systemd property parsing (modernize).
+  - `preflight.go:94`: removed redundant initial `arch := ""` assignment (wastedassign).
+  - `preflight.go:113, 314`: replaced unexported `contains` loop with `slices.Contains` and removed helper (modernize).
+  - `preflight.go:182, 226, 227, 250`: ranges over `strings.SplitSeq` for sockets, owned ports, and meminfo lines (modernize).
 - `internal/eval` (2):
-  - `eval.go:192`: mapsloop
-  - `eval.go:480`: slicescontains
+  - `eval.go:192`: `maps.Copy(environment, r.Env)` replaces manual copy loop (modernize).
+  - `eval.go:480`: `slices.Contains(r.Writable, seccompDst)` replaces manual loop (modernize).
 - `internal/remote` (3):
-  - `osrelease.go:30`: stringsseq
-  - `remote.go:168`: errorsastype
-  - `remote.go:270`: stringsseq
+  - `osrelease.go:30`: ranges over `strings.SplitSeq` for `/etc/os-release` parsing (modernize).
+  - `remote.go:168`: `errors.AsType[*ssh.ExitError](err)` in `HasPasswordlessSudo` replaces `errors.As` (modernize).
+  - `remote.go:270`: ranges over `strings.SplitSeq` in `appendKnownHost` (modernize).
 
 ## Verification
 
-- `go test -race -short ./...` passes on Linux amd64 with Go 1.27.4.
-- `golangci-lint run --new-from-merge-base=origin/development ./...` reports 0 issues.
-- `golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 ./...` reports exactly 17 issues, all in `activate`, `deploy`, `eval`, or `remote`.
-- `TestLabM1` passes on fresh Ubuntu 24.04 lab VM (ports 2272/8149) in 93.7 s, verifying check, plan, apply, status, autonomous rollback, gc and destroy cycles.
+- `go build -o /tmp/olym ./cmd/olym/` passes.
+- `go vet ./...` reports 0 issues.
+- `go test ./...` and `go test -race -short ./...` pass on Linux amd64 with Go 1.27.4.
+- `gofmt -l .` prints nothing.
+- `golangci-lint run ./...` reports 0 issues on the entire tree.
+- `golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 ./...` reports 0 issues.
+- `TestLabDeploy` passes on fresh Ubuntu 24.04 lab VM (ports 2272/8149) in 136.4 s.
+- `TestLabM1` passes on fresh Ubuntu 24.04 lab VM (ports 2272/8149) in 137.1 s, verifying check, plan, apply, status, autonomous rollback, gc and destroy cycles.
+- No ADR: mechanical cleanup of code quality findings with no change in architecture or behavior.
 
 ### Orchestrator review of OLY-64 (2026-11-22)
 
