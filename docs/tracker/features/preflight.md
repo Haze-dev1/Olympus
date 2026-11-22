@@ -1,7 +1,7 @@
 # Apply preflight
 
-- **Status:** Done offline; lab verification not run (no QEMU on this host)
-- **Updated:** 2026-11-05
+- **Status:** Done; verified offline and on QEMU lab VM
+- **Updated:** 2026-11-22
 - **Milestone:** M1
 
 `plan` and `apply` stop before any server mutation when the server cannot run the
@@ -78,3 +78,13 @@ generation never conflicts with its published ports. See
 - Security: the preflight adds no secret handling, prints no remote stderr and
   writes nothing on the server (A1, A2, A11). No dependency was added. No
   external scanner or independent review ran.
+
+## Release review fix: loopback conflict checks (Finding 4), 2026-11-22
+
+OLY-70 fixes finding 4 in `internal/deploy/preflight.go`: `conflictsWithLoopback` previously treated any `127.x` address or `[::1]` as blocking a bind to `127.0.0.1`. Linux allows these addresses to bind side by side on loopback. `conflictsWithLoopback` now checks only the exact address (`127.0.0.1`), IPv4 wildcards (`0.0.0.0`, `*`, `""`), and dual-stack IPv6 wildcard (`[::]`). Distinct loopback addresses like `127.0.0.2` and `[::1]` do not conflict.
+
+Evidence:
+- Unit test: Added table-driven test `TestConflictsWithLoopback` in `internal/deploy/preflight_test.go`. Failed before fix on `[::1]:8080`, `127.0.0.2:8080`, and `127.0.0.53:53` (returned true instead of false); passes with fix.
+- Live lab verification: Started HTTP listeners on `[::1]:9876` and `127.0.0.2:9876` simultaneously on the Ubuntu 24.04 QEMU lab VM (`.lab/`, SSH port 2272). `olym plan` for a stack with private port 9876 successfully passed preflight. Tested positive conflict detection by starting a listener on `127.0.0.1:9876` (preflight failed with `web: port 9876 is already in use (process python3 listening on 127.0.0.1:9876)`) and on `0.0.0.0:9876` (preflight failed with `web: port 9876 is already in use (process python3 listening on 0.0.0.0:9876)`).
+- No new ADR: adheres to ADR 0044 and TRD 7.2.
+

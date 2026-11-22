@@ -35,14 +35,20 @@ func ask(prompt string, stderr io.Writer) bool {
 	return err == nil && strings.EqualFold(strings.TrimSpace(line), "y")
 }
 
+// warnDevActivator warns the operator when running a development build without
+// embedded checksums unless the -unsafe-dev-activator flag was already supplied.
+func warnDevActivator(stderr io.Writer, unsafeDevActivator bool) {
+	if eval.Version == eval.DevelopmentVersion && !unsafeDevActivator && (deploy.ExpectedChecksum("amd64") == "" || deploy.ExpectedChecksum("arm64") == "") {
+		fmt.Fprintln(stderr, "Warning: development build; unsigned activators require -unsafe-dev-activator")
+	}
+}
+
 func manageGeneration(command string, in eval.Inputs, g *generation.Generation, file, known, activator, saved, output string, yes, detailed, unsafeDevActivator bool, out, stderr io.Writer) int {
 	if err := deploy.CheckReleaseBuild(eval.Version); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	if eval.Version == eval.DevelopmentVersion {
-		fmt.Fprintln(stderr, "Warning: development build; unsigned activators require -unsafe-dev-activator")
-	}
+	warnDevActivator(stderr, unsafeDevActivator)
 	secrets, err := toolSecrets(in, file)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -175,9 +181,7 @@ func serverCommand(command string, s *stack.Stack, known, activator string, keep
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	if eval.Version == eval.DevelopmentVersion {
-		fmt.Fprintln(stderr, "Warning: development build; unsigned activators require -unsafe-dev-activator")
-	}
+	warnDevActivator(stderr, unsafeDevActivator)
 	if command == "destroy" && !ask("Destroy the Olympus project?", stderr) {
 		fmt.Fprintln(out, "Cancelled.")
 		return 1

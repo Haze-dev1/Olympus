@@ -15,22 +15,37 @@ import (
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
+// Secret declares an environment variable populated from a secret.
 type Secret struct{ Env string }
+
+// Managed declares a tool configuration file managed by Olympus.
 type Managed struct{ File, Format, Style, Key string }
+
+// Skills declares how a tool receives shared skills.
 type Skills struct{ Dir, Mode string }
+
+// Channel declares environment variables for a chat channel integration.
 type Channel struct{ Env map[string]string }
+
+// Build declares files to copy into a tool's container build context.
 type Build struct {
 	Src, Dst string
 	// Files are copied next to Dst so the Dockerfile can COPY them (lockfiles).
 	Files []string
 }
+
+// Template declares a templated file rendered into the tool's container.
 type Template struct{ Src, Dst string }
+
+// Runtime specifies container runtime configuration for a tool.
 type Runtime struct {
 	ShmSize         string `json:"shm_size"`
 	StopGracePeriod string `json:"stop_grace_period"`
 	NoNewPrivileges bool   `json:"no_new_privileges"`
 	Seccomp         string
 }
+
+// Recipe declares an agent tool definition and container specification.
 type Recipe struct {
 	Name, Kind, Image, User string
 	Resources               struct {
@@ -64,6 +79,7 @@ type Recipe struct {
 	Dir string `json:"-"`
 }
 
+// Load reads and validates a recipe from the specified root directory.
 func Load(root, name string) (*Recipe, *schema.Document) {
 	file := filepath.Join(root, name, "recipe.yaml")
 	d := &schema.Document{File: file}
@@ -101,6 +117,8 @@ func Load(root, name string) (*Recipe, *schema.Document) {
 	}
 	return r, d
 }
+
+// Parse decodes and validates recipe YAML bytes against the schema.
 func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 	d := schema.Parse(file, b, "recipe")
 	if len(d.Errors) > 0 {
@@ -248,9 +266,13 @@ func (r *Recipe) RuntimeOptions() Runtime {
 	}
 	return *r.Runtime
 }
+
+// CleanAbsolute reports whether a path is clean, absolute, and free of directory traversal.
 func CleanAbsolute(p string) bool {
 	return strings.HasPrefix(p, "/") && !strings.Contains(p, "\\") && path.Clean(p) == p && !hasDotDot(p)
 }
+
+// SafeRelative reports whether a path is a non-empty relative path free of traversal.
 func SafeRelative(p string) bool {
 	return p != "" && filepath.Clean(p) != "." && !filepath.IsAbs(p) && !strings.Contains(p, "\\") && !hasDotDot(p)
 }
@@ -269,6 +291,8 @@ func hasDotDot(p string) bool {
 	return slices.Contains(strings.Split(p, "/"), "..")
 }
 func inside(p, root string) bool { return p == root || strings.HasPrefix(p, root+"/") }
+
+// Confined reports whether an absolute path resolves inside one of the recipe's volumes.
 func (r *Recipe) Confined(p string) bool {
 	if !CleanAbsolute(p) {
 		return false

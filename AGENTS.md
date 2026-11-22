@@ -74,7 +74,7 @@ Olympus follows the conventions of [Caddy](https://github.com/caddyserver/caddy)
 - **Naming:** initialisms keep their case (`URL`, `SSH`, `ID`, `MCP`); receivers are one or two letters from the type (`c` for `Client`); no stutter (`plan.Plan`, not `plan.PlanResult`).
 - **Doc comments:** every exported identifier and every package has one, as a full sentence starting with its name.
 - **Interfaces:** define them where they are used, keep them small, and add a compile-time guard for each implementation: `var _ Runner = (*sshRunner)(nil)`.
-- **State:** no package-level mutable state. Pass `context.Context` as the first argument; never store it in a struct.
+- **State:** no package-level mutable state (exception: `eval.Version` and `deploy.ReleaseChecksum*`, which are package-level variables injected at build time via `-ldflags -X`). Pass `context.Context` as the first argument; never store it in a struct.
 - **Slices:** declare empty slices as `var s []T`, not `s := []T{}`, unless the encoding must distinguish nil from empty.
 - **Dependencies:** avoid new ones and justify any addition; inline tiny ones. Do not export types defined by external packages. Keep `go mod tidy` clean.
 - **Generality:** fix the general case, not one tool or recipe, unless the special case is documented in the recipe.

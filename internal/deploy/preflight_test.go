@@ -255,3 +255,32 @@ func TestPreflightSkipsUnreadableMeasurements(t *testing.T) {
 		})
 	}
 }
+
+func TestConflictsWithLoopback(t *testing.T) {
+	tests := []struct {
+		name    string
+		address string
+		want    bool
+	}{
+		{name: "exact 127.0.0.1", address: "127.0.0.1:8080", want: true},
+		{name: "ipv4 wildcard 0.0.0.0", address: "0.0.0.0:8080", want: true},
+		{name: "dual-stack wildcard [::]", address: "[::]:8080", want: true},
+		{name: "all interfaces *", address: "*:8080", want: true},
+		{name: "empty host", address: ":8080", want: true},
+		{name: "ipv4-mapped 127.0.0.1", address: "[::ffff:127.0.0.1]:8080", want: true},
+		{name: "ipv6 loopback [::1]", address: "[::1]:8080", want: false},
+		{name: "different ipv4 loopback 127.0.0.2", address: "127.0.0.2:8080", want: false},
+		{name: "systemd-resolved 127.0.0.53", address: "127.0.0.53:53", want: false},
+		{name: "private non-loopback 10.0.0.1", address: "10.0.0.1:8080", want: false},
+		{name: "external ipv4 192.168.1.100", address: "192.168.1.100:8080", want: false},
+		{name: "link-local ipv6 [fe80::1]", address: "[fe80::1]:8080", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := conflictsWithLoopback(tc.address)
+			if got != tc.want {
+				t.Fatalf("conflictsWithLoopback(%q) = %v, want %v", tc.address, got, tc.want)
+			}
+		})
+	}
+}
