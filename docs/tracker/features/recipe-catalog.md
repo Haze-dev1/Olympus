@@ -576,3 +576,31 @@ The evaluator exits init immediately when a managed file cannot be delivered, in
 `TestInitStopsOnFirstCopyFailure` and the evaluator golden suite pass. The pre-existing copied-skills test initially failed because it left a volume directory pointing at the host. It now points at the temporary test volume.
 
 The final fresh Ubuntu QEMU `TestLabM1` run passed in 144.603 s. A generated init with a blocked first destination and a writable second destination produced apply exit 3 and restored the previous current generation. A scratch run of the unit fixture against the original evaluator failed as expected because the original script exited successfully.
+
+### npm lifecycle-script audit and build change (OLY-66, 2026-11-22)
+
+Security review R5. Every `hasInstallScript` entry in the three lockfiles was read from the pinned npm tarball as data (no script was run on the host); tarballs were also checked for `binding.gyp`, which makes npm run an implicit node-gyp install.
+
+| Recipe | Pinned package | Script at that version | Egress | Outcome |
+| --- | --- | --- | --- | --- |
+| `codex` 0.116.0 | none in lock; `@openai/codex` has no `scripts` | — | — | `--ignore-scripts` is a no-op hardening |
+| `gemini-cli` 0.67.0 | `@github/keytar` 7.10.6 (optional) | `install.js` copies the prebuild `.node` already in the tarball to `build/Release` | none | skipped; keychain helper not needed in the container |
+| `gemini-cli` 0.67.0 | `node-pty` 1.0.0 (optional) | `post-install.js` deletes unlisted local build files; npm default node-gyp compiles pinned `src/` plus pinned `nan` | none | skipped; `@lydell/node-pty` 1.1.0 ships prebuilds and has no scripts |
+| `claude-code` 2.1.318 | `@anthropic-ai/claude-code` | `install.cjs` hardlinks/copies the native binary from the integrity-pinned optional-dependency tarball over the 500-byte `bin/claude.exe` stub | none | run explicitly by path after `npm ci`; no other lifecycle script runs |
+
+All three Dockerfiles now install with `npm ci --omit=dev --ignore-scripts`. Pi already used the flag. The Claude Code Dockerfile names the one upstream script path, so a rename must be reviewed with the pin move. `TestRecipeNpmInstallScriptsDisabled` in `internal/eval/recipes_golden_test.go` asserts the flag in all three Dockerfiles and the explicit script call; it failed on all three before the edits and passes after. The claude-code, gemini-cli and real-stack goldens were regenerated: only the Dockerfile bytes, image tags, store hashes and files that embed them changed.
+
+Verification failures during the run: the first lab `check` failed because the hand-written lock used `sha256:` instead of the required `sha256-` input-hash form (fixed in the temp fixtures); the full suite failed on `TestRealStackGolden` before that golden was regenerated; one early `docker compose exec … claude --version` returned 127 with stderr suppressed, and a direct rerun printed `2.1.318 (Claude Code)` (no product change). No product test remains failing.
+
+Lab evidence (fresh `lab/lab.sh reset` before each tool, ports `2252`/`8129`, `OLYMPUS_LAB_MEMORY=6144`, local `-recipes` override of this branch, hand-written lock pinning `node:22-bookworm-slim@sha256:e9f565d3…`, development CLI with `-unsafe-dev-activator` and a separately built Linux activator, sentinel-only `.env`):
+
+- **Claude Code: passed.** `check` and `apply` exit 0; generation `sha256-cf0d857d…`; status `claude running healthy` (image `olympus/claude:sha256-5e6174e8…`). In the container `claude --version` printed `2.1.318 (Claude Code)`; 0 restarts; secret files `model-key`, `github-token`, `environment`, `fingerprints.json` all mode 0600 root; `docker compose ps` shows no published port; no sentinel in CLI output, store, logs or container logs.
+- **Codex: passed.** `apply` exit 0; generation `sha256-2e49c8f5…`; status `codex running healthy` (`olympus/codex:sha256-5a8a1907…`); `codex --version` printed `codex-cli 0.116.0`; 0 restarts; secret files 0600 root; no published port; no sentinel leaks.
+- **Gemini CLI: passed.** `apply` exit 0; generation `sha256-dde18da9…`; status `gemini running healthy` (`olympus/gemini:sha256-88840ff5…`); `gemini --version` printed `0.67.0`; `gemini-init` exited 0; 0 restarts; secret files 0600 root; no published port; no sentinel leaks.
+- On-host `ss -tln` showed only SSH and the two DNS stub listeners; nothing from the tools. `lab/lab.sh down` after the last run.
+
+Static validation: `go build`, `go vet ./...`, `go test ./...`, `go test -race -short ./...`, `gofmt -l .` (empty) and `golangci-lint run --new-from-merge-base=origin/development ./...` (0 issues) all pass. ADR: 0054 added, amends 0051 (which had assumed install scripts would keep running). Live model/bot sessions and interactive tool use remain out of scope: only sentinel values and `--version` were exercised.
+
+### Orchestrator review of OLY-66 (2026-11-22)
+
+Renumbered the ADR to 0056 (0054 and 0055 went to OLY-65) and merged `development`. Both branches had regenerated the Claude Code, Gemini CLI and real-stack goldens, so they were rebuilt from the merged code and checked to carry both OLY-65's stop-on-first-copy-failure init and OLY-66's `--ignore-scripts` builds. The full offline set and whole-tree lint pass. `TestLabRealStack` passes on a fresh Ubuntu 24.04 VM in 310.2 s, building Codex with `npm ci --omit=dev --ignore-scripts` alongside real Hermes and OpenCode.

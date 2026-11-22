@@ -4,7 +4,7 @@ services:
     build:
       args:
         BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-      context: /var/lib/olympus/store/sha256-d4dcbc381c3d58c15c672979d88915e5aef220d4b23e343fa5ddc8d89114483e/files/root/.olympus-build
+      context: /var/lib/olympus/store/sha256-7f43d0977f11d9a49d74b422935cd066a32e9638fc60786b00e2e33edfbde5b4/files/root/.olympus-build
       dockerfile: Dockerfile
     command:
     - sleep
@@ -13,7 +13,7 @@ services:
     - /var/lib/olympus/secrets/claude/environment
     environment:
       DISABLE_AUTOUPDATER: "1"
-    image: olympus/claude:sha256-16bd967a7909
+    image: olympus/claude:sha256-817a0e10a968
     labels:
       org.olympus.tool: claude
     restart: unless-stopped
@@ -22,23 +22,23 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-d4dcbc381c3d58c15c672979d88915e5aef220d4b23e343fa5ddc8d89114483e/files/root/.claude/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-7f43d0977f11d9a49d74b422935cd066a32e9638fc60786b00e2e33edfbde5b4/files/root/.claude/skills/deploy-checklist/SKILL.md
       target: /root/.claude/skills/deploy-checklist/SKILL.md
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-d4dcbc381c3d58c15c672979d88915e5aef220d4b23e343fa5ddc8d89114483e/files/root/.mcp.json
+      source: /var/lib/olympus/store/sha256-7f43d0977f11d9a49d74b422935cd066a32e9638fc60786b00e2e33edfbde5b4/files/root/.mcp.json
       target: /root/.mcp.json
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-d4dcbc381c3d58c15c672979d88915e5aef220d4b23e343fa5ddc8d89114483e/files/root/.olympus-build/Dockerfile
+      source: /var/lib/olympus/store/sha256-7f43d0977f11d9a49d74b422935cd066a32e9638fc60786b00e2e33edfbde5b4/files/root/.olympus-build/Dockerfile
       target: /root/.olympus-build/Dockerfile
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-d4dcbc381c3d58c15c672979d88915e5aef220d4b23e343fa5ddc8d89114483e/files/root/.olympus-build/package-lock.json
+      source: /var/lib/olympus/store/sha256-7f43d0977f11d9a49d74b422935cd066a32e9638fc60786b00e2e33edfbde5b4/files/root/.olympus-build/package-lock.json
       target: /root/.olympus-build/package-lock.json
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-d4dcbc381c3d58c15c672979d88915e5aef220d4b23e343fa5ddc8d89114483e/files/root/.olympus-build/package.json
+      source: /var/lib/olympus/store/sha256-7f43d0977f11d9a49d74b422935cd066a32e9638fc60786b00e2e33edfbde5b4/files/root/.olympus-build/package.json
       target: /root/.olympus-build/package.json
       type: bind
 volumes:

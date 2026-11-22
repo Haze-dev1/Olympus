@@ -50,6 +50,31 @@ func TestRecipeBuildInputPins(t *testing.T) {
 	}
 }
 
+// TestRecipeNpmInstallScriptsDisabled checks that npm-built recipes install
+// with lifecycle scripts off, so only audited build steps can execute (R5).
+func TestRecipeNpmInstallScriptsDisabled(t *testing.T) {
+	for _, tool := range []string{"claude-code", "codex", "gemini-cli"} {
+		t.Run(tool, func(t *testing.T) {
+			b, err := os.ReadFile(filepath.Join("../../recipes", tool, "Dockerfile"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(b, []byte("npm ci --omit=dev --ignore-scripts")) {
+				t.Errorf("recipes/%s/Dockerfile: npm ci without --ignore-scripts", tool)
+			}
+		})
+	}
+	// Claude Code's bin is an error stub until its postinstall links the
+	// platform binary, so run only that audited script after npm ci.
+	b, err := os.ReadFile("../../recipes/claude-code/Dockerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(b, []byte("node node_modules/@anthropic-ai/claude-code/install.cjs")) {
+		t.Error("claude-code Dockerfile does not run the audited install.cjs")
+	}
+}
+
 // TestRecipeGoldens renders each single-recipe fixture stack with a fake digest
 // for the recipe's own image and compares it with <dir>/golden.
 func TestRecipeGoldens(t *testing.T) {

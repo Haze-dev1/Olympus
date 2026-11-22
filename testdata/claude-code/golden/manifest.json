@@ -1,7 +1,7 @@
 {
-  "id": "sha256-47877a8b9c0cb133d08e6213ef1d88f714218c8960c3c9c4eb6b66a52d988846",
+  "id": "sha256-d2e095fcec82e5204a9eee1dc46436233a6f204579b880bc225def36bc1ebd21",
   "inputs": {
-    "recipes": "sha256-e29ad9bc277443221f5b6de8740b560559f91eaa92deeb4579bb5abf201febf4"
+    "recipes": "sha256-a0e7b255a0692ea97099ad9b274da6f2893231acc4640e7fe116f3dc46e308ab"
   },
   "olym": "0.1.0-dev",
   "tools": {
@@ -9,11 +9,11 @@
       "files": {
         "/root/.claude/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0",
         "/root/.mcp.json": "sha256-c4362a0cb05e59311e86eac62c4d1e7995628359412052051c0dce81d18f55ca",
-        "/root/.olympus-build/Dockerfile": "sha256-f0d73d85f6f36b4fa125b44e99b7a9cc0899a884a0693b4b08d1cdfa391f81a3",
+        "/root/.olympus-build/Dockerfile": "sha256-25dc72ef17c86747b36941227fedd9a8e44644e265054d2daae09404ca2e5e6d",
         "/root/.olympus-build/package-lock.json": "sha256-7ad2897ed7a1672532384227d03c7f5b7feaf7c7b6a5f27affac31d388b23900",
         "/root/.olympus-build/package.json": "sha256-de7ce6d53440f4717a687b81f45090e6ee00ffe0c24fc99eec9c9ce58bbc0d4c"
       },
-      "hash": "sha256-d4dcbc381c3d58c15c672979d88915e5aef220d4b23e343fa5ddc8d89114483e",
+      "hash": "sha256-7f43d0977f11d9a49d74b422935cd066a32e9638fc60786b00e2e33edfbde5b4",
       "health": {
         "command": [
           "claude",
@@ -21,7 +21,7 @@
         ],
         "timeout": "60s"
       },
-      "image": "olympus/claude:sha256-16bd967a7909",
+      "image": "olympus/claude:sha256-817a0e10a968",
       "secrets": [
         "github-token",
         "model-key"
