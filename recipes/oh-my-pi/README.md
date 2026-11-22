@@ -82,20 +82,26 @@ GitHub releases; the release checksums and pinned docs were re-checked on
   (<https://github.com/can1357/oh-my-pi/blob/v18.17.0/docs/skills.md>).
   The recipe declares `supports.skills.dir: /root/.omp/agent/skills` with `mode: mount`.
 
-## Gaps and lab verification
+## Lab verification and gaps
 
-- **Lab attempts made 2026-11-21, not completed.** A QEMU VM was available and
-  the recipe was applied twice with a development CLI (`-unsafe-dev-activator`)
-  and sentinel secrets. The first attempt stalled in the fetch stage's
-  `apt-get update` (one TCP connection idle for over 800 s) and rolled back.
-  The second got through `apt` but downloaded the 284,477,616-byte
-  `omp-linux-x64` binary at about 33 KiB/s from GitHub's release CDN and was
-  stopped at the 25-minute cap with about 17 MB fetched. The offline golden
-  covers rendering only.
-- **UNVERIFIED:** the release binary's SHA-256 check during build,
-  `omp --version` in a running container, `/root/.omp/agent/mcp.json` keeping
-  `${GITHUB_TOKEN}` as a reference, `config.yml` seeding
-  `startup.checkUpdate: false` / `update.auto: false`, the shared skill mount,
-  and volume persistence. Rerun when the release download is fast enough.
+- **Lab verification (2026-11-22).** Verified live on a disposable Ubuntu 24.04 QEMU VM
+  using the development CLI (`-unsafe-dev-activator`), a separately compiled Linux
+  activator, and sentinel secrets (`OLYM_SENTINEL_*`).
+  - GitHub release download: measured at ~2.3 MB/s from the host before the run; the
+    284 MB `omp-linux-x64` binary was fetched and verified against its release SHA-256
+    (`a4ce6001ab1012ca835f4184d675437531bd1ac477a7ba8424ed0b5476e9e4cb`) in the
+    fetch stage.
+  - Activation: `apply` succeeded (generation `sha256-26c87cfbbf44…`); `olym status`
+    reported `oh-my-pi` `running healthy` (generation 1, image `olympus/oh-my-pi:sha256-8ac4522fa066`).
+  - Container health: `omp --version` inside the container printed `omp/18.17.0`.
+  - Writable files and templates: the `oh-my-pi-init` service completed with exit 0 and
+    delivered `/root/.omp/agent/config.yml` (seeding `startup.checkUpdate: false` and
+    `update.auto: false`) and `/root/.omp/agent/mcp.json` (retaining `"GITHUB_TOKEN": "${GITHUB_TOKEN}"`
+    as an unexpanded reference).
+  - Skills: the shared skill mount was verified at `/root/.omp/agent/skills/lab-skill/SKILL.md`.
+  - Secret isolation: `/var/lib/olympus/secrets/oh-my-pi/` secret and environment files
+    were mode `0600` root-only. No sentinel value appeared in CLI output or logs.
+  - Exposure: no tool port was exposed or bound to the host (loopback-only / A4).
+  - Teardown: `olym destroy` cleanly removed containers while keeping volumes.
 - **UNVERIFIED:** live interactive sessions, token consumption against active
   model provider APIs, and LSP in-process diagnostics.
