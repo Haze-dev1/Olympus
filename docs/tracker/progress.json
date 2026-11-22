@@ -113,8 +113,8 @@
     "test-lab": {
       "status": "done",
       "file": "features/test-lab.md",
-      "updated": "2026-11-21",
-      "summary": "All three lab tests pass on merged development (2026-11-21): TestLabDeploy, TestLabM1 and TestLabRealStack with real Hermes, Codex and OpenCode."
+      "updated": "2026-11-22",
+      "summary": "TestLabTwoServers passed on two fresh Ubuntu 24.04 amd64 VMs with matching generation IDs, manifest bytes, pinned running image IDs and platform manifest digests, and stored config hashes. The two-server release evidence covers registry-pulled lab fixtures. TestLabDeploy, TestLabM1 and TestLabRealStack passed on merged development on 2026-11-21."
     },
     "deploy": {
       "status": "done",

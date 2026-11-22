@@ -2,6 +2,8 @@
 
 ## Development
 
+- Added `TestLabTwoServers` to compare deployed generation IDs, manifest bytes, running image IDs and platform manifest digests, and rendered config hashes across two fresh lab VMs using the same stack and lock.
+
 - OLY-63: run recipe post-install hooks inside the tool container after readiness checks. Record successful hooks by tool name across re-applies, removals and rollbacks. Failed hooks trigger activation rollback. See ADR 0052.
 - OLY-25: research for the catalog's "a Grok bot" line ended at the task's STOP rule; no recipe was written. The official [Grok Bot](https://docs.x.ai/grok-bot/overview) is a closed, Cursor-account, cloud-computer product with no self-host option; `xai-org/grok-build` is an official but coding-agent CLI; the widely used, maintained open-source "Grok Bot" projects (`milind-soni/OpenMausBot`, `elie222/rakazo`, `stablyai/orca`) are mutually different *alternatives*, not a single named tool. Evidence and the request for a named repository are in `docs/Sources/landscape.md`; no product scope was invented. No code, recipes, testdata or ADR changes; `docs/Sources/landscape.md` and the recipe-catalog tracker record the dated finding. Full validation (`go build`, `go vet`, `go test`, `go test -race -short`, `gofmt -l`, `golangci-lint --new-from-merge-base`) passes. Lab not run; it is only needed once a tool is named.
 - OLY-64: fix security-relevant lint findings and clean touched packages.

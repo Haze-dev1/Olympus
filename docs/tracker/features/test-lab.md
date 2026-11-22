@@ -40,6 +40,26 @@ After PRs #37, #44, #45 and #46 merged (`development` at `9af4c04`), on a fresh 
 - `TestLabM1` passed (118.1 s).
 - `TestLabRealStack` first failed at `status --json`: as in `TestLabM1`, the test read stderr together with stdout, so the development-build warning broke JSON parsing. `apply` had already brought up the real stack. With stderr kept apart (still scanned for sentinels), it passed in 1354.5 s on a 6144 MiB VM: update, check, plan, apply, health of Hermes, Codex (`codex-cli 0.116.0`) and OpenCode, shared MCP and skill checks, no-op apply, selective change, rollback, status and delete-data destroy. Most of the time went on image pulls from GitHub's CDN at about 41 KiB/s; an earlier run the same day finished `apply` in about 4 minutes. Model inference and chat were not attempted.
 
+## Two-server reproducibility (2026-11-22)
+
+`TestLabTwoServers` exercises [PRD N-P3](../../PRD.md#83-reproducibility) and the [v1 two-server release criterion](../../PRD.md#101-v1-release-criteria) with two fresh Ubuntu 24.04 amd64 lab VMs. Both applies use the same `stack.yaml`, `stack.lock` and local `lab-one` and `lab-two` fixtures. The test supplies each VM's SSH settings in memory before calling the CLI apply path. The local fixture override exercises image pinning while bypassing catalog fetching.
+
+Both fixtures pull a registry image. Neither has a Dockerfile. [ADR 0041](../../ADR.md#0041-prepare-content-addressed-built-images-before-starting-services) and [ADR 0051](../../ADR.md#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage) describe how the content-addressed tag identifies build inputs and why separate Docker builds can have different image IDs. This test adds evidence for the existing criteria and warrants no new ADR.
+
+Set `OLYMPUS_LAB=1` with the connection settings from `lab.sh env` for VM A and the `OLYMPUS_LAB_*` settings suffixed with `_B` for VM B. Run `go test -tags=lab ./internal/cli -run '^TestLabTwoServers$' -count=1 -v`.
+
+Both applies exited 0 on fresh VMs (SSH 2232 and 2282, 4096 MiB each, QEMU software emulation). The strengthened run passed in 145.15s:
+
+| Check | Result on both VMs |
+| --- | --- |
+| Active generation ID | `sha256-931a824df3f17d19d82cb996872688b02cb3089b8c01e3f45817caef6cb080bc` |
+| Manifest SHA-256 (byte-identical) | `sha256-cc106b577fa4885e458e4817a8b7846b43801456764c28c5e84666b2644f06a1` |
+| Pinned registry index and Docker image ID for both running tools | `sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10` |
+| Selected linux/amd64 image manifest for both tools | `sha256:62223d644fa234c3a1cc785ee14242ec47a77364226f1c811d2f669f96dc2ac8` |
+| Stored `/etc/nginx/conf.d/default.conf` SHA-256 for both tools | `sha256-6d02656e41940ab128638d95922ae84077481387b3cc1fcc1977dbd97d667f62` |
+
+Build, vet, unit and race suites, formatting, lab-tagged vet and changed-line lint passed. Initial sandboxed runs lacked socket access and the default Go cache was read-only. A subsequent tagged compile caught stale references to the shared pin constant. The final runs used a writable cache and loopback access, with the stale references corrected. The targeted run covered the two-server release criterion for the pinned registry fixture on amd64.
+
 ## Not done
 
 - The CLI has no setting yet for a custom `known_hosts` path; it lands with the `olym plan` wiring.
