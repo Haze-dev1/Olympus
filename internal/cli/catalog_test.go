@@ -53,7 +53,7 @@ func TestCatalogCommands(t *testing.T) {
 			t.Error("missing GitHub credential")
 		}
 		if r.URL.Path == "/repos/owner/repo/commits/development" {
-			fmt.Fprintf(w, `{"sha":%q}`, rev)
+			fmt.Fprint(w, rev)
 			return
 		}
 		if r.URL.Path != "/owner/repo/tar.gz/"+rev {
