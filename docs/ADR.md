@@ -48,7 +48,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0040](#0040-resolve-optional-catalog-refs-to-locked-commits) | Resolve optional catalog refs to locked commits | Accepted |
 | [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted, amended by 0051 |
 | [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
-| [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032 |
+| [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032, amended by 0057 |
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted |
 | [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
 | [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
@@ -62,6 +62,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0054](#0054-bound-and-verify-semantic-plan-reads) | Bound and verify semantic plan reads | Accepted |
 | [0055](#0055-bind-managed-init-policy-to-tool-identity) | Bind managed init policy to tool identity | Accepted, amends 0036 |
 | [0056](#0056-keep-npm-lifecycle-scripts-out-of-built-images) | Keep npm lifecycle scripts out of built images | Accepted, amends 0051 |
+| [0057](#0057-preserve-init-order-during-secret-rotation) | Preserve init order during secret rotation | Accepted, amends 0043 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -1276,7 +1277,7 @@ initialization. A malicious concurrent writer could race path checks.
 
 ## 0043. Recreate only the containers whose secrets changed, including on revert
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0057](#0057-preserve-init-order-during-secret-rotation)
 - **Date:** 2026-11-05
 - **Amends:** [0027](#0027-activate-a-generation-from-the-store-by-manifest-id), [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs)
 
@@ -1757,6 +1758,28 @@ All npm-built recipe Dockerfiles install with `npm ci --omit=dev --ignore-script
 - **Leave scripts enabled and document them:** keeps the unpinned execution path in the build and relies on future lockfile reviews to catch new scripts.
 - **Add a checksum-verified fetch stage for each native binary:** duplicates npm's integrity-pinned tarballs and adds architecture-specific URLs and hashes for binaries already shipped inside the lock.
 - **Replace the Claude Code bin stub in the recipe:** reimplements upstream platform detection and link logic instead of running the audited script.
+
+## 0057. Preserve init order during secret rotation
+
+- **Status:** Accepted, amends [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert)
+- **Date:** 2026-11-22
+
+### Context
+
+OLY-67. Secret rotation force-recreated selected tools with dependency startup disabled. The later project-wide start could copy writable config after a tool had already read it. Automatic revert used the same sequence. A teardown after a secret restoration failure could also leave containers declared only in the previous generation running.
+
+### Decision
+
+Let Compose follow each selected tool's declared dependencies during forced recreation. The existing completion condition makes Compose wait for its init service before starting the tool. Include orphans whenever the activator takes the Compose project down and preserve its volumes on ordinary teardown.
+
+### Consequences
+
+Forward activation and automatic revert start the selected tools with their generation's writable config. Selective recreation includes their managed init services. A failed restoration shuts down all containers in the Olympus project, including removed tools.
+
+### Alternatives considered
+
+- **Start init services separately:** would duplicate the dependency graph and completion handling already declared in Compose.
+- **Take down the project before recreating tools:** would interrupt unrelated tools during ordinary secret rotation.
 
 ## Template
 

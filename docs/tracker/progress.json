@@ -80,7 +80,7 @@
       "status": "done",
       "file": "features/activator.md",
       "updated": "2026-11-22",
-      "summary": "OLY-63: run post-install hooks in the tool container after readiness. Persist success by stack tool name and roll back on failure (ADR 0052). Red/green unit tests and the extended TestLabM1 verified first apply, no-op re-apply, completion across container replacement and rollback, and hook failure rollback."
+      "summary": "OLY-63: run post-install hooks in the tool container after readiness. Persist success by stack tool name and roll back on failure (ADR 0052). Red/green unit tests and the extended TestLabM1 verified first apply, no-op re-apply, completion across container replacement and rollback, and hook failure rollback. OLY-67 makes selective secret recreation wait for managed init and includes orphans in teardown (ADR 0057). Both the targeted regression and TestLabM1 passed on fresh lab VMs."
     },
     "recipe-format": {
       "status": "done",

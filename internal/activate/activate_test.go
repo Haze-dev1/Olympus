@@ -363,7 +363,9 @@ func TestActivateConfirmedBecomesCurrent(t *testing.T) {
 
 func TestActivateRollsBackIfClearConfirmFails(t *testing.T) {
 	f := newFixture(t)
-	id := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	first := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.activate(t, first)
+	id := f.addGeneration(t, "gen2", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
 	f.health[id] = map[string]Health{"observatory": {HTTP: &HTTPCheck{Port: 8080, Path: "/healthz"}}}
 
 	var calls int
@@ -382,8 +384,12 @@ func TestActivateRollsBackIfClearConfirmFails(t *testing.T) {
 		t.Fatalf("confirm %s: %v", id, err)
 	}
 	err := f.wait(t, result)
-	if err == nil {
-		t.Fatal("expected activate to fail when clearConfirm fails, but got nil")
+	var rolled *RolledBackError
+	if !errors.As(err, &rolled) {
+		t.Fatalf("want a RolledBackError, got %v", err)
+	}
+	if got := readlink(t, filepath.Join(f.Root, "current")); got != "generations/1" {
+		t.Errorf("current = %q, want generations/1", got)
 	}
 }
 
@@ -410,8 +416,12 @@ func TestRollbackRollsBackIfClearConfirmFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := f.wait(t, result)
-	if err == nil {
-		t.Fatal("expected rollback to fail when clearConfirm fails, but got nil")
+	var rolled *RolledBackError
+	if !errors.As(err, &rolled) {
+		t.Fatalf("want a RolledBackError, got %v", err)
+	}
+	if got := readlink(t, filepath.Join(f.Root, "current")); got != "generations/2" {
+		t.Errorf("current = %q, want generations/2", got)
 	}
 }
 
@@ -809,8 +819,8 @@ func TestComposeCommandsAreScopedAndListed(t *testing.T) {
 	for _, want := range []string{
 		"compose -p olympus -f /srv/compose.yaml pull",
 		"compose -p olympus -f /srv/compose.yaml up -d --no-build --pull never --remove-orphans",
-		"compose -p olympus -f /srv/compose.yaml up -d --no-build --pull never --no-deps --force-recreate observatory notes",
-		"compose -p olympus -f /srv/compose.yaml down",
+		"compose -p olympus -f /srv/compose.yaml up -d --no-build --pull never --force-recreate observatory notes",
+		"compose -p olympus -f /srv/compose.yaml down --remove-orphans",
 		"compose -p olympus -f /srv/compose.yaml exec -T observatory curl -fsS http://127.0.0.1:8080/healthz",
 	} {
 		if !strings.Contains(got, want) {

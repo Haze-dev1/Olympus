@@ -8,6 +8,7 @@
   - Finding 11 (minor): added doc comments to `recipe.Runtime`, `eval.DevelopmentVersion`, `eval.Version`, `eval.Service`, `eval.ServiceBuild`, `eval.Depends`, `eval.Mount`, `eval.Compose`, `eval.Load`, `eval.Build`, `recipe.Secret`, `recipe.Managed`, `recipe.Skills`, `recipe.Channel`, `recipe.Build`, `recipe.Template`, `recipe.Recipe`, `recipe.Load`, `recipe.Parse`, `recipe.CleanAbsolute`, `recipe.SafeRelative`, `recipe.Confined`, `deploy.PreflightError.Error`, `deploy.Rollback`, and `deploy.ExitCode`.
   - Finding 12 (minor): recorded exception for linker-injected package-level mutable variables (`eval.Version` and `deploy.ReleaseChecksum*`) in `AGENTS.md`'s "State" rule, and added explanatory doc comments at their declarations.
   - No new ADR: bugfixes and documentation adhering to ADR 0044, ADR 0048, ADR 0049 and the Go code standard.
+- OLY-67 runs managed init before recreating tools during secret rotation and automatic revert, removes orphan containers during project teardown, and checks rollback error types and the current generation in confirmation-cleanup tests. See ADR 0057.
 
 - Added `docs/security/release-review-2026-11-22.md`: a review of `development` against `main` (#19 to #60) with four serious and nine minor findings, indexed in `docs/README.md` and the security-review tracker. Documentation only; no ADR.
 

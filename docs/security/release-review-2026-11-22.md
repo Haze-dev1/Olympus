@@ -12,17 +12,17 @@ Status values: **Open**, **Fixing** (with the issue), **Fixed** (with the PR).
 |---|---|---|---|---|
 | [1](#1-openclaw-cannot-read-its-skills) | Serious | deploy, OpenClaw recipe | OpenClaw can't read its skills: store files are root-owned 0600, and OpenClaw runs as uid 1000 | Open |
 | [2](#2-pi-accepts-an-sse-mcp-server-it-cannot-use) | Serious | eval, Pi recipe | Pi accepts an SSE MCP server that it can't use | Open |
-| [3](#3-a-tool-restarts-before-its--init-step-when-its-secrets-change) | Serious | activate | A tool restarts before its `-init` step has run when its secrets change, including on rollback | Open |
+| [3](#3-a-tool-restarts-before-its--init-step-when-its-secrets-change) | Serious | activate | A tool restarts before its `-init` step has run when its secrets change, including on rollback | Fixed (OLY-67) |
 | [4](#4-the-port-check-reports-free-ports-as-in-use) | Serious | deploy preflight | The port check reports free ports as in use | Fixed (OLY-70) |
 | [5](#5-post_install-arguments-must-be-unique) | Minor | schema | `post_install` arguments must be unique | Open |
 | [6](#6-large-catalog-repositories-cannot-be-fetched) | Minor | catalog | Large catalog repositories can't be fetched | Open |
 | [7](#7-a-warning-that-olym-update-cannot-clear) | Minor | lock, CLI | A warning that `olym update` can't clear | Open |
 | [8](#8-the-development-build-warning-appears-when-it-should-not) | Minor | CLI, release build | The development-build warning appears when it shouldn't | Fixed (OLY-70) |
 | [9](#9-the--init-service-lacks-the-recipes-hardening) | Minor | eval | The `-init` service lacks the recipe's hardening | Open |
-| [10](#10-the-restore-failure-path-leaves-old-containers-running) | Minor | activate | The restore-failure path leaves old containers running | Open |
+| [10](#10-the-restore-failure-path-leaves-old-containers-running) | Minor | activate | The restore-failure path leaves old containers running | Fixed (OLY-67) |
 | [11](#11-missing-doc-comments) | Minor | code standard | Missing doc comments | Fixed (OLY-70) |
 | [12](#12-package-level-mutable-state-for-version-and-checksums) | Minor | code standard | Package-level mutable state for the version and checksums | Fixed (OLY-70) |
-| [13](#13-two-rollback-tests-only-check-that-an-error-happened) | Minor | tests | Two rollback tests only check that an error happened | Open |
+| [13](#13-two-rollback-tests-only-check-that-an-error-happened) | Minor | tests | Two rollback tests only check that an error happened | Fixed (OLY-67) |
 
 ## Serious
 
