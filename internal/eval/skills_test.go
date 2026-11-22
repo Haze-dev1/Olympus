@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Haze-dev1/Olympus/internal/encode"
+	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
 func TestCopiedSkillsPruned(t *testing.T) {
@@ -64,7 +65,8 @@ func TestCopiedSkillsPruned(t *testing.T) {
 			script = strings.ReplaceAll(script, m.Target, source)
 		}
 		// Confine the writable config copy to the same disposable filesystem.
-		script = strings.ReplaceAll(script, "/opt/data/config.yaml", filepath.Join(root, "config.yaml"))
+		script = strings.ReplaceAll(script, "/opt/data/", root+"/")
+		script = strings.ReplaceAll(script, "'/opt/data'", "'"+root+"'")
 		out, err := exec.Command("/bin/sh", "-c", script).CombinedOutput()
 		if (err != nil) != wantError {
 			t.Fatalf("init: %v %s", err, out)
@@ -129,5 +131,50 @@ func TestCopiedSkillsPruned(t *testing.T) {
 	b, err := os.ReadFile(outside)
 	if err != nil || string(b) != "safe" {
 		t.Fatal("pruning escaped skill directory")
+	}
+}
+
+func TestInitStopsOnFirstCopyFailure(t *testing.T) {
+	const name = "oh-my-pi"
+	dir := "../../testdata/oh-my-pi"
+	s, diagnostics := stack.Load(filepath.Join(dir, "stack.yaml"))
+	if len(diagnostics.Errors) > 0 {
+		t.Fatal(diagnostics.Errors)
+	}
+	in, errs := Load(s, "../../recipes", dir)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	in.Images = map[string]string{name: in.Recipes[name].Image + "@sha256:" + strings.Repeat("d", 64)}
+	g, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := encode.Unmarshal("yaml", g.Files["compose.yaml"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var compose Compose
+	if err := json.Unmarshal(data, &compose); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	staging := filepath.Join(root, "staging")
+	if err := os.Mkdir(staging, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(staging, "1"), []byte("enabled: true\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	script := strings.NewReplacer("/root/.omp/agent", root, "/olympus-init", staging, "$$", "$").Replace(compose.Services[name+"-init"].Entrypoint[2])
+	if out, err := exec.CommandContext(t.Context(), "/bin/sh", "-c", script).CombinedOutput(); err == nil {
+		t.Fatalf("expected init to fail with first staging file missing, got %s", out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "config.yml")); !os.IsNotExist(err) {
+		t.Fatalf("expected second copy to be skipped, got %v", err)
 	}
 }

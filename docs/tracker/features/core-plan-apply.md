@@ -228,6 +228,21 @@ Plan output now displays key-level diffs for managed config files (`.yaml`, `.ym
 - Lab, orchestrator run on 2026-11-21 (Arch amd64, KVM, Go 1.27.4, fresh `lab/lab.sh reset`):
   - `TestLabM1` passed in 119.9 s with the `fix/lab-dev-activator` test fix applied temporarily. Without that fix it fails the same way on clean `development` (`status: deploy: cannot read activator`).
   - Live key diff: deployed a `pi` stack (from the `feat/oly-22-pi` recipes) as the non-root `sudo` user, added a remote MCP server, then ran `plan`. Output: `~ pi  config: /root/.pi/agent/mcp.json (mcpServers.docs added)`. The `development` binary printed only `config: /root/.pi/agent/mcp.json`. The sentinel secret values do not appear in the output.
-- Known limits: key names are printed as parsed, without stripping terminal control characters, and the `plan.Compare` contents argument is variadic for backward compatibility.
+- This was the OLY-54 baseline. OLY-65 changes the display and read behavior below.
 - ADR review: No new architectural decision or file format change was introduced; no ADR added.
 
+
+
+## OLY-65 semantic plan hardening, 2026-11-22
+
+[ADR 0054](../../ADR.md#0054-bound-and-verify-semantic-plan-reads) records the bounded and confined optional read design. The CLI skips unsupported extensions before SSH, caps current config reads at 32 files and 16 MiB, and falls back to file paths when reads or display checks fail. The CLI verifies the installed activator before requesting config bytes. On Linux the activator resolves store paths with `openat2` and rejects symlinks at every level, then verifies file type, size and digest before returning bytes. File diffs remain available when verification or a read fails. Existing drift hashing is separate. Use key diffs only with formats whose keys are safe metadata.
+
+`TestConfigKeyDisplay` and `TestConfigReadBudgets` pass. The first fresh `TestLabM1` run passed in 143.446 s on ports 2232 and 8109 and showed `/etc/nginx/conf.d/settings.yaml (response changed)` through the live CLI. The initial sandboxed reset could not bind the QEMU monitor socket, and sandboxed offline tests could not open mock HTTP sockets. The checks were rerun with loopback and QEMU access.
+
+Final validation passed with Go 1.27.4. Build, vet, full unit tests, race-short tests, formatting, and branch-scoped lint all passed (0 lint issues). The final reset-lab run passed in 144.603 s, confirmed the normal semantic diff again, and stopped the VM after the test.
+
+The R6 review follow-up replaced the initial reader with the verified activator command. The full offline suite and `TestReadConfig` passed, including rejection of symlinked parents and leaves, directories, oversize bodies, mismatched digests, and invalid paths. A fresh `TestLabM1` run passed in 166.839 s on ports 2232/8109. It verified file-path fallback and the normal YAML key diff through the verified activator. The VM was stopped.
+
+### Orchestrator review of OLY-65 (2026-11-22)
+
+The first R6 version read store files by running an inline `python3` script as root on the server. Review sent it back: that added a server dependency and a second root execution path beside the checksum-verified activator. The final version reads through the activator's `read-config` subcommand (openat2 with `RESOLVE_BENEATH|RESOLVE_NO_SYMLINKS`, regular-file check on the opened descriptor, size cap, manifest digest check, generic errors). Plan calls it only after `VerifyActivator` succeeds, and falls back to file paths otherwise. After merging `development`, the full offline set passes (including `GOOS=darwin go vet ./internal/activate/` and whole-tree lint at 0 issues). `TestLabM1` passes on a fresh Ubuntu 24.04 VM in 161.3 s: plan printed `response changed` in `settings.yaml`, and a failed first managed-file copy prevented activation and restored the previous generation.

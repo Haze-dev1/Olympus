@@ -1,5 +1,5 @@
 {
-  "id": "sha256-6372d9d0799fb26578a5c657ac581eb64cf097a8153c6ec4eb3aeca860670b8d",
+  "id": "sha256-ad15e28f01d793daa73ac9d1307e081b607649720504cc5d8516f6c1565aeef4",
   "inputs": {
     "recipes": "sha256-c0c6e80adcd30511a9f698a89e58efcc054e4f95a2eedce852db73e48ea1486f"
   },
@@ -12,7 +12,7 @@
         "/root/.olympus-build/package-lock.json": "sha256-07f71ebc953b423e1b627f79842a0042a5b2f37cac4d4cfe286f32b49401eba2",
         "/root/.olympus-build/package.json": "sha256-b77493f6fd4b00226b3fca9aed37ec462012a4954e4cf596f3adc20a4bb28d0a"
       },
-      "hash": "sha256-f7fe189690b8178313c948147c7cc7c7e464652c649ea498e9cb8d096a852e60",
+      "hash": "sha256-4443a7ebdadf7ec55fb56ab40dd6be298cfe822f9a4c31d238e20c2ee24e41b6",
       "health": {
         "command": [
           "codex",
@@ -32,7 +32,7 @@
         "/opt/data/skills/.olympus-managed-files": "sha256-6010f28d44d93f45e923ed30b6879219b49abe1092286b1aaba8fe724088fc03",
         "/opt/data/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-2db558ff06e3baa2377ce60cf057d9d2a355c24a843eeb64a67c0e12fa3be8e0",
+      "hash": "sha256-897aed2a38728a24438bafde53f231c72508f69c7d70f6f29bf07797879c74a5",
       "health": {
         "command": [
           "hermes",
@@ -53,7 +53,7 @@
         "/root/.config/opencode/opencode.json": "sha256-9765633802f5a3692220f9d994f73c87edee3ba4965559ee1de1b0f9cdcf536a",
         "/root/.config/opencode/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-9efb9c26f0458870d820b794cafef5de2541bd0c729e1cc2ab39313961bb53d3",
+      "hash": "sha256-354495dde4998ee26152147fc94e12f4560d941fbc9e7667c8a797df1b3e11f6",
       "health": {
         "http": {
           "path": "/global/health",

@@ -59,6 +59,7 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Case | Intended behaviour |
 | --- | --- |
 | One tool fails to start, or its health check never passes | Re-activate the previous generation; report the failed tool and its last log lines; exit non-zero |
+| A managed file cannot be copied into its tool volume | Init fails immediately and Compose blocks the dependent tool. Activation restores the previous generation on update |
 | A post-install hook fails or times out | Re-activate the previous generation or take the project down on first apply. A later forward apply can retry the failed hook |
 | A tool with a completed hook is removed, re-added, or rolled back to | Keep the completion marker by tool name. The hook stays complete until `destroy --delete-data` clears it |
 | Connection drops during upload | Nothing activated; `current` unchanged; re-running `apply` re-uploads only missing store entries |
