@@ -20,6 +20,9 @@ import (
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
+// labNginxImage pins the multi-architecture nginx index used by both lab recipes.
+const labNginxImage = "nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10"
+
 // Reset the canonical VM before running. All credentials/cache are explicit lab
 // settings; no developer SSH files or real secrets are read.
 func TestLabM1(t *testing.T) {
@@ -93,9 +96,7 @@ func TestLabM1(t *testing.T) {
 	if _, _, e := c.Run(ctx, remote.Sudo([]string{"docker", "info"}), nil); e == nil {
 		t.Fatal("reset the VM first; Docker already installed")
 	}
-	// Pinned multi-architecture nginx index verified during the first lab run.
-	const image = "nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10"
-	pinned := &lock.File{Version: 1, Inputs: map[string]lock.Input{"recipes": {URL: "github:lab/recipes", Rev: strings.Repeat("a", 40), Hash: "sha256-" + strings.Repeat("a", 64)}}, Tools: map[string]lock.Tool{"one": {Image: image}, "two": {Image: image}}}
+	pinned := &lock.File{Version: 1, Inputs: map[string]lock.Input{"recipes": {URL: "github:lab/recipes", Rev: strings.Repeat("a", 40), Hash: "sha256-" + strings.Repeat("a", 64)}}, Tools: map[string]lock.Tool{"one": {Image: labNginxImage}, "two": {Image: labNginxImage}}}
 	if err = lock.Write(filepath.Join(dir, "stack.lock"), pinned); err != nil {
 		t.Fatal(err)
 	}
@@ -344,7 +345,7 @@ func TestLabM1(t *testing.T) {
 	if strings.TrimSpace(mode) != "600" {
 		t.Fatal("wrong secret mode")
 	}
-	runRemote("docker", "run", "-d", "--name", "olympus-lab-unrelated", image)
+	runRemote("docker", "run", "-d", "--name", "olympus-lab-unrelated", labNginxImage)
 	runRemote("docker", "volume", "create", "olympus-lab-unrelated")
 	run("destroy", 0, "-activator", binary)
 	if strings.TrimSpace(ids()) != "" {
@@ -360,5 +361,5 @@ func TestLabM1(t *testing.T) {
 	runRemote("docker", "volume", "inspect", "olympus-lab-unrelated")
 	runRemote("docker", "rm", "-f", "olympus-lab-unrelated")
 	runRemote("docker", "volume", "rm", "olympus-lab-unrelated")
-	t.Log("full cycle passed with pinned image " + image)
+	t.Log("full cycle passed with pinned image " + labNginxImage)
 }
