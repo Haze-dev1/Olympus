@@ -68,3 +68,7 @@ All 17 remaining findings are in packages actively edited by concurrent branches
 - Red-before confirmed for `TestRedirectNeverSendsTokenToDifferentHost`: against the `development` version of `catalog.go` it fails with `got "Bearer sentinel-token-12345"`.
 - Behaviour note: the catalog token now follows a redirect only to the same scheme and host. GitHub's tarball redirect to `codeload.github.com` carries its own short-lived token in the URL, so it does not need ours.
 - Full offline set passes (build, vet, test, race, gofmt, lint 0 issues). `TestLabM1` passes on a fresh Ubuntu 24.04 lab VM in 120.2 s, covering activate, confirm and rollback with the new `clearConfirm` handling.
+
+### Orchestrator review of the round-3 cleanup (2026-11-22)
+
+Reviewed the diff: changes are mechanical. `hasDotDot` (A3 path confinement) is equivalent to the old loop. `status --json` and `gc` now fail on a write error instead of ignoring it. Narrowed the new `errname` exclusion to `internal/schema/`. After merging `development` (OLY-63 and OLY-25), the full offline set passes, the whole tree has 17 findings, and `TestLabM1` passes on a fresh Ubuntu 24.04 lab VM in 125.6 s.
