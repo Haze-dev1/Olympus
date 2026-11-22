@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -34,5 +35,36 @@ func TestBuildDeduplicatesImagesAndReusesExisting(t *testing.T) {
 	}
 	if strings.Contains(string(got), "build a-init") {
 		t.Fatal("duplicate build")
+	}
+}
+
+func TestComposeLifecycleArguments(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		run  func(Compose) error
+		want []string
+	}{
+		{
+			name: "recreate includes init dependencies",
+			run:  func(c Compose) error { return c.Recreate(context.Background(), "generation.yaml", []string{"one"}) },
+			want: []string{"up", "-d", "--no-build", "--pull", "never", "--force-recreate", "one"},
+		},
+		{
+			name: "down includes orphans without removing volumes",
+			run:  func(c Compose) error { return c.Down(context.Background(), "generation.yaml") },
+			want: []string{"down", "--remove-orphans"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var output strings.Builder
+			if err := tc.run(Compose{Bin: "/bin/echo", Log: &output}); err != nil {
+				t.Fatal(err)
+			}
+			got := strings.Fields(output.String())
+			want := append([]string{"compose", "-p", "olympus", "-f", "generation.yaml"}, tc.want...)
+			if !slices.Equal(got, want) {
+				t.Errorf("Compose argv = %q, want %q", got, want)
+			}
+		})
 	}
 }

@@ -106,3 +106,11 @@ Decisions recorded in [ADR 0043](../../ADR.md#0043-recreate-only-the-containers-
 ### Orchestrator review of OLY-63 (2026-11-22)
 
 Reviewed the diff against A1, A2, A8 and A11: the hook argv runs through `docker compose exec -T --interactive=false -- <tool>` inside the tool's service, output is discarded, and the completion marker is a 0600 file under the server root, written under the activation lock. Merged `development` (OLY-64's `clearConfirm` handling) without conflict in code. On the merged branch the full offline set passes (build, vet, test, race, gofmt, lint 0 issues), and `TestLabM1` passes on a fresh Ubuntu 24.04 lab VM in 96.5 s with all four hook checks: marker present after first apply, unchanged on no-op re-apply, kept across replacement and rollback, and a failing hook rolls back.
+
+## OLY-67 · Secret rotation and rollback · 2026-11-22
+
+- Selective Compose recreation follows the selected tools' init dependencies on forward apply and automatic revert. Project teardown removes orphans while retaining volumes. [ADR 0057](../../ADR.md#0057-preserve-init-order-during-secret-rotation) amends ADR 0043.
+- Both confirmation-cleanup tests assert `RolledBackError` and verify that `current` still points to the generation active before the operation.
+- Red before the fix: `TestComposeLifecycleArguments` found `--no-deps` on recreation and no `--remove-orphans` on teardown. On a fresh Ubuntu 24.04 QEMU VM, `TestLabSecretRotationInit` found nginx serving the rejected config after rollback (CLI exit 3) and serving the previous config after a successful forward apply (exit 0). The writable file on disk already matched in both cases.
+- Green after the fix: `TestLabSecretRotationInit` passed in 108.18 s on a reset VM, checking both on-disk and loaded config, current link preservation and credential delivery. Package tests, build, vet, full test and race suites, formatting, and both whole-tree lint modes passed. The full Go suites required loopback socket access outside the sandbox.
+- `TestLabM1` passed in 163.47 s on another reset VM. It verified selective recreation, explicit and automatic rollback, orphan cleanup, preservation of volumes and unrelated Docker resources, 0600 secret files, and no sentinel leaks. Restore failure itself uses unit-level fault injection. The lab was shut down.
