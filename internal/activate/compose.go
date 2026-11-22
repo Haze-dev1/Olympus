@@ -70,16 +70,15 @@ func (c Compose) Up(ctx context.Context, composeFile string) error {
 	return c.run(ctx, c.args(composeFile, "up", "-d", "--no-build", "--pull", "never", "--remove-orphans"))
 }
 
-// Recreate starts only the named services again, so a secret rotation leaves
-// every other container running. Images are already pulled and built, so it
-// behaves like Up: no build and no pull (A7).
+// Recreate restarts the selected tools and lets Compose run their init
+// dependencies first. Images are already pulled and built (A7).
 func (c Compose) Recreate(ctx context.Context, file string, tools []string) error {
-	return c.run(ctx, c.args(file, append([]string{"up", "-d", "--no-build", "--pull", "never", "--no-deps", "--force-recreate"}, tools...)...))
+	return c.run(ctx, c.args(file, append([]string{"up", "-d", "--no-build", "--pull", "never", "--force-recreate"}, tools...)...))
 }
 
-// Down stops the project's containers. Volumes are left alone.
+// Down removes the project's containers, including orphans, and keeps volumes.
 func (c Compose) Down(ctx context.Context, composeFile string) error {
-	return c.run(ctx, c.args(composeFile, "down"))
+	return c.run(ctx, c.args(composeFile, "down", "--remove-orphans"))
 }
 
 // Exec runs a command inside one tool's container (A8).

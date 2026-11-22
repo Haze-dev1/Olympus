@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     security_opt:
     - no-new-privileges:true
-    - seccomp=/var/lib/olympus/store/sha256-3b0528d4f24742062b51b1b5c93e66779001ce3c31c7f425a0810b964539ae55/files/data/.olympus/seccomp.json
+    - seccomp=/var/lib/olympus/store/sha256-ef6019b00e686f1948891a40dcc8dfb70154191caabe6f43447fbfc0e052c42d/files/data/.olympus/seccomp.json
     shm_size: 1g
     stop_grace_period: 60s
     volumes:
@@ -17,7 +17,7 @@ services:
       target: /data
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-3b0528d4f24742062b51b1b5c93e66779001ce3c31c7f425a0810b964539ae55/files/data/.olympus/seccomp.json
+      source: /var/lib/olympus/store/sha256-ef6019b00e686f1948891a40dcc8dfb70154191caabe6f43447fbfc0e052c42d/files/data/.olympus/seccomp.json
       target: /data/.olympus/seccomp.json
       type: bind
 volumes:

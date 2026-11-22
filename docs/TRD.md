@@ -328,8 +328,8 @@ The build directory is tool-owned only when it contains a valid version-1 Olympu
   lock                                    flock target
   lock.json                               who holds the lock: pid, user, command, started
   key                                     32 random bytes, 0600; fingerprints secrets (8.4)
-  store/
-    <tool hash>/files/<container path>    rendered files for one tool
+  store/                              root:root 0700
+    <tool hash>/files/<container path>    0644 non-secret files under 0755 entry directories
     gen-<generation hash>/
       compose.yaml
       manifest.json
@@ -344,9 +344,9 @@ The build directory is tool-owned only when it contains a valid version-1 Olympu
   log/<timestamp>-<command>.log           activator logs
 ```
 
-Local builds mirror tool entries at `store/<tool hash>/files/<container path without leading slash>`. Generation entries upload only `compose.yaml` and `manifest.json`. Tool hashes cover rendered paths/bytes and service configuration before generated config bind mounts are added; their absolute sources are derived from that hash. Unchanged tools therefore keep identical bind sources across generations. See [ADR 0030](ADR.md#0030-address-rendered-files-by-tool-hash-across-generations).
+Local builds mirror tool entries at `store/<tool hash>/files/<container path without leading slash>`. Generation entries upload only `compose.yaml` and `manifest.json`. Tool hashes cover rendered paths/bytes, the tool store policy, and service configuration before generated config bind mounts are added; their absolute sources are derived from that hash. Unchanged tools therefore keep identical bind sources across generations. See [ADR 0030](ADR.md#0030-address-rendered-files-by-tool-hash-across-generations).
 
-Store paths are immutable once written: uploads go to `store/.incoming/<random>/` and are renamed into place only after their hash is verified, so a dropped connection never leaves a half-written entry.
+Store paths are immutable once written: uploads go to `store/.incoming/<random>/` and are renamed into place only after their hash is verified, so a dropped connection never leaves a half-written entry. The root-only store contains rendered non-secret data. See [ADR 0058](ADR.md#0058-make-tool-store-files-readable-to-the-container-user).
 
 ### 7.2 Server preparation
 
@@ -383,7 +383,7 @@ One project named `olympus`, one service per tool:
 - `shm_size:`, `stop_grace_period:` and `security_opt:` come only from the recipe's `runtime` block; `no-new-privileges:true` is opt-in and a seccomp profile is referenced by its `/var/lib/olympus/store/…` path ([ADR 0045](ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)).
 - One project network; tools reach each other by service name. No host networking.
 
-A file a tool rewrites at runtime cannot be a read-only bind. Recipes list it under `writable`; the evaluator removes the bind, and the init service copies the rendered file into the tool's named volume before the tool starts. The stack file remains the source of truth, so tool edits are overwritten on the next apply. Any managed-file copy failure exits the init service and prevents Compose from starting the dependent tool. This replaces the former open question in [section 16](#16-open-technical-questions).
+A file a tool rewrites at runtime cannot be a read-only bind. Recipes list it under `writable`; the evaluator removes the bind, and the init service copies the rendered file into the tool's named volume before the tool starts. Init runs with the tool's user and security options. New copies belong to the effective container user. The stack file remains the source of truth, so tool edits are overwritten on the next apply. Any managed-file copy failure exits the init service and prevents Compose from starting the dependent tool. This replaces the former open question in [section 16](#16-open-technical-questions).
 
 ## 8. Activation
 
@@ -401,7 +401,7 @@ CLI                                         SERVER
  │                                            2. install secrets; update fingerprints
  │                                            3. docker compose pull --ignore-buildable; build missing local images once
  │                                            4. docker compose up --no-build --pull never -d --remove-orphans
- │                                               (+ --force-recreate --no-deps for only tools whose secrets changed)
+ │                                               (first --force-recreate tools whose secrets changed, with init dependencies)
  │                                            5. health checks, per tool, in parallel
  │                                               fail → re-activate previous generation, exit
  │                                            6. state.json: awaiting-confirm, nonce, deadline
@@ -425,7 +425,7 @@ An exclusive `flock` on `/var/lib/olympus/lock`, held by the activator process f
 
 ### 8.3 Rollback
 
-- **Automatic** (health failure or confirm timeout): the activator restores the secret values the failed transaction replaced, recreates exactly the previous generation's tools whose values it restored, then runs steps 4–5 for the previous generation, with its manifest and secrets fingerprints, and exits with status 3. If restoring the previous values fails, it takes the project down and exits with status 5 instead, because the failed generation may still hold the new values. If there is no previous generation (first deploy), it runs `docker compose down` for the project and leaves no `current`.
+- **Automatic** (health failure or confirm timeout): the activator restores the secret values the failed transaction replaced, recreates exactly the previous generation's tools whose values it restored, then runs steps 4–5 for the previous generation, with its manifest and secrets fingerprints, and exits with status 3. If restoring the previous values fails, it takes the project down with orphan removal and exits with status 5 instead, because the failed generation may still hold the new values. If there is no previous generation (first deploy), it runs `docker compose down --remove-orphans` for the project and leaves no `current`.
 - **`rollback` command:** the activator re-activates the generation before `current`, with the same health checks and the same confirm-or-revert protection.
 - Data volumes are never touched by a rollback.
 
@@ -498,7 +498,7 @@ Every secret value read from `.env` is registered with `internal/redact` before 
 | `rollback` | write | yes | Previous generation, with confirm-or-revert |
 | `update` | no | no | Rewrites `stack.lock` |
 | `gc [-keep N]` | write | yes | Uses server.keep, else 5; section 8.6 |
-| `destroy [--delete-data]` | write | yes | `docker compose down`; keeps volumes and `/var/lib/olympus/` unless `--delete-data` |
+| `destroy [--delete-data]` | write | yes | `docker compose down --remove-orphans`; keeps volumes and `/var/lib/olympus/` unless `--delete-data` |
 | `activate`, `confirm` | — | — | Internal; run on the server by the CLI |
 
 All client server commands share stack connection settings and the known_hosts selection/prompt policy. `status --json` returns an array of name, state, health, image and generation; status runs a bounded current readiness check when declared. `rollback` uses the same detached start and fresh SSH confirmation as apply. `destroy` always asks y/N; without `--delete-data` it keeps project volumes and server state. With that flag it also deletes all volumes labelled for the Olympus project, including removed tools' volumes, and the Olympus root.

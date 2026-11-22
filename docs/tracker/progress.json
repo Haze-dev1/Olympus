@@ -81,7 +81,7 @@
       "status": "done",
       "file": "features/activator.md",
       "updated": "2026-11-22",
-      "summary": "OLY-63: run post-install hooks in the tool container after readiness. Persist success by stack tool name and roll back on failure (ADR 0052). Red/green unit tests and the extended TestLabM1 verified first apply, no-op re-apply, completion across container replacement and rollback, and hook failure rollback."
+      "summary": "OLY-63: run post-install hooks in the tool container after readiness. Persist success by stack tool name and roll back on failure (ADR 0052). Red/green unit tests and the extended TestLabM1 verified first apply, no-op re-apply, completion across container replacement and rollback, and hook failure rollback. OLY-67 makes selective secret recreation wait for managed init and includes orphans in teardown (ADR 0057). Both the targeted regression and TestLabM1 passed on fresh lab VMs."
     },
     "recipe-format": {
       "status": "done",
@@ -122,19 +122,20 @@
     "deploy": {
       "status": "done",
       "file": "features/deploy.md",
-      "updated": "2026-10-20"
+      "updated": "2026-11-22",
+      "summary": "OLY-68 versions readable non-secret tool store entries and gives managed-copy init services the tool's security options (ADR 0058). Offline validation, the fresh-VM M1 cycle, and the UID 1000 OpenClaw apply and file checks passed."
     },
     "preflight": {
       "status": "done",
       "file": "features/preflight.md",
       "updated": "2026-11-22",
-      "summary": "Read-only preflight in plan/apply: OS, arch vs locked image platforms, RAM, disk and occupied ports (ignoring the current olympus generation). Offline tests only; lab not run (no QEMU on this host). Release-review finding 7: update now fetches and digest-verifies indices for digest-pinned images, so the missing-platforms warning is actionable (ADR 0061)."
+      "summary": "Read-only preflight in plan/apply: OS, arch vs locked image platforms, RAM, disk and occupied ports (ignoring the current olympus generation). Offline tests pass; OLY-70 fixed loopback conflict check (finding 4) with unit and live QEMU lab tests. Release-review finding 7: update now fetches and digest-verifies indices for digest-pinned images, so the missing-platforms warning is actionable (ADR 0061)."
     },
     "release-pipeline": {
       "status": "done",
       "file": "features/release-pipeline.md",
-      "updated": "2026-11-08",
-      "summary": "Cross-compile CLI and Linux activator, SHA256SUMS, activator checksum verification against release (A12), tag-triggered release workflow and build provenance. OLY-61 adds an explicit -unsafe-dev-activator opt-in for development builds without a release checksum. Live release verification remains pending."
+      "updated": "2026-11-22",
+      "summary": "Cross-compile CLI and Linux activator, SHA256SUMS, activator checksum verification against release (A12), tag-triggered release workflow and build provenance. OLY-61 adds an explicit -unsafe-dev-activator opt-in for development builds without a release checksum. OLY-70 suppresses dev warning when flag/checksums provided and distinguishes untagged release-script builds (finding 8). Live release verification remains pending."
     },
     "security-review": {
       "status": "in_progress",

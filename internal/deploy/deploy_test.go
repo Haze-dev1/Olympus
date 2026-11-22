@@ -356,6 +356,23 @@ func TestToolEntryReuseAndVerification(t *testing.T) {
 	if err := c.UploadGeneration(context.Background(), g); err != nil {
 		t.Fatal(err)
 	}
+	for _, tc := range []struct {
+		path string
+		mode os.FileMode
+	}{
+		{"store/" + hash, 0755},
+		{"store/" + hash + "/files", 0755},
+		{"store/" + hash + "/files/config", 0644},
+		{"store/gen-" + g.Manifest.ID + "/manifest.json", 0600},
+	} {
+		info, err := os.Stat(filepath.Join(dir, tc.path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := info.Mode().Perm(); got != tc.mode {
+			t.Errorf("%s mode = %04o, want %04o", tc.path, got, tc.mode)
+		}
+	}
 	g.Manifest.Inputs["recipes"] = "different"
 	if err := g.Finish(); err != nil {
 		t.Fatal(err)

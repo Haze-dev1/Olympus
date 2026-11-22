@@ -1,5 +1,5 @@
 {
-  "id": "sha256-eabfbc0de824afce223c4399f0070a9016274e84abcb5f725c7571deeb0edcb5",
+  "id": "sha256-b351af587d9685ff7226d4f71d2b9787d1b99c2ba2bc1da8e5a3094debef129d",
   "inputs": {
     "recipes": "sha256-ece578e1135bc07d72cbf5a1c45d617b47cfb12aa654de2f1f71aa5bcb04c332"
   },
@@ -9,7 +9,7 @@
       "files": {
         "/app/.olympus-build/Dockerfile": "sha256-086ff74fab29d375b4ced11510407b8a82cd721969d87dbf951f3c2beea52be5"
       },
-      "hash": "sha256-38c5a627afcdc317f3099914d4bd4318ddb39f26a7c66b4b1b278e528301a833",
+      "hash": "sha256-00c60536a66354988e9a30136550581b1a0f47ce055a0a422a123b040d21a097",
       "health": {
         "command": [
           "aider",

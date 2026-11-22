@@ -21,10 +21,14 @@ import (
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
+// DevelopmentVersion is the default version string assigned to unversioned local builds.
 const DevelopmentVersion = "0.1.0-dev"
 
+// Version is the Olympus CLI version, populated via linker flags (-ldflags -X) during release builds.
+// Package-level mutable state is permitted here as an exception for linker injection.
 var Version = DevelopmentVersion
 
+// Service describes a Docker Compose service definition generated for a tool.
 type Service struct {
 	Image       string             `json:"image"`
 	User        string             `json:"user,omitempty"`
@@ -42,20 +46,28 @@ type Service struct {
 	SecurityOpt []string           `json:"security_opt,omitempty"`
 	Labels      map[string]string  `json:"labels"`
 }
+
+// ServiceBuild describes container build options for a Docker Compose service.
 type ServiceBuild struct {
 	Context    string            `json:"context"`
 	Dockerfile string            `json:"dockerfile"`
 	Args       map[string]string `json:"args,omitempty"`
 }
+
+// Depends describes a service dependency relationship in Docker Compose.
 type Depends struct {
 	Condition string `json:"condition"`
 }
+
+// Mount describes a volume mount for a Docker Compose service.
 type Mount struct {
 	Type     string `json:"type"`
 	Source   string `json:"source"`
 	Target   string `json:"target"`
 	ReadOnly bool   `json:"read_only,omitempty"`
 }
+
+// Compose describes the generated Docker Compose project specification.
 type Compose struct {
 	Name     string                       `json:"name"`
 	Services map[string]Service           `json:"services"`
@@ -76,6 +88,7 @@ type Inputs struct {
 	Skills    map[string]map[string][]byte
 }
 
+// Load collects stack recipes, templates, and shared skills into pure evaluation inputs.
 func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 	in := Inputs{Stack: s, Recipes: map[string]*recipe.Recipe{}, Templates: map[string]map[string][]byte{}, Skills: map[string]map[string][]byte{}}
 	var errors []schema.Diagnostic
@@ -165,6 +178,8 @@ func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 	}
 	return in, errors
 }
+
+// Build evaluates inputs into a complete generation artifact containing Compose definitions and files.
 func Build(in Inputs) (*generation.Generation, error) {
 	g := &generation.Generation{Files: map[string][]byte{}, Manifest: generation.Manifest{Version: 1, Olym: Version, Inputs: map[string]string{}, Tools: map[string]generation.Tool{}}}
 	compose := Compose{Name: "olympus", Services: map[string]Service{}, Volumes: map[string]map[string]string{}}
@@ -507,14 +522,15 @@ func Build(in Inputs) (*generation.Generation, error) {
 		copies := append(append([]string(nil), r.Writable...), skillCopies...)
 		const copyFailure = " || exit 1"
 		var identity any = service
-		if len(copies) > 0 {
-			// A changed init policy must publish a new generation even when
-			// the rendered files and the main service are identical.
+		if len(files) > 0 {
+			// Publish a new store entry instead of reusing a legacy 0600 entry.
+			// The same identity also versions the managed-file init policy.
 			identity = struct {
-				Service Service
-				Copies  []string
-				Failure string
-			}{service, copies, copyFailure}
+				Service     Service
+				Copies      []string
+				Failure     string
+				StorePolicy string
+			}{service, copies, copyFailure, "readable-tool-files"}
 		}
 		tool.Hash, err = generation.ToolHash(files, identity)
 		if err != nil {
@@ -561,11 +577,12 @@ func Build(in Inputs) (*generation.Generation, error) {
 				return nil, fmt.Errorf("%s: init service name collides", name)
 			}
 			init := Service{
-				Image:   service.Image,
-				Build:   service.Build,
-				User:    r.User,
-				Restart: "no",
-				Labels:  map[string]string{"org.olympus.tool": name, "org.olympus.role": "init"},
+				Image:       service.Image,
+				Build:       service.Build,
+				User:        r.User,
+				Restart:     "no",
+				SecurityOpt: service.SecurityOpt,
+				Labels:      map[string]string{"org.olympus.tool": name, "org.olympus.role": "init"},
 			}
 			for _, m := range service.Volumes {
 				if m.Type == "volume" {
@@ -592,9 +609,9 @@ func Build(in Inputs) (*generation.Generation, error) {
 					fmt.Fprintf(&script, "check_path '%s'\n", dst)
 				}
 				if prune != "" && dst == path.Join(r.Supports.Skills.Dir, skillLedger) {
-					fmt.Fprintf(&script, "check_path '%s.next'\nmkdir -p '%s' && cp -a '%s' '%s.next' && mv -f '%s.next' '%s'%s\n", dst, path.Dir(dst), staging, dst, dst, dst, copyFailure)
+					fmt.Fprintf(&script, "check_path '%s.next'\nmkdir -p '%s' && cp '%s' '%s.next' && mv -f '%s.next' '%s'%s\n", dst, path.Dir(dst), staging, dst, dst, dst, copyFailure)
 				} else {
-					fmt.Fprintf(&script, "mkdir -p '%s' && cp -a '%s' '%s'%s\n", path.Dir(dst), staging, dst, copyFailure)
+					fmt.Fprintf(&script, "mkdir -p '%s' && cp '%s' '%s'%s\n", path.Dir(dst), staging, dst, copyFailure)
 				}
 			}
 			init.Entrypoint = []string{"/bin/sh", "-c", strings.ReplaceAll(script.String(), "$", "$$")}

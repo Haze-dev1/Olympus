@@ -35,7 +35,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted, amended by 0028, 0032, 0043 and 0052 |
 | [0028](#0028-store-health-checks-in-the-generation-manifest) | Store health checks in the generation manifest | Accepted |
 | [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result) | Verify deployment uploads and retain the activation result | Accepted |
-| [0030](#0030-address-rendered-files-by-tool-hash-across-generations) | Address rendered files by tool hash across generations | Accepted |
+| [0030](#0030-address-rendered-files-by-tool-hash-across-generations) | Address rendered files by tool hash across generations | Accepted, amended by 0058 |
 | [0031](#0031-bind-activation-confirmation-and-saved-plans-to-one-request) | Bind activation confirmation and saved plans to one request | Accepted |
 | [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs) | Fingerprint secrets with a server key and restore partial installs | Accepted |
 | [0033](#0033-record-image-tag-overrides-in-the-image-lock) | Record image tag overrides in the image lock | Accepted |
@@ -48,7 +48,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0040](#0040-resolve-optional-catalog-refs-to-locked-commits) | Resolve optional catalog refs to locked commits | Accepted |
 | [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted, amended by 0051 |
 | [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
-| [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032 |
+| [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032, amended by 0057 |
 | [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted, amended by 0061 |
 | [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
 | [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
@@ -60,8 +60,10 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0052](#0052-record-post-install-completion-by-stack-tool-name) | Record post-install completion by stack tool name | Accepted, amends 0027 |
 | [0053](#0053-select-the-test-lab-guest-os-and-architecture) | Select the test lab guest OS and architecture | Accepted, amends 0025 |
 | [0054](#0054-bound-and-verify-semantic-plan-reads) | Bound and verify semantic plan reads | Accepted |
-| [0055](#0055-bind-managed-init-policy-to-tool-identity) | Bind managed init policy to tool identity | Accepted, amends 0036 |
+| [0055](#0055-bind-managed-init-policy-to-tool-identity) | Bind managed init policy to tool identity | Accepted, amends 0036, amended by 0058 |
 | [0056](#0056-keep-npm-lifecycle-scripts-out-of-built-images) | Keep npm lifecycle scripts out of built images | Accepted, amends 0051 |
+| [0057](#0057-preserve-init-order-during-secret-rotation) | Preserve init order during secret rotation | Accepted, amends 0043 |
+| [0058](#0058-make-tool-store-files-readable-to-the-container-user) | Make tool store files readable to the container user | Accepted, amends 0030 and 0055 |
 | [0059](#0059-let-recipes-reject-mcp-transports-they-cannot-use) | Let recipes reject MCP transports they cannot use | Accepted, amends 0047 and 0050 |
 | [0060](#0060-allow-repeated-argv-entries) | Allow repeated argv entries | Accepted, amends the recipe and stack schemas |
 | [0061](#0061-resolve-platforms-for-digest-pinned-images-on-update) | Resolve platforms for digest-pinned images on update | Accepted, amends 0044 |
@@ -909,6 +911,7 @@ Server commands use the real Compose runner and health checker. Until the separa
 ## 0030. Address rendered files by tool hash across generations
 
 - **Status:** Accepted
+- **Amended by:** [0058](#0058-make-tool-store-files-readable-to-the-container-user)
 - **Date:** 2026-10-20
 - **Amends:** [0021](#0021-keep-the-first-generation-contract-offline), [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result)
 
@@ -1279,7 +1282,7 @@ initialization. A malicious concurrent writer could race path checks.
 
 ## 0043. Recreate only the containers whose secrets changed, including on revert
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0057](#0057-preserve-init-order-during-secret-rotation)
 - **Date:** 2026-11-05
 - **Amends:** [0027](#0027-activate-a-generation-from-the-store-by-manifest-id), [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs)
 
@@ -1718,6 +1721,7 @@ Plan and apply still report file changes when the installed activator is missing
 ## 0055. Bind managed init policy to tool identity
 
 - **Status:** Accepted, amends [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service)
+- **Amended by:** [0058](#0058-make-tool-store-files-readable-to-the-container-user)
 - **Date:** 2026-11-22
 
 ### Context
@@ -1761,6 +1765,50 @@ All npm-built recipe Dockerfiles install with `npm ci --omit=dev --ignore-script
 - **Leave scripts enabled and document them:** keeps the unpinned execution path in the build and relies on future lockfile reviews to catch new scripts.
 - **Add a checksum-verified fetch stage for each native binary:** duplicates npm's integrity-pinned tarballs and adds architecture-specific URLs and hashes for binaries already shipped inside the lock.
 - **Replace the Claude Code bin stub in the recipe:** reimplements upstream platform detection and link logic instead of running the audited script.
+
+## 0057. Preserve init order during secret rotation
+
+- **Status:** Accepted, amends [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert)
+- **Date:** 2026-11-22
+
+### Context
+
+OLY-67. Secret rotation force-recreated selected tools with dependency startup disabled. The later project-wide start could copy writable config after a tool had already read it. Automatic revert used the same sequence. A teardown after a secret restoration failure could also leave containers declared only in the previous generation running.
+
+### Decision
+
+Let Compose follow each selected tool's declared dependencies during forced recreation. The existing completion condition makes Compose wait for its init service before starting the tool. Include orphans whenever the activator takes the Compose project down and preserve its volumes on ordinary teardown.
+
+### Consequences
+
+Forward activation and automatic revert start the selected tools with their generation's writable config. Selective recreation includes their managed init services. A failed restoration shuts down all containers in the Olympus project, including removed tools.
+
+### Alternatives considered
+
+- **Start init services separately:** would duplicate the dependency graph and completion handling already declared in Compose.
+- **Take down the project before recreating tools:** would interrupt unrelated tools during ordinary secret rotation.
+
+## 0058. Make tool store files readable to the container user
+
+- **Status:** Accepted, amends [0030](#0030-address-rendered-files-by-tool-hash-across-generations) and [0055](#0055-bind-managed-init-policy-to-tool-identity)
+- **Date:** 2026-11-22
+
+### Context
+
+Rendered config and skills were extracted as root-owned 0600 files. A non-root container could not read the resulting bind mounts. The init services that copy managed files also lacked their main service's security options.
+
+### Decision
+
+Stage non-secret tool files as 0644 and their entry directories as 0755 before publishing them. The Olympus root and store directory remain root-owned 0700. Generation metadata and secret files remain 0600, and secret values stay outside the store. Tool identity includes the store policy so the first apply can publish new entries without mutating old ones. Init inherits its tool's security options and copies file contents without preserving store ownership.
+
+### Consequences
+
+The first apply with this policy changes the identity and bind sources of tools with stored files. Rollback to an older generation preserves its original modes and init configuration, including the old non-root readability limitation. A rebuilt stack gets the new behavior. Newly copied files are owned by the effective init user, which matches the tool's user.
+
+### Alternatives considered
+
+- **Chown to the recipe user:** this requires resolving the image's default or named user on the server, and ties the store permissions to an image UID even when a tool can mount the same non-secret data read-only.
+- **Update permissions on reuse:** this mutates published entries and can change the behavior of pre-existing generations.
 
 ## 0059. Let recipes reject MCP transports they cannot use
 

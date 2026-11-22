@@ -218,6 +218,13 @@ func (c *Client) uploadEntry(ctx context.Context, entry string, files map[string
 	if _, err = c.run(ctx, []string{"tar", "-x", "-f", "-", "--no-same-owner", "-C", stage}, &archive); err != nil {
 		return err
 	}
+	// Tool entries contain only rendered files. The store itself is root-only,
+	// while files bind-mounted from it must be readable by the container user.
+	if !strings.HasPrefix(entry, "gen-") {
+		if _, err = c.run(ctx, []string{"chmod", "-R", "u=rwX,go=rX", "--", stage}, nil); err != nil {
+			return err
+		}
+	}
 	if err = c.verifyFiles(ctx, stage, files); err != nil {
 		return err
 	}
@@ -240,8 +247,11 @@ func (c *Client) verifyFiles(ctx context.Context, dir string, files map[string][
 }
 
 // Release checksums for the Linux activator (amd64 and arm64), embedded at build time via -ldflags.
+// Package-level mutable state is permitted here as an exception for linker injection.
 var (
+	// ReleaseChecksumLinuxAmd64 is the expected SHA-256 digest of the linux/amd64 activator.
 	ReleaseChecksumLinuxAmd64 = ""
+	// ReleaseChecksumLinuxArm64 is the expected SHA-256 digest of the linux/arm64 activator.
 	ReleaseChecksumLinuxArm64 = ""
 )
 
@@ -431,6 +441,7 @@ func (c *Client) Activate(ctx context.Context, id string) (int, error) {
 	return c.transition(ctx, "activate", id)
 }
 
+// Rollback switches the server back to the previous generation via the detached activator.
 func (c *Client) Rollback(ctx context.Context) (int, error) { return c.transition(ctx, "rollback", "") }
 
 func (c *Client) transition(ctx context.Context, command, id string) (int, error) {
@@ -552,7 +563,10 @@ type CommandError struct {
 	Code      int
 }
 
+// Error returns the formatted failure description for the failed deploy command.
 func (e *CommandError) Error() string { return "deploy: " + e.Operation + " failed" }
+
+// ExitCode extracts the exit code from an error returned by deploy commands, defaulting to 1.
 func ExitCode(err error) int {
 	var e *CommandError
 	if errors.As(err, &e) && (e.Code == 3 || e.Code == 4 || e.Code == 5) {
