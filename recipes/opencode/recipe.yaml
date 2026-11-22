@@ -30,7 +30,7 @@ supports:
     style: opencode
     key: mcp
   skills:
-    dir: /root/.config/opencode/skills
+    dir: /root/.config/opencode/skill
     mode: mount
 writable:
   - /root/.config/opencode/opencode.json

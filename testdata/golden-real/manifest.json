@@ -1,7 +1,7 @@
 {
-  "id": "sha256-78c85570aa76cc546fb3351bebfb886d816ec71a5cd5501b6645ee2d949aec69",
+  "id": "sha256-e007b01f6a7f0c6da33d90d2c7e41731ffebc544f6ca165398927903b4fb3b05",
   "inputs": {
-    "recipes": "sha256-dcebb04bce984cb51bdefc17123eaf56d023adda1a193f069281f0fc461960a6"
+    "recipes": "sha256-870905ee571a45b930f1774884bee14f52f63aefce11e33d7ce69828720d4b6b"
   },
   "olym": "0.1.0-dev",
   "tools": {
@@ -51,9 +51,9 @@
     "opencode": {
       "files": {
         "/root/.config/opencode/opencode.json": "sha256-9765633802f5a3692220f9d994f73c87edee3ba4965559ee1de1b0f9cdcf536a",
-        "/root/.config/opencode/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
+        "/root/.config/opencode/skill/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-7ca577561451986ae6b7cbe921f1a59a2aa62298237874db6ec74059ed77480d",
+      "hash": "sha256-22a7a39d4b146b1099ff1c58b5a9d13a788b4a45b40a43db00c0f1ad8612b61b",
       "health": {
         "http": {
           "path": "/global/health",
