@@ -275,15 +275,20 @@ func TestLatestAndCredentialConfinement(t *testing.T) {
 		if r.Header.Get("Authorization") != want {
 			t.Error("unexpected GitHub authorization")
 		}
+		// Without the sha media type GitHub returns the full commit diff,
+		// which can exceed any response limit for a large merge.
+		if got := r.Header.Get("Accept"); strings.Contains(r.URL.Path, "/commits/") && got != "application/vnd.github.sha" {
+			t.Errorf("Accept = %q, want application/vnd.github.sha", got)
+		}
 		switch mode {
 		case "redirect":
 			http.Redirect(w, r, foreign.URL, http.StatusFound)
 		case "invalid":
-			w.Write([]byte(`{"sha":"bad"}`))
+			w.Write([]byte("bad"))
 		case "error":
 			http.Error(w, credential, http.StatusUnauthorized)
 		default:
-			w.Write([]byte(`{"sha":"` + testRev + `"}`))
+			w.Write([]byte(testRev))
 		}
 	}))
 	defer github.Close()
@@ -324,7 +329,7 @@ func TestRedirectNeverSendsTokenToDifferentHost(t *testing.T) {
 
 	server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server2ReceivedAuth = r.Header.Get("Authorization")
-		w.Write([]byte(`{"sha":"` + testRev + `"}`))
+		w.Write([]byte(testRev))
 	}))
 	defer server2.Close()
 
@@ -359,7 +364,7 @@ func TestLatestPreservesRefSlashes(t *testing.T) {
 				if r.URL.Path != "/repos/owner/repo/commits/"+want || strings.Contains(r.URL.EscapedPath(), "%2F") || r.URL.RawQuery != "" {
 					t.Errorf("lookup URL %s", r.URL)
 				}
-				w.Write([]byte(`{"sha":"` + testRev + `"}`))
+				w.Write([]byte(testRev))
 			}))
 			defer server.Close()
 			rev, err := (Fetcher{APIURL: server.URL}).Latest(context.Background(), Source{Owner: "owner", Repo: "repo", Ref: ref})

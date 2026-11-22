@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -175,10 +174,14 @@ func DefaultCacheDir() (string, error) {
 }
 
 // request keeps credentials on the configured GitHub origins, including redirects.
-func (f Fetcher) request(ctx context.Context, endpoint string) (*http.Response, error) {
+// A nonempty accept sets the Accept header.
+func (f Fetcher) request(ctx context.Context, endpoint, accept string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.New("catalog: invalid GitHub endpoint")
+	}
+	if accept != "" {
+		req.Header.Set("Accept", accept)
 	}
 	allowed := func(u *url.URL) bool {
 		for _, base := range []string{f.apiURL(), f.baseURL()} {
@@ -239,7 +242,9 @@ func (f Fetcher) Latest(ctx context.Context, src Source) (string, error) {
 	for i := range segments {
 		segments[i] = url.PathEscape(segments[i])
 	}
-	resp, err := f.request(ctx, f.apiURL()+"/repos/"+src.Owner+"/"+src.Repo+"/commits/"+strings.Join(segments, "/"))
+	// The sha media type returns only the revision. The default JSON includes
+	// the commit's full diff, which exceeds any sane limit for large merges.
+	resp, err := f.request(ctx, f.apiURL()+"/repos/"+src.Owner+"/"+src.Repo+"/commits/"+strings.Join(segments, "/"), "application/vnd.github.sha")
 	if err != nil {
 		return "", err
 	}
@@ -247,13 +252,12 @@ func (f Fetcher) Latest(ctx context.Context, src Source) (string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("catalog: commit lookup returned HTTP %d", resp.StatusCode)
 	}
-	var commit struct {
-		SHA string `json:"sha"`
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 128))
+	rev := strings.TrimSpace(string(body))
+	if err != nil || !revPattern.MatchString(rev) {
+		return "", errors.New("catalog: invalid commit response")
 	}
-	if json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&commit) != nil || !revPattern.MatchString(commit.SHA) {
-		return "", errors.New("catalog: invalid default-branch commit response")
-	}
-	return commit.SHA, nil
+	return rev, nil
 }
 
 func (f Fetcher) baseURL() string {
@@ -265,7 +269,7 @@ func (f Fetcher) baseURL() string {
 
 func (f Fetcher) download(ctx context.Context, src Source, rev, dst string) error {
 	endpoint := f.baseURL() + "/" + src.Owner + "/" + src.Repo + "/tar.gz/" + rev
-	resp, err := f.request(ctx, endpoint)
+	resp, err := f.request(ctx, endpoint, "")
 	if err != nil {
 		return err
 	}

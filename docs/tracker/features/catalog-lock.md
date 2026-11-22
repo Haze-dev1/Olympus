@@ -27,6 +27,8 @@ Standalone `internal/catalog` and `internal/lock` packages for slice 2: fetch an
 - The registry resolver handles public images with anonymous bearer auth only. Private registries and Docker credential helpers are not supported.
 - Dependency proposal, not added: `github.com/google/go-containerregistry` **v0.22.1** (published 2026-09-04, Google-maintained, regular releases). It is a maintained upgrade path for credentials and platform handling, but the standard library covers v1's unauthenticated tag-to-index-digest need, so no module was added. Adding it needs the user's approval.
 
+- 2026-11-22: after `development` was promoted to `main` (PR #69), the default catalog failed for everyone with `catalog: invalid default-branch commit response`. GitHub's `GET /repos/{owner}/{repo}/commits/{ref}` JSON includes the commit's full diff; the promotion merge returned 1,267,155 bytes, past the 1 MiB read limit, so the JSON was cut off. `Latest` now sends `Accept: application/vnd.github.sha` (bare 40-character SHA) and reads at most 128 bytes. `TestLatestAndCredentialConfinement` asserts the header on commit lookups; test fakes return a bare SHA. Live: `olym check` on `examples/getting-started/04-every-tool` with the default catalog resolved `main` to `c444abd` and locked all 11 tools. No ADR change: same API, same lock contents, only the response format requested.
+
 ## Verification
 
 Run from the repository root; no network is used (registry and tarball tests use `httptest`).
