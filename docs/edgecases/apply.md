@@ -59,6 +59,7 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Case | Intended behaviour |
 | --- | --- |
 | One tool fails to start, or its health check never passes | Re-activate the previous generation; report the failed tool and its last log lines; exit non-zero |
+| Writable config changes with a secret rotation | Complete the selected tool's init before it starts. On failed health, complete the previous generation's init before restarting the restored tool |
 | A managed file cannot be copied into its tool volume | Init fails immediately and Compose blocks the dependent tool. Activation restores the previous generation on update |
 | A post-install hook fails or times out | Re-activate the previous generation or take the project down on first apply. A later forward apply can retry the failed hook |
 | A tool with a completed hook is removed, re-added, or rolled back to | Keep the completion marker by tool name. The hook stays complete until `destroy --delete-data` clears it |
@@ -84,7 +85,7 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | `gc` | Never deletes entries used by `current` or the previous kept generations; reports space freed |
 | Two runs render the same stack | Byte-identical generation and hashes (test for purity) |
 | Only a secret value changed in `.env` | Hash unchanged; `plan` reports a secret change for that tool and `apply` restarts only it; a failed revert recreates the previous generation's tools whose values it restored |
-| Restoring the previous secret values fails during a revert | Take the project down, record `rollback_failed`, report that the server may be down, exit 5; never claim a rollback |
+| Restoring the previous secret values fails during a revert | Take the project down including containers declared only in the previous generation, retain volumes, record `rollback_failed`, report that the server may be down, exit 5; never claim a rollback |
 
 ## Destroy
 
