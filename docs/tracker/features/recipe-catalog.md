@@ -539,3 +539,12 @@ Evidence, with the candidate table: the dated note in
 - ADR: none added. ADR.md reviewed; research changes no architecture, format or
   durable behaviour. UNVERIFIED: candidate image digests, pinned build inputs,
   health endpoints and MCP/skills surfaces were not checked after STOP.
+
+
+## OLY-65 managed-file init failures, 2026-11-22
+
+The evaluator exits init immediately when a managed file cannot be delivered, including the skill ownership ledger. Init copy behavior contributes to tool identity so affected stacks pick up the policy on their next apply. [ADR 0055](../../ADR.md#0055-bind-managed-init-policy-to-tool-identity) amends the existing successful-init prerequisite.
+
+`TestInitStopsOnFirstCopyFailure` and the evaluator golden suite pass. The pre-existing copied-skills test initially failed because it left a volume directory pointing at the host. It now points at the temporary test volume.
+
+The final fresh Ubuntu QEMU `TestLabM1` run passed in 144.603 s. A generated init with a blocked first destination and a writable second destination produced apply exit 3 and restored the previous current generation. A scratch run of the unit fixture against the original evaluator failed as expected because the original script exited successfully.

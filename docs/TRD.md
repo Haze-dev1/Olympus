@@ -383,7 +383,7 @@ One project named `olympus`, one service per tool:
 - `shm_size:`, `stop_grace_period:` and `security_opt:` come only from the recipe's `runtime` block; `no-new-privileges:true` is opt-in and a seccomp profile is referenced by its `/var/lib/olympus/store/…` path ([ADR 0045](ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)).
 - One project network; tools reach each other by service name. No host networking.
 
-A file a tool rewrites at runtime cannot be a read-only bind. Recipes list it under `writable`; the evaluator removes the bind, and the init service copies the rendered file into the tool's named volume before the tool starts. The stack file remains the source of truth, so tool edits are overwritten on the next apply. This replaces the former open question in [section 16](#16-open-technical-questions).
+A file a tool rewrites at runtime cannot be a read-only bind. Recipes list it under `writable`; the evaluator removes the bind, and the init service copies the rendered file into the tool's named volume before the tool starts. The stack file remains the source of truth, so tool edits are overwritten on the next apply. Any managed-file copy failure exits the init service and prevents Compose from starting the dependent tool. This replaces the former open question in [section 16](#16-open-technical-questions).
 
 ## 8. Activation
 
@@ -518,9 +518,11 @@ All client server commands share stack connection settings and the known_hosts s
 
 `plan` uses the same stack, catalog and lock preparation as `build`, including explicit `-recipes` development overrides. It never writes `.olympus/build`. It does not read runtime secret values or require their presence. Secret value change detection is deferred until server fingerprints exist; changes to declared secret names appear as a generic configuration change.
 
+For changed YAML, TOML and JSON config, `plan` and the apply preview may show escaped, bounded key paths when the installed activator passes the same checksum and version checks as `status`. Its read-only command opens only regular store files without following symlinks and verifies each body against the current manifest within the read budget. Use semantic diffs for formats whose keys are safe metadata. Otherwise the preview shows the changed file path. See [ADR 0054](ADR.md#0054-bound-and-verify-semantic-plan-reads).
+
 Resolve `current -> generations/<n>` once and resolve that numbered link to `/var/lib/olympus/store/gen-<manifest-id>`. Read the bounded manifest there, verify its version, identity and canonical hash, then hash each recorded file at `tools/<tool>/files/<container path>` in that same generation with `sha256sum`. An absent current is an empty server; malformed/dangling links, unreadable state and hashing failures are errors. A missing regular file counts as drift. Non-root readers first verify `sudo -n id -u`, then run all generation reads with `sudo -n`. All commands use quoted argument lists; no shell script or write command runs remotely.
 
-Output lists added/removed tools, changed file paths, image changes and drift paths, plus an unchanged count and add/remove/restart totals. For managed config files (YAML/TOML/JSON), `plan` prints which keys are added, changed or removed using dotted paths, falling back to the file path alone if unparsable. Secret values and raw file contents are never printed (rule A1). Other tool-manifest changes, including health or secret-name changes, use `configuration changed`. Drift makes `--detailed-exitcode` return 2 even when the desired tool manifest is unchanged. Default success is 0; errors are 1.
+Output lists added/removed tools, changed file paths, image changes and drift paths, plus an unchanged count and add/remove/restart totals. When semantic diffing succeeds, `plan` prints added, changed or removed keys using dotted paths. Secret values and raw file contents are never printed (rule A1). Other tool-manifest changes, including health or secret-name changes, use `configuration changed`. Drift makes `--detailed-exitcode` return 2 even when the desired tool manifest is unchanged. Default success is 0; errors are 1.
 
 The example below illustrates the plan output:
 

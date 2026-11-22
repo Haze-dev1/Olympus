@@ -506,7 +506,19 @@ func Build(in Inputs) (*generation.Generation, error) {
 			}
 			tool.Files[p] = generation.Hash(files[p])
 		}
-		tool.Hash, err = generation.ToolHash(files, service)
+		copies := append(append([]string(nil), r.Writable...), skillCopies...)
+		const copyFailure = " || exit 1"
+		var identity any = service
+		if len(copies) > 0 {
+			// A changed init policy must publish a new generation even when
+			// the rendered files and the main service are identical.
+			identity = struct {
+				Service Service
+				Copies  []string
+				Failure string
+			}{service, copies, copyFailure}
+		}
+		tool.Hash, err = generation.ToolHash(files, identity)
 		if err != nil {
 			return nil, err
 		}
@@ -545,8 +557,6 @@ func Build(in Inputs) (*generation.Generation, error) {
 		// Writable managed files and copied skills are delivered by a one-shot
 		// init service: Compose cannot copy, so the init container mounts the
 		// rendered file read-only and copies it into the tool volume first.
-		copies := append([]string{}, r.Writable...)
-		copies = append(copies, skillCopies...)
 		if len(copies) > 0 {
 			initName := name + "-init"
 			if _, exists := compose.Services[initName]; exists {
@@ -584,9 +594,9 @@ func Build(in Inputs) (*generation.Generation, error) {
 					fmt.Fprintf(&script, "check_path '%s'\n", dst)
 				}
 				if prune != "" && dst == path.Join(r.Supports.Skills.Dir, skillLedger) {
-					fmt.Fprintf(&script, "check_path '%s.next'\nmkdir -p '%s' && cp -a '%s' '%s.next' && mv -f '%s.next' '%s'\n", dst, path.Dir(dst), staging, dst, dst, dst)
+					fmt.Fprintf(&script, "check_path '%s.next'\nmkdir -p '%s' && cp -a '%s' '%s.next' && mv -f '%s.next' '%s'%s\n", dst, path.Dir(dst), staging, dst, dst, dst, copyFailure)
 				} else {
-					fmt.Fprintf(&script, "mkdir -p '%s' && cp -a '%s' '%s'\n", path.Dir(dst), staging, dst)
+					fmt.Fprintf(&script, "mkdir -p '%s' && cp -a '%s' '%s'%s\n", path.Dir(dst), staging, dst, copyFailure)
 				}
 			}
 			init.Entrypoint = []string{"/bin/sh", "-c", strings.ReplaceAll(script.String(), "$", "$$")}

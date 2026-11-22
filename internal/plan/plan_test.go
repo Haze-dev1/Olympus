@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path"
 	"reflect"
 	"strings"
 	"testing"
@@ -387,20 +388,6 @@ func TestSecretValueNeverAppearsInPlanOutput(t *testing.T) {
 	}
 }
 
-type fakeFileContentReader struct {
-	files map[string][]byte
-}
-
-func (f *fakeFileContentReader) Run(_ context.Context, args []string, _ io.Reader) ([]byte, []byte, error) {
-	if len(args) >= 5 && args[0] == "head" && args[1] == "-c" {
-		filePath := args[4]
-		if b, ok := f.files[filePath]; ok {
-			return b, nil, nil
-		}
-	}
-	return nil, nil, exitCode(1)
-}
-
 func TestReadCurrentFiles(t *testing.T) {
 	current := generation.Manifest{
 		Tools: map[string]generation.Tool{
@@ -410,17 +397,15 @@ func TestReadCurrentFiles(t *testing.T) {
 			},
 		},
 	}
-	storePath := "/var/lib/olympus/store/" + current.Tools["demo"].Hash + "/files/opt/config.yaml"
-	reader := &fakeFileContentReader{
-		files: map[string][]byte{
-			storePath: []byte("foo: bar\n"),
-		},
+	tool := current.Tools["demo"]
+	read := func(_ context.Context, hash, relative string, limit int, digest string) ([]byte, error) {
+		if hash != tool.Hash || relative != "opt/config.yaml" || limit != maxConfigBytes || digest != tool.Files["/opt/config.yaml"] {
+			t.Fatal("unexpected semantic read arguments")
+		}
+		return []byte("foo: bar\n"), nil
 	}
-
-	changed := map[string][]string{
-		"demo": {"/opt/config.yaml"},
-	}
-	result := ReadCurrentFiles(context.Background(), reader, true, current, changed)
+	changed := map[string][]string{"demo": {"/opt/config.yaml"}}
+	result := ReadCurrentFiles(t.Context(), read, current, changed)
 	if string(result["demo"]["/opt/config.yaml"]) != "foo: bar\n" {
 		t.Fatalf("unexpected read current files: %v", result)
 	}
@@ -458,5 +443,66 @@ func TestToolFilesAndChangedFiles(t *testing.T) {
 	changed := ChangedFiles(want, current)
 	if len(changed["demo"]) != 1 || changed["demo"][0] != "/cfg.yaml" {
 		t.Fatalf("unexpected changed files: %v", changed)
+	}
+}
+
+func TestConfigKeyDisplay(t *testing.T) {
+	for _, tc := range []struct {
+		name, key, want string
+	}{
+		{"control characters", `line\n\u001b\u202e`, `"line\n\x1b\u202e"`},
+		{"oversized path", strings.Repeat("x", 257), ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := DiffConfig("config.json", []byte("{}"), []byte(`{"`+tc.key+`":1}`))
+			if tc.want == "" {
+				if err == nil || len(got) != 0 {
+					t.Fatal("expected file-only fallback")
+				}
+				return
+			}
+			if err != nil || len(got) != 1 || got[0].Path != tc.want {
+				t.Fatalf("got %q, %v, want %q", got, err, tc.want)
+			}
+		})
+	}
+}
+
+type countingConfigReader struct {
+	calls int
+	size  int
+}
+
+func (r *countingConfigReader) read(_ context.Context, _, relative string, _ int, _ string) ([]byte, error) {
+	r.calls++
+	if path.Ext(relative) != ".json" {
+		return nil, fmt.Errorf("unexpected non-config read")
+	}
+	return make([]byte, r.size), nil
+}
+
+func TestConfigReadBudgets(t *testing.T) {
+	tool := generation.Tool{Hash: generation.Hash(nil), Files: map[string]string{"/asset.txt": generation.Hash(nil)}}
+	changed := map[string][]string{"demo": {"/asset.txt"}}
+	for i := range maxPlanReads + 1 {
+		name := fmt.Sprintf("/config-%02d.json", i)
+		changed["demo"] = append(changed["demo"], name)
+		tool.Files[name] = generation.Hash(nil)
+	}
+	current := generation.Manifest{Tools: map[string]generation.Tool{"demo": tool}}
+	for _, tc := range []struct {
+		name       string
+		size, want int
+	}{
+		{"read count", 0, maxPlanReads},
+		{"total bytes", maxConfigBytes, maxPlanBytes / maxConfigBytes},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &countingConfigReader{size: tc.size}
+			got := ReadCurrentFiles(t.Context(), r.read, current, changed)
+			if r.calls != tc.want || len(got["demo"]) != tc.want {
+				t.Fatalf("got %d reads and %d files, want %d of each", r.calls, len(got["demo"]), tc.want)
+			}
+		})
 	}
 }

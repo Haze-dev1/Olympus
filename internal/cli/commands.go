@@ -104,8 +104,12 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 			return fail(errors.New("saved plan is stale: generation, server current or secrets changed; run olym plan"))
 		}
 	}
+	// Semantic reads are optional. Compare still reports every changed path.
 	changedFiles := plan.ChangedFiles(g.Manifest, current)
-	curFiles := plan.ReadCurrentFiles(ctx, c.Conn, cfg.User == "root", current, changedFiles)
+	var curFiles map[string]map[string][]byte
+	if len(changedFiles) > 0 && c.VerifyActivator(ctx, activator) == nil {
+		curFiles = plan.ReadCurrentFiles(ctx, c.ReadConfig, current, changedFiles)
+	}
 	wantFiles := plan.ToolFiles(g)
 	diff := plan.Compare(g.Manifest, current, actual, plan.FileContents{Want: wantFiles, Current: curFiles})
 	diff.SecretChanges(changed)

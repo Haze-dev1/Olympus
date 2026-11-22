@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/Haze-dev1/Olympus/internal/activate"
@@ -141,6 +142,18 @@ func server(args []string, out, stderr io.Writer) int {
 			return 1
 		}
 		err = a.Destroy(context.Background(), *data)
+	case "read-config":
+		var body []byte
+		limit, parseErr := strconv.Atoi(flags.Arg(2))
+		if flags.NArg() != 4 || parseErr != nil {
+			err = errors.New("invalid read-config arguments")
+			break
+		}
+		body, err = a.ReadConfig(flags.Arg(0), flags.Arg(1), limit, flags.Arg(3))
+		if err == nil {
+			_, err = out.Write(body)
+		}
+
 	case "status":
 		if flags.NArg() != 0 {
 			return 1

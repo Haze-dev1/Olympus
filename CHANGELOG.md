@@ -2,6 +2,8 @@
 
 ## Development
 
+- OLY-65 reads semantic plan config through the checksum- and version-verified activator, escapes and limits displayed configuration keys, caps expanded catalog archives and entry counts, and makes any managed-file copy failure stop init.
+
 - Documented the 2026-11-22 pre-release security review of the changes since OLY-33, including plan output and read limits, catalog archive budgets, and recipe build and init handling.
 
 - Added `TestLabTwoServers` to compare deployed generation IDs, manifest bytes, running image IDs and platform manifest digests, and rendered config hashes across two fresh lab VMs using the same stack and lock.
