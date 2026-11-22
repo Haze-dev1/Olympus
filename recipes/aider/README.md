@@ -1,7 +1,8 @@
 # Aider recipe
 
 Sources checked **2026-11-06** against Aider's official documentation at
-<https://aider.chat>, Docker Hub, PyPI, and GitHub.
+<https://aider.chat>, Docker Hub, PyPI, and GitHub; the Dockerfile claims were
+re-read at the pinned tag on **2026-11-22**.
 
 ## Checked facts
 
@@ -19,8 +20,9 @@ Sources checked **2026-11-06** against Aider's official documentation at
   and `linux/arm64` (`sha256:cd375f1ecbd1e0ac6752bba40de5f69f3b36b75cd3d24b2c41fcca502d054ad3`).
   Verified on PyPI: `python3 -m pip index versions aider-chat` and
   `https://pypi.org/pypi/aider-chat/json` → `0.86.2`.
-- **Resources.** 4 GB+ RAM is recommended for LLM coding workflows. The recipe
-  sets `resources.min_ram: 4GB`.
+- **Resources.** Upstream does not state a minimum; `resources.min_ram: 4GB` is
+  an Olympus sizing choice for LLM coding workflows, not an upstream
+  requirement.
 - **Health.** `aider --version` prints the version (`aider 0.86.2`) and exits 0
   without network access or API credentials (<https://aider.chat/docs/config/options.html>, 2026-11-06).
   There is no HTTP endpoint for the CLI, so the recipe declares a command check.
@@ -41,6 +43,15 @@ Sources checked **2026-11-06** against Aider's official documentation at
 - **Entrypoint override via build mechanism.**
   - The official image sets `ENTRYPOINT ["/venv/bin/aider"]`. In headless Docker Compose, `command: [sleep, infinity]` is passed as arguments to `/venv/bin/aider`, which Aider parses as positional file arguments before trying to start an interactive chat session on `/app`. Without a TTY, it exits immediately and restarts forever.
   - To fix this, the recipe declares a `build` block (`recipes/aider/Dockerfile`) based on `${BASE_IMAGE}` (`paulgauthier/aider:v0.86.2`) that resets `ENTRYPOINT []` (ADR 0035). This allows `command: [sleep, infinity]` to execute `sleep infinity` directly as the container's PID 1.
+- **Playwright browsers are in the image.** The pinned Dockerfile runs
+  `/venv/bin/python -m playwright install --with-deps chromium` in both the
+  `aider-full` and the core `aider` stage. The shared base sets
+  `PLAYWRIGHT_BROWSERS_PATH=/home/appuser/pw-browsers` and creates that
+  directory, so browsers installed at image-build time survive a container
+  recreate; only a browser downloaded ad hoc into that path at runtime would
+  be discarded. Source:
+  <https://raw.githubusercontent.com/Aider-AI/aider/v0.86.2/docker/Dockerfile>
+  (re-checked 2026-11-22).
 - **No MCP support.** Aider does not natively implement the Model Context Protocol
   as a client (<https://aider.chat>, 2026-11-06). Context is supplied via built-in slash
   commands (`/read`, `/web`, `/run`) or external wrapper scripts.
@@ -51,14 +62,13 @@ Sources checked **2026-11-06** against Aider's official documentation at
   no `supports` block is declared. `plan` warns if a stack file attempts to assign
   MCP servers or skills to Aider.
 
-## UNVERIFIED
+## Verification and remaining gaps
 
 - **Interactive model request.** No live model inference or session run was
   executed against an active provider API key.
-- **Container execution on a real server.** No QEMU lab VM was available on this
-  machine, so `docker pull` and container execution were not run against a live daemon.
-  Offline generation rendering was verified.
-- **Runtime Playwright browser installation.** If `--browser` is invoked dynamically
-  on the core image, Playwright browser binaries default to `PLAYWRIGHT_BROWSERS_PATH=/home/appuser/pw-browsers`
-  (<https://raw.githubusercontent.com/Aider-AI/aider/v0.86.2/docker/Dockerfile>, 2026-11-06),
-  which is not mounted in a volume and is lost on container recreate.
+- **Container execution on a real server — verified 2026-11-22.** A three-tool
+  apply on a reset QEMU VM built the image, started the container and passed the
+  CLI health check. `olym status` reported `running healthy`,
+  `docker exec olympus-aider-1 aider --version` printed `aider 0.86.2`, and the
+  container had zero restarts. No model request was made.
+

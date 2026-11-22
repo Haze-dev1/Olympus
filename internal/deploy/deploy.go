@@ -337,7 +337,7 @@ func (c *Client) UploadActivator(ctx context.Context, localPath string) (result 
 		return errors.New("deploy: activator must be a Linux ELF binary")
 	}
 	defer file.Close()
-	if !(arch == "x86_64" && file.Machine == elf.EM_X86_64 || arch == "aarch64" && file.Machine == elf.EM_AARCH64) {
+	if (arch != "x86_64" || file.Machine != elf.EM_X86_64) && (arch != "aarch64" || file.Machine != elf.EM_AARCH64) {
 		return errors.New("deploy: activator architecture mismatch")
 	}
 	actualChecksum := fmt.Sprintf("%x", sha256.Sum256(data))
@@ -481,7 +481,7 @@ func (c *Client) transition(ctx context.Context, command, id string) (int, error
 			return 1, err
 		}
 		props := map[string]string{}
-		for _, line := range strings.Split(string(out), "\n") {
+		for line := range strings.SplitSeq(string(out), "\n") {
 			k, v, ok := strings.Cut(line, "=")
 			if ok {
 				props[k] = v

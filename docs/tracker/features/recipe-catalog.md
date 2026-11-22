@@ -1,6 +1,6 @@
 # Recipe catalog
 
-- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose, Aider, OpenClaw, Pi and Oh My Pi recipes added and rendered offline; none lab-verified. Grok bot blocked on tool identity (OLY-25).
+- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose, Aider, OpenClaw, Pi and Oh My Pi recipes added; Pi, Aider, Claude Code, Gemini CLI and OpenClaw lab-verified, and the remaining README claims re-checked against pinned sources on 2026-11-22 (OLY-52). Grok bot blocked on tool identity (OLY-25).
 - **Milestone:** M5
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -540,6 +540,28 @@ Evidence, with the candidate table: the dated note in
   durable behaviour. UNVERIFIED: candidate image digests, pinned build inputs,
   health endpoints and MCP/skills surfaces were not checked after STOP.
 
+### README claim verification (OLY-52, 2026-11-22)
+
+Every remaining `UNVERIFIED` bullet in `recipes/*/README.md` was re-checked against pinned upstream source, release metadata or a live lab run. No recipe value, fixture, golden or Go code changed; all edits are documentation.
+
+- **Aider.** The pinned Dockerfile installs Playwright Chromium in both `aider-full` and core `aider` at `PLAYWRIGHT_BROWSERS_PATH=/home/appuser/pw-browsers`, so browsers survive recreate; the old runtime-install bullet was wrong. `min_ram: 4GB` is Olympus sizing, not upstream guidance.
+- **Claude Code.** At `@anthropic-ai/claude-code@2.1.318` a pinned-binary check loaded parent and child `.mcp.json` files, so the "clone cannot see `/root/.mcp.json`" claim was wrong; workspace trust/approval is the real limit. `DISABLE_AUTOUPDATER` scopes to background updates (`DISABLE_UPDATES` also blocks manual `claude update`); the interactive key prompt exists as strings but was not driven.
+- **Codex.** `CODEX_API_KEY` is read from the environment and accepted by `codex exec` at `rust-v0.116.0`; the suggested `CODEX_ACCESS_TOKEN` plus `codex login --with-access-token` does not exist at that pin. Source: `codex-rs/core/src/auth.rs`, `codex-rs/exec/src/lib.rs:441`, `codex-rs/cli/src/main.rs`.
+- **Gemini CLI.** The npm build needs only the registry (no root install script; keytar copies a prebuild and node-pty removes local files). At `v0.67.0` `load()` returns `{}` for a missing `settings.json`, migration writes only when modified, and there is no user-level MCP server-trust prompt — folder trust (`security.folderTrust.enabled=true`) gates stdio servers and per-tool confirmation.
+- **Goose.** An official GHCR image exists at `1.57.0` (`amd64` `sha256:e617564e…`, `arm64` `sha256:56340038…`); the "no maintained image" claim was wrong, but the checksum-verified binary build is kept to preserve the runtime user, entrypoint and paths. `goose --version` prints ` 1.57.0` (leading space, no prefix). The earlier "never run against a live daemon" claim was too strong: `docs/tracker/features/security-review.md` records an arm64 build and health output on 2026-11-19.
+- **Hermes.** The channel env chain was re-read at the correct `v0.22.7` paths: Compose `env_file` → `os.environ` via `get_env_value` in `hermes_cli/config.py` → `plugins/platforms/{telegram,discord}/gateway_env.py` → deny-by-default allow-lists in `gateway/authz_mixin.py`.
+- **OpenBot.** Upstream's own "Not confirmed" list at `v0.62.0` matches the README; GHCR index/manifests and the vendored seccomp hash were re-checked, but the image was not pulled. "`openbot status` needs no sign-in" is an inference, not an explicit upstream statement.
+- **OpenCode.** `min_ram: 2GB` is an Olympus estimate; docs drift (site v2, pin v1) was verified; the v1 headless `auth.json` shape is documented in `packages/web/src/content/docs/gitlab.mdx`; `OPENCODE_SERVER_PASSWORD` is not needed on loopback.
+- **OpenClaw.** The stale claim that no QEMU lab VM was available was replaced with the successful 2026-11-22 apply/health evidence below. The browser Control UI pairing and live model session remain unverified.
+- **Pi / Oh My Pi.** Pi's passing 2026-11-21 lab run (92.6 s, `pi --version` `1.5.0`, `${GITHUB_TOKEN}` reference kept, read-only skill, 0600 secrets, 0 restarts) replaced the stale "no lab run" text. Oh My Pi still has no successful lab run: 2026-11-21 attempts stalled at `apt-get update` (>800 s) and then at a 284 MB release download (~33 KiB/s); SHA check, `omp --version` and managed files remain unverified.
+
+### Lab evidence (OLY-52, 2026-11-22)
+
+Reset QEMU VM on the assigned ports (`2252` / `8129`), `OLYMPUS_LAB_MEMORY=4096`, development CLI with `-unsafe-dev-activator` and a separately built Linux activator. One apply deployed Aider, Claude Code and Gemini CLI from a stack with no secrets and a hand-written digest lock. `apply` exited 0; `olym status` reported all three `running healthy`; `docker exec` printed `aider 0.86.2`, `2.1.318 (Claude Code)` and `0.67.0`; each container had 0 restarts. No provider key was supplied, so no model request was made.
+
+A second apply deployed OpenClaw from a stack with a hand-written digest lock pinned to `ghcr.io/openclaw/openclaw:2026.11.1@sha256:db0e0809…` and a sentinel-only `.env`. `apply` exited 0 with generation `sha256-aa2a1ae0…` (generation 2); `olym status` reported `openclaw  running  healthy`; a host-side `curl http://127.0.0.1:18789/healthz` returned HTTP 200. The container health check reached `healthy` with `RestartCount=0` after unattended doctor and offline state maintenance completed; logs showed `Doctor complete.` and gateway `ready`. No provider key or browser session was used.
+
+Live model sessions, real Telegram/Discord delivery, browser Control UI pairing and live MCP connections remain unverified: they need active provider/bot credentials or a browser session that this run does not have.
 
 ## OLY-65 managed-file init failures, 2026-11-22
 

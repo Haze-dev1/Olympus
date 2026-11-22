@@ -1,7 +1,9 @@
 # OpenClaw recipe
 
 Sources checked **2026-11-06** against OpenClaw's official repository at
-<https://github.com/openclaw/openclaw>, release `v2026.11.1`, and upstream documentation.
+<https://github.com/openclaw/openclaw>, release `v2026.11.1`, and upstream documentation;
+the entrypoint, health probe and Control UI claims were re-read at that tag on
+**2026-11-22**.
 
 ## Checked facts
 
@@ -31,7 +33,8 @@ Sources checked **2026-11-06** against OpenClaw's official repository at
 - **Entrypoint behavior.** Upstream's `/app/docker-entrypoint.mjs` inspects the supplied
   command (`process.argv.slice(2)`), executes unattended maintenance (`doctor --fix --non-interactive`)
   on container startup/image upgrade, and then invokes `process.execve(program, command, process.env)`.
-  The entrypoint does **not** swallow `command`; it delegates cleanly to the configured command.
+  The entrypoint does **not** swallow `command`; it delegates cleanly to the configured command
+  (<https://github.com/openclaw/openclaw/blob/v2026.11.1/docker-entrypoint.mjs>, re-checked 2026-11-22).
 - **Ports and bind mode.**
   - The Gateway multiplexes WebSocket and HTTP on a single port, defaulting to `18789`
     (`DEFAULT_GATEWAY_PORT = 18789` in `src/config/paths.ts`; `<https://github.com/openclaw/openclaw/blob/v2026.11.1/docs/help/faq/gateway-ports-and-remote-mode.md>`, 2026-11-06).
@@ -73,6 +76,15 @@ Sources checked **2026-11-06** against OpenClaw's official repository at
   (`src/docker-healthcheck.ts`, <https://github.com/openclaw/openclaw/blob/v2026.11.1/docs/gateway/health.md>, 2026-11-06).
   `/healthz` returns HTTP 200 without authentication. The recipe declares an HTTP check:
   `health.http.port: 18789`, `health.http.path: /healthz`, `timeout: 60s`.
+- **Live container run (lab, 2026-11-22).** Applied this recipe to a reset QEMU VM with a
+  digest-pinned lock and sentinel-only secrets: `apply` exited 0 with
+  `Applied sha256-aa2a1ae0ba0633c031b341572d0ec1209756b8d7504ae8612fce1dfb2584ac2d`
+  (generation 2). `olym status` reported `openclaw  running  healthy`, a host-side
+  `curl http://127.0.0.1:18789/healthz` returned HTTP 200, and the container's own
+  health check reached `healthy` with `RestartCount=0` after unattended doctor and
+  offline state maintenance finished. Container logs showed the doctor banner and
+  `Doctor complete.`, followed by gateway startup and `ready`. No provider key was used
+  and no model request was made.
 - **Secrets.**
   - `model-key`: provider API key delivered as `ANTHROPIC_API_KEY` (`.env.example`, 2026-11-06).
   - `gateway-token`: gateway authentication token delivered as `OPENCLAW_GATEWAY_TOKEN`
@@ -104,8 +116,5 @@ Sources checked **2026-11-06** against OpenClaw's official repository at
 ## UNVERIFIED
 
 - **Live model session execution.** No live inference was performed against active model provider credentials.
-- **Live container run on a server.** No QEMU lab VM was available on this host, so container startup,
-  unattended doctor execution, and live HTTP health check were not run against a live Docker daemon.
-  Offline generation rendering was verified.
 - **Control UI browser pairing.** Browser-based Control UI device pairing and WebSocket RPC operations
   were verified from upstream code and documentation, but not executed in a live browser session.

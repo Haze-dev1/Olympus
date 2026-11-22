@@ -53,7 +53,7 @@ Use Go 1.26 or newer (`golang.org/x/crypto` requires it). Build, vet and test:
 - `go test ./...`
 - `go test -race -short ./...`
 - `gofmt -l .` prints nothing; any listed file needs formatting.
-- `golangci-lint run --new-from-merge-base=origin/development ./...` reports 0 issues. The config is `.golangci.yml`, adapted from Caddy's (golangci-lint v2.15+). It checks only lines your branch changes, because older code still has findings listed in [docs/tracker/features/lint-baseline.md](docs/tracker/features/lint-baseline.md); do not suppress a finding with `//nolint` without a comment saying why.
+- `golangci-lint run ./...` reports 0 issues across the whole tree. The config is `.golangci.yml`, adapted from Caddy's (golangci-lint v2.15+). The old findings baseline is cleared ([docs/tracker/features/lint-baseline.md](docs/tracker/features/lint-baseline.md)); keep it at zero, and do not suppress a finding with `//nolint` without a comment saying why.
 
 Run the package-scoped command (`go test ./internal/<package>/...`) while iterating and the full set before committing.
 

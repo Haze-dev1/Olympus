@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -91,7 +92,6 @@ func (c *Client) Preflight(ctx context.Context, req PreflightRequest) (Preflight
 		return report, &PreflightError{Problems: []string{err.Error()}}
 	}
 
-	arch := ""
 	out, err = c.run(ctx, []string{"uname", "-m"}, nil)
 	if err != nil {
 		return report, err
@@ -110,7 +110,7 @@ func (c *Client) Preflight(ctx context.Context, req PreflightRequest) (Preflight
 				warnings = append(warnings, fmt.Sprintf("%s: stack.lock does not record the image platforms; run olym update to check linux/%s support", name, arch))
 				continue
 			}
-			if !contains(platforms, "linux/"+arch) {
+			if !slices.Contains(platforms, "linux/"+arch) {
 				problems = append(problems, fmt.Sprintf("%s: image %s has no linux/%s build (locked platforms: %s)", name, req.Images[name], arch, strings.Join(platforms, ", ")))
 			}
 		}
@@ -179,7 +179,7 @@ func (c *Client) listeners(ctx context.Context) (map[int][]listener, error) {
 		return nil, err
 	}
 	ports := map[int][]listener{}
-	for _, line := range strings.Split(string(out), "\n") {
+	for line := range strings.SplitSeq(string(out), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 4 || fields[0] != "LISTEN" {
 			continue
@@ -223,8 +223,8 @@ func (c *Client) ownedPorts(ctx context.Context) map[int]bool {
 		return nil
 	}
 	owned := map[int]bool{}
-	for _, line := range strings.Split(string(out), "\n") {
-		for _, mapping := range strings.Split(line, ",") {
+	for line := range strings.SplitSeq(string(out), "\n") {
+		for mapping := range strings.SplitSeq(line, ",") {
 			host, _, ok := strings.Cut(strings.TrimSpace(mapping), "->")
 			if !ok {
 				continue
@@ -247,7 +247,7 @@ func portFromAddress(address string) (int, bool) {
 }
 
 func parseMemTotal(meminfo []byte) (uint64, bool) {
-	for _, line := range strings.Split(string(meminfo), "\n") {
+	for line := range strings.SplitSeq(string(meminfo), "\n") {
 		key, value, ok := strings.Cut(line, ":")
 		if !ok || strings.TrimSpace(key) != "MemTotal" {
 			continue
@@ -309,15 +309,6 @@ func printable(s string) string {
 		}
 		return '?'
 	}, s)
-}
-
-func contains(values []string, want string) bool {
-	for _, v := range values {
-		if v == want {
-			return true
-		}
-	}
-	return false
 }
 
 var processRE = regexp.MustCompile(`\("([^"]+)"`)
