@@ -8,7 +8,7 @@
 
 ## Coverage
 
-`ci.yml` runs on `pull_request` to `development`/`main`, `push` to those branches, and `workflow_dispatch`. It has top-level `permissions: contents: read`, a per-workflow/per-ref concurrency group that cancels in-progress PR runs, and every third-party action pinned to the commit SHA already used in this repository. Checkout uses `persist-credentials: false`; Go uses `go-version-file: go.mod` with `check-latest: true`. No secrets are used and no environment is echoed.
+`ci.yml` runs on `pull_request` to `development`/`main`, `push` to those branches, and `workflow_dispatch`. It has top-level `permissions: contents: read`, a per-workflow/per-ref concurrency group that cancels in-progress PR runs, and every action pinned to a full commit SHA (the `actions/checkout` v7.0.1 and `actions/setup-go` v7.0.0 pins Caddy uses). Checkout uses `persist-credentials: false`; Go uses `go-version-file: go.mod` with `check-latest: true`. No secrets are used and no environment is echoed.
 
 Jobs (each with a status-check name and a timeout):
 
@@ -45,6 +45,7 @@ All commands were run on this branch in the worktree with Go 1.27.4 (`golang.org
 
 - The first remote run happens on the PR: only local commands were run here. The macOS matrix job cannot be executed on this Linux host; `setup-go` picks the latest available Go from `go.mod` on the runner.
 - `actionlint` is not installed and was not installed for this work; workflow syntax was checked with PyYAML only.
-- Linting (`golangci-lint`) remains a separate workflow maintained by another worker; `ci.yml` enforces the build/vet/test/format/release/docs checks listed above.
+- `lint.yml` (agy) runs golangci-lint v2.15.0 on Ubuntu and macOS, plain and with `--build-tags lab`, plus `govulncheck` and, on pull requests, `dependency-review` (fails on high severity). `.github/dependabot.yml` opens at most one grouped monthly PR each for Go modules and Actions, targeting `development`. Locally both lint runs report 0 issues; `govulncheck` was not available locally, so its first run is on the PR.
+- Reviewed and merged by Claude, who reran the release-bundle and link-check steps locally (TestReleaseBundle pass; 71 files, all links resolve).
 - No ADR: CI wiring and a docs-check script change no architecture, file format, durable product behaviour or tradeoff; ADR 0048 and A12 are exercised, not amended.
 - Security: no secrets, no `pull_request_target`, pinned action SHAs, no persisted checkout credentials, read-only top-level permissions, and release-bundle verification enforces rule A12. The link checker reads local files only and makes no network calls.
