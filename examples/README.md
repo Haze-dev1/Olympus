@@ -47,8 +47,6 @@ The first `olym check` fetches the recipe catalog named in `inputs.recipes` (def
 
 To validate an example offline from a clone of this repository, add `-recipes ./recipes` to `check` or `build`. That path writes no lock, so use it for validation only.
 
-> The catalog on the default branch currently ships Hermes, Codex and OpenCode. Examples that use other recipes need `inputs.recipes: github:Haze-dev1/Olympus/recipes?ref=development` until the next release.
-
 ## Examples
 
 ### Getting started
