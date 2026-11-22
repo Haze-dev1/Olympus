@@ -23,7 +23,7 @@ func Run(args []string, out, stderr io.Writer) int {
 }
 
 func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver lock.Resolver) int {
-	if len(args) > 1 && (args[0] == "rollback" || args[0] == "gc" || args[0] == "destroy" || args[0] == "status") && args[1] == "--server" {
+	if len(args) > 1 && (args[0] == "rollback" || args[0] == "gc" || args[0] == "destroy" || args[0] == "status" || args[0] == "read-config") && args[1] == "--server" {
 		return server(args, out, stderr)
 	}
 	if len(args) > 0 && (args[0] == "activate" || args[0] == "confirm" || args[0] == "version") {

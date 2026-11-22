@@ -1,5 +1,5 @@
 {
-  "id": "sha256-08eb4b288abf58347b1e7867d8160769480c641a2e450e332224d7f5bb4a5bbe",
+  "id": "sha256-14ad379699756d66e1fbff7830a86b3edcc6fe15ec2ac8bb1f6d5b0d09c80a80",
   "inputs": {
     "recipes": "sha256-59bdcf9a0a0b0fbef1c9146f3b33a212a45aaaf9e3d68f3f3ca03f58b24749c0"
   },
@@ -12,7 +12,7 @@
         "/root/.omp/agent/mcp.json": "sha256-c4362a0cb05e59311e86eac62c4d1e7995628359412052051c0dce81d18f55ca",
         "/root/.omp/agent/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-063ce60121c76ea4bbc24702bda2aa28a1f149328b6ce7b3781de48d10e80f19",
+      "hash": "sha256-13c0f7bbea802d02460938fdbbca2badfbf95980f8e0b70d91c02e42ff49f0f0",
       "health": {
         "command": [
           "omp",

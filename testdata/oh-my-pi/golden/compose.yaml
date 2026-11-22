@@ -4,7 +4,7 @@ services:
     build:
       args:
         BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-      context: /var/lib/olympus/store/sha256-063ce60121c76ea4bbc24702bda2aa28a1f149328b6ce7b3781de48d10e80f19/files/root/.olympus-build
+      context: /var/lib/olympus/store/sha256-13c0f7bbea802d02460938fdbbca2badfbf95980f8e0b70d91c02e42ff49f0f0/files/root/.olympus-build
       dockerfile: Dockerfile
     command:
     - sleep
@@ -23,25 +23,25 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-063ce60121c76ea4bbc24702bda2aa28a1f149328b6ce7b3781de48d10e80f19/files/root/.olympus-build/Dockerfile
+      source: /var/lib/olympus/store/sha256-13c0f7bbea802d02460938fdbbca2badfbf95980f8e0b70d91c02e42ff49f0f0/files/root/.olympus-build/Dockerfile
       target: /root/.olympus-build/Dockerfile
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-063ce60121c76ea4bbc24702bda2aa28a1f149328b6ce7b3781de48d10e80f19/files/root/.omp/agent/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-13c0f7bbea802d02460938fdbbca2badfbf95980f8e0b70d91c02e42ff49f0f0/files/root/.omp/agent/skills/deploy-checklist/SKILL.md
       target: /root/.omp/agent/skills/deploy-checklist/SKILL.md
       type: bind
   oh-my-pi-init:
     build:
       args:
         BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-      context: /var/lib/olympus/store/sha256-063ce60121c76ea4bbc24702bda2aa28a1f149328b6ce7b3781de48d10e80f19/files/root/.olympus-build
+      context: /var/lib/olympus/store/sha256-13c0f7bbea802d02460938fdbbca2badfbf95980f8e0b70d91c02e42ff49f0f0/files/root/.olympus-build
       dockerfile: Dockerfile
     entrypoint:
     - /bin/sh
     - -c
     - |
-      mkdir -p '/root/.omp/agent' && cp -a '/olympus-init/0' '/root/.omp/agent/mcp.json'
-      mkdir -p '/root/.omp/agent' && cp -a '/olympus-init/1' '/root/.omp/agent/config.yml'
+      mkdir -p '/root/.omp/agent' && cp -a '/olympus-init/0' '/root/.omp/agent/mcp.json' || exit 1
+      mkdir -p '/root/.omp/agent' && cp -a '/olympus-init/1' '/root/.omp/agent/config.yml' || exit 1
     image: olympus/oh-my-pi:sha256-cd85b63ddc15
     labels:
       org.olympus.role: init
@@ -52,11 +52,11 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-063ce60121c76ea4bbc24702bda2aa28a1f149328b6ce7b3781de48d10e80f19/files/root/.omp/agent/mcp.json
+      source: /var/lib/olympus/store/sha256-13c0f7bbea802d02460938fdbbca2badfbf95980f8e0b70d91c02e42ff49f0f0/files/root/.omp/agent/mcp.json
       target: /olympus-init/0
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-063ce60121c76ea4bbc24702bda2aa28a1f149328b6ce7b3781de48d10e80f19/files/root/.omp/agent/config.yml
+      source: /var/lib/olympus/store/sha256-13c0f7bbea802d02460938fdbbca2badfbf95980f8e0b70d91c02e42ff49f0f0/files/root/.omp/agent/config.yml
       target: /olympus-init/1
       type: bind
 volumes:

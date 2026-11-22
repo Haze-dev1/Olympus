@@ -568,3 +568,11 @@ A second apply deployed OpenClaw from a stack with a hand-written digest lock pi
 A third apply on a reset QEMU VM (ports 2272/8149, `OLYMPUS_LAB_MEMORY=6144`) deployed Oh My Pi (`oh-my-pi`) with a development CLI (`-unsafe-dev-activator`), Linux activator and sentinel secrets. Pre-run curl measured GitHub download at ~2.3 MB/s. The image build downloaded the 284 MB binary and verified SHA-256 `a4ce6001ab1012ca835f4184d675437531bd1ac477a7ba8424ed0b5476e9e4cb` in the fetch stage; `apply` succeeded with generation `sha256-26c87cfbbf44…`; `olym status` reported `oh-my-pi running healthy` (generation 1, image `olympus/oh-my-pi:sha256-8ac4522fa066`). Inside the container, `omp --version` printed `omp/18.17.0`, `/root/.omp/agent/config.yml` had `startup.checkUpdate: false` and `update.auto: false`, `/root/.omp/agent/mcp.json` kept `"GITHUB_TOKEN": "${GITHUB_TOKEN}"`, and `/root/.omp/agent/skills/lab-skill/SKILL.md` was mounted. Secret files on host under `/var/lib/olympus/secrets/oh-my-pi/` were mode `0600` root-only. No sentinel value was leaked in CLI output or logs. Destroy cleanly removed containers and kept volumes.
 
 Live model sessions, real Telegram/Discord delivery, browser Control UI pairing and live MCP connections remain unverified: they need active provider/bot credentials or a browser session that this run does not have.
+
+## OLY-65 managed-file init failures, 2026-11-22
+
+The evaluator exits init immediately when a managed file cannot be delivered, including the skill ownership ledger. Init copy behavior contributes to tool identity so affected stacks pick up the policy on their next apply. [ADR 0055](../../ADR.md#0055-bind-managed-init-policy-to-tool-identity) amends the existing successful-init prerequisite.
+
+`TestInitStopsOnFirstCopyFailure` and the evaluator golden suite pass. The pre-existing copied-skills test initially failed because it left a volume directory pointing at the host. It now points at the temporary test volume.
+
+The final fresh Ubuntu QEMU `TestLabM1` run passed in 144.603 s. A generated init with a blocked first destination and a writable second destination produced apply exit 3 and restored the previous current generation. A scratch run of the unit fixture against the original evaluator failed as expected because the original script exited successfully.

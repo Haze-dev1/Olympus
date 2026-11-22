@@ -54,3 +54,8 @@ Tests cover hash determinism and a golden value, tampered tarball rejection, pat
 Go 1.27.2: `go build -o /tmp/olym ./cmd/olym/`, `go vet ./...` and `go test ./...` passed. `gofmt -l .` and `git diff --check` produced no output. All 201 relative links and anchors under `docs/` resolve; `docs/tracker/progress.json` parses as valid JSON. Initial sandbox package checks could not write the Go cache or bind local test ports; rerun outside the sandbox passed. A test fixture initially used unsupported recipe kind `agent`; corrected to `harness`, then package tests passed.
 
 No live GitHub, private repository or registry requests were made. Private registries and credential helpers remain unsupported under ADR 0024. No full security scan or server QA was requested; `internal/remote` and `internal/activate` are untouched.
+
+
+## OLY-65 extraction budgets, 2026-11-22
+
+The downloader caps the complete expanded stream at 272 MiB, including skipped content and the archive suffix. Extraction caps logical entries at 10,000 before filtering, including directories, and keeps the existing per-file and written-tree budgets. Go consumes extension metadata internally under the expanded cap. `TestExpandedArchiveBudget` and `TestArchiveEntryBudget` pass. ADR review found no separate decision needed for this extraction limit change. The lock and tree hash formats stay the same.

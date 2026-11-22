@@ -58,7 +58,7 @@
       "status": "done",
       "file": "features/core-plan-apply.md",
       "updated": "2026-11-22",
-      "summary": "M1 full CLI cycle verified on reset Ubuntu lab (TestLabM1 119.9 s on 2026-11-21). OLY-30 closed selective recreation; OLY-54 adds config-key diffs in plan (YAML/TOML/JSON, dotted paths, no values printed), verified live on the lab VM."
+      "summary": "M1 full CLI cycle verified on reset Ubuntu lab (TestLabM1 166.839 s on 2026-11-22, including verified semantic diff, file-path fallback and failed init rollback). OLY-30 closed selective recreation; OLY-54 adds config-key diffs in plan (YAML/TOML/JSON), hardened by OLY-65 with an escaped display and bounded config reads through the verified activator."
     },
     "lock-file": {
       "status": "done",
@@ -67,7 +67,9 @@
     },
     "catalog-lock": {
       "status": "done",
-      "file": "features/catalog-lock.md"
+      "file": "features/catalog-lock.md",
+      "updated": "2026-11-22",
+      "summary": "OLY-65 adds expanded-stream and archive entry budgets to catalog extraction."
     },
     "remote-ssh": {
       "status": "done",
@@ -108,7 +110,7 @@
       "status": "in_progress",
       "file": "features/recipe-catalog.md",
       "updated": "2026-11-22",
-      "summary": "Recipes added with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. Pi installs from a committed package-lock.json and Oh My Pi ships a checksum-verified binary from a fetch stage (ADR 0051). Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). Lab evidence: Pi (2026-11-21) and, from OLY-52 on 2026-11-22, Aider, Claude Code, Gemini CLI, OpenClaw and Oh My Pi. OLY-52 re-checked all remaining README claims against pinned sources, corrected false statements and kept only truly unverified live model/bot/browser/MCP connections. OLY-25: no Grok bot recipe; the catalog name has no clear referent (see Sources/landscape.md)."
+      "summary": "OLY-65 makes generated init fail on the first managed-file copy error. Recipes added with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. Pi installs from a committed package-lock.json and Oh My Pi ships a checksum-verified binary from a fetch stage (ADR 0051). Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). Lab evidence: Pi (2026-11-21) and, from OLY-52 on 2026-11-22, Aider, Claude Code, Gemini CLI, OpenClaw and Oh My Pi. OLY-52 re-checked all remaining README claims against pinned sources, corrected false statements and kept only truly unverified live model/bot/browser/MCP connections. OLY-25: no Grok bot recipe; the catalog name has no clear referent (see Sources/landscape.md)."
     },
     "test-lab": {
       "status": "done",
@@ -188,6 +190,8 @@
     "ADR 0050 honour or reject SSE per MCP style",
     "ADR 0051 pin built-image inputs with committed lockfiles",
     "ADR 0052 record post-install completion by stack tool name",
-    "ADR 0053 selectable test lab guest OS and architecture"
+    "ADR 0053 selectable test lab guest OS and architecture",
+    "ADR 0054 bounded and verified semantic plan reads",
+    "ADR 0055 managed init copy policy in tool identity"
   ]
 }

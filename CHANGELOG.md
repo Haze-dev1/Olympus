@@ -2,6 +2,8 @@
 
 ## Development
 
+- OLY-65 reads semantic plan config through the checksum- and version-verified activator, escapes and limits displayed configuration keys, caps expanded catalog archives and entry counts, and makes any managed-file copy failure stop init.
+
 - Cleared the remaining 17 lint baseline findings in `internal/activate`, `internal/deploy`, `internal/eval`, and `internal/remote`, bringing the repository to 0 lint findings across the entire codebase.
   - `internal/activate`: simplified empty command arg validation with `slices.Contains` (modernize); updated `State.Deadline` struct tag to `omitzero` (modernize); ranged over `strings.SplitSeq` in `splitLines` (modernize); preallocated `entries` slice in `storeRefs` from regex submatch count (prealloc).
   - `internal/deploy`: applied De Morgan's law simplification to ELF architecture match check in `deploy.go` (staticcheck QF1001); ranged over `strings.SplitSeq` for systemd property parsing in `deploy.go` and for socket listener, owned port, and meminfo parsing in `preflight.go` (modernize); removed redundant initial assignment `arch := ""` in `preflight.go` (wastedassign); replaced unexported `contains` helper with `slices.Contains` (modernize).

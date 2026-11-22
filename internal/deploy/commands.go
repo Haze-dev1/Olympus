@@ -69,6 +69,11 @@ func (c *Client) Status(ctx context.Context) ([]byte, error) {
 	return c.run(ctx, []string{c.binary, "status", "--server", "--json"}, nil)
 }
 
+// ReadConfig requests a bounded store file from the verified activator.
+func (c *Client) ReadConfig(ctx context.Context, hash, relative string, limit int, digest string) ([]byte, error) {
+	return c.run(ctx, []string{c.binary, "read-config", "--server", hash, relative, strconv.Itoa(limit), digest}, nil)
+}
+
 // VerifyActivator permits read-only commands without uploading a binary. It
 // applies the same checksum and version checks as deployment (rule A12).
 func (c *Client) VerifyActivator(ctx context.Context, local string) error {
