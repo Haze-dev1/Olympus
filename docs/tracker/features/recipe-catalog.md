@@ -594,3 +594,7 @@ Lab evidence (fresh `lab/lab.sh reset` before each tool, ports `2252`/`8129`, `O
 - On-host `ss -tln` showed only SSH and the two DNS stub listeners; nothing from the tools. `lab/lab.sh down` after the last run.
 
 Static validation: `go build`, `go vet ./...`, `go test ./...`, `go test -race -short ./...`, `gofmt -l .` (empty) and `golangci-lint run --new-from-merge-base=origin/development ./...` (0 issues) all pass. ADR: 0054 added, amends 0051 (which had assumed install scripts would keep running). Live model/bot sessions and interactive tool use remain out of scope: only sentinel values and `--version` were exercised.
+
+### Orchestrator review of OLY-66 (2026-11-22)
+
+Renumbered the ADR to 0056 (0054 and 0055 went to OLY-65) and merged `development`. Both branches had regenerated the Claude Code, Gemini CLI and real-stack goldens, so they were rebuilt from the merged code and checked to carry both OLY-65's stop-on-first-copy-failure init and OLY-66's `--ignore-scripts` builds. The full offline set and whole-tree lint pass. `TestLabRealStack` passes on a fresh Ubuntu 24.04 VM in 310.2 s, building Codex with `npm ci --omit=dev --ignore-scripts` alongside real Hermes and OpenCode.
