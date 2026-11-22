@@ -25,7 +25,8 @@ the version-specific claims below were re-checked against the pinned source on
   environment: {...}}`, remote servers are `{type: "remote", url, headers}`.
   Environment references use `{env:VAR}`.
 - Skills: one folder per skill with `SKILL.md` under
-  `~/.config/opencode/skills`. OpenCode only reads skills, so they are mounted
+  `~/.config/opencode/skill` (OpenCode 1.0.196 globs `skill/**/SKILL.md`;
+  `skills/` is never read). OpenCode only reads skills, so they are mounted
   read-only (`mode: mount`).
 - Channels: none for the local server.
 - Licence: MIT.

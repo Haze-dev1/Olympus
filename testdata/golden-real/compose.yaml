@@ -134,8 +134,8 @@ services:
       target: /root/.local/share/opencode
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-7ca577561451986ae6b7cbe921f1a59a2aa62298237874db6ec74059ed77480d/files/root/.config/opencode/skills/deploy-checklist/SKILL.md
-      target: /root/.config/opencode/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-22a7a39d4b146b1099ff1c58b5a9d13a788b4a45b40a43db00c0f1ad8612b61b/files/root/.config/opencode/skill/deploy-checklist/SKILL.md
+      target: /root/.config/opencode/skill/deploy-checklist/SKILL.md
       type: bind
   opencode-init:
     entrypoint:
@@ -156,7 +156,7 @@ services:
       target: /root/.local/share/opencode
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-7ca577561451986ae6b7cbe921f1a59a2aa62298237874db6ec74059ed77480d/files/root/.config/opencode/opencode.json
+      source: /var/lib/olympus/store/sha256-22a7a39d4b146b1099ff1c58b5a9d13a788b4a45b40a43db00c0f1ad8612b61b/files/root/.config/opencode/opencode.json
       target: /olympus-init/0
       type: bind
 volumes:

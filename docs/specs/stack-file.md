@@ -98,7 +98,7 @@ An MCP server's `args` is an argv list, so values may repeat; the other lists in
 | `skills` | no | `all`, or a list of paths from the top-level `skills` |
 | `secrets` | no | Values for the secrets the recipe declares |
 | `channels` | no | Channel settings, for recipes that declare channel support |
-| `ports.public` | no | Ports to open publicly. Off by default ([ADR 0010](../ADR.md#0010-expose-nothing-publicly-by-default)). |
+| `ports.public` | no | Ports to open publicly. Off by default ([ADR 0010](../ADR.md#0010-expose-nothing-publicly-by-default)). **Not yet supported:** `check` and `build` currently reject any `ports.public` entry. |
 
 ### `agents.<name>.channels`
 

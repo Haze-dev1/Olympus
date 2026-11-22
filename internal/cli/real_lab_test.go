@@ -244,7 +244,7 @@ assert "OLYM_SENTINEL_" not in Path("/opt/data/.env").read_text()
 			t.Fatalf("%s MCP fixture failed", name)
 		}
 
-		skill := map[string]string{"hermes": "/opt/data/skills/lab-skill/SKILL.md", "codex": "/root/.agents/skills/lab-skill/SKILL.md", "opencode": "/root/.config/opencode/skills/lab-skill/SKILL.md"}[name]
+		skill := map[string]string{"hermes": "/opt/data/skills/lab-skill/SKILL.md", "codex": "/root/.agents/skills/lab-skill/SKILL.md", "opencode": "/root/.config/opencode/skill/lab-skill/SKILL.md"}[name]
 		if !bytes.Contains(compose("exec", "-T", name, "cat", skill), []byte("Check health")) {
 			t.Fatalf("missing %s skill", name)
 		}

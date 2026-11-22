@@ -131,7 +131,7 @@ A list of relative filesystem paths to local skill folders.
 | `skills` | No | String (`"all"`) or Array of unique Strings (`minLength: 1`) | Skills exposed to this tool: `"all"` to include all top-level skills, or a list of specific paths matching top-level `skills`. |
 | `secrets` | No | Map of String &rarr; String | Secret values mapping recipe-declared secret names to single `${NAME}` references. |
 | `channels` | No | Map of String &rarr; Channel Object | Channel configuration for tools supporting chat integrations. |
-| `ports.public` | No | Array of unique Integers (`1`&ndash;`65535`) | Ports to bind publicly to `0.0.0.0`. By default, all container ports bind to `127.0.0.1`. |
+| `ports.public` | No | Array of unique Integers (`1`&ndash;`65535`) | Ports to bind publicly to `0.0.0.0`. By default, all container ports bind to `127.0.0.1`. **Not yet supported:** Olympus currently rejects this field with `public port builds are outside the offline slice`. |
 
 ### Channel Object
 
