@@ -401,7 +401,7 @@ CLI                                         SERVER
  │                                            2. install secrets; update fingerprints
  │                                            3. docker compose pull --ignore-buildable; build missing local images once
  │                                            4. docker compose up --no-build --pull never -d --remove-orphans
- │                                               (+ --force-recreate --no-deps for only tools whose secrets changed)
+ │                                               (first --force-recreate tools whose secrets changed, with init dependencies)
  │                                            5. health checks, per tool, in parallel
  │                                               fail → re-activate previous generation, exit
  │                                            6. state.json: awaiting-confirm, nonce, deadline
@@ -425,7 +425,7 @@ An exclusive `flock` on `/var/lib/olympus/lock`, held by the activator process f
 
 ### 8.3 Rollback
 
-- **Automatic** (health failure or confirm timeout): the activator restores the secret values the failed transaction replaced, recreates exactly the previous generation's tools whose values it restored, then runs steps 4–5 for the previous generation, with its manifest and secrets fingerprints, and exits with status 3. If restoring the previous values fails, it takes the project down and exits with status 5 instead, because the failed generation may still hold the new values. If there is no previous generation (first deploy), it runs `docker compose down` for the project and leaves no `current`.
+- **Automatic** (health failure or confirm timeout): the activator restores the secret values the failed transaction replaced, recreates exactly the previous generation's tools whose values it restored, then runs steps 4–5 for the previous generation, with its manifest and secrets fingerprints, and exits with status 3. If restoring the previous values fails, it takes the project down with orphan removal and exits with status 5 instead, because the failed generation may still hold the new values. If there is no previous generation (first deploy), it runs `docker compose down --remove-orphans` for the project and leaves no `current`.
 - **`rollback` command:** the activator re-activates the generation before `current`, with the same health checks and the same confirm-or-revert protection.
 - Data volumes are never touched by a rollback.
 
@@ -498,7 +498,7 @@ Every secret value read from `.env` is registered with `internal/redact` before 
 | `rollback` | write | yes | Previous generation, with confirm-or-revert |
 | `update` | no | no | Rewrites `stack.lock` |
 | `gc [-keep N]` | write | yes | Uses server.keep, else 5; section 8.6 |
-| `destroy [--delete-data]` | write | yes | `docker compose down`; keeps volumes and `/var/lib/olympus/` unless `--delete-data` |
+| `destroy [--delete-data]` | write | yes | `docker compose down --remove-orphans`; keeps volumes and `/var/lib/olympus/` unless `--delete-data` |
 | `activate`, `confirm` | — | — | Internal; run on the server by the CLI |
 
 All client server commands share stack connection settings and the known_hosts selection/prompt policy. `status --json` returns an array of name, state, health, image and generation; status runs a bounded current readiness check when declared. `rollback` uses the same detached start and fresh SSH confirmation as apply. `destroy` always asks y/N; without `--delete-data` it keeps project volumes and server state. With that flag it also deletes all volumes labelled for the Olympus project, including removed tools' volumes, and the Olympus root.

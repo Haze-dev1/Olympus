@@ -59,6 +59,7 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Case | Intended behaviour |
 | --- | --- |
 | One tool fails to start, or its health check never passes | Re-activate the previous generation; report the failed tool and its last log lines; exit non-zero |
+| Writable config changes with a secret rotation | Complete the selected tool's init before it starts. On failed health, complete the previous generation's init before restarting the restored tool |
 | A recipe runs as a non-root user | Mounted non-secret tool files are readable and new managed copies belong to the effective container user. The host-side store remains root-only |
 | A tool with a managed-copy init service declares runtime security options | Init inherits the main service's no-new-privileges and seccomp settings |
 | A managed file cannot be copied into its tool volume | Init fails immediately and Compose blocks the dependent tool. Activation restores the previous generation on update |
@@ -86,7 +87,7 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | `gc` | Never deletes entries used by `current` or the previous kept generations; reports space freed |
 | Two runs render the same stack | Byte-identical generation and hashes (test for purity) |
 | Only a secret value changed in `.env` | Hash unchanged; `plan` reports a secret change for that tool and `apply` restarts only it; a failed revert recreates the previous generation's tools whose values it restored |
-| Restoring the previous secret values fails during a revert | Take the project down, record `rollback_failed`, report that the server may be down, exit 5; never claim a rollback |
+| Restoring the previous secret values fails during a revert | Take the project down including containers declared only in the previous generation, retain volumes, record `rollback_failed`, report that the server may be down, exit 5; never claim a rollback |
 
 ## Destroy
 

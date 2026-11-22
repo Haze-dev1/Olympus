@@ -3,6 +3,7 @@
 ## Development
 
 - OLY-68 fixes release-review findings 1 and 9. Non-secret tool store files deploy as 0644 under 0755 entry directories behind the root-only store. Managed-file init services inherit their tool's security options and create copies owned by the effective container user. ADR 0058 records the store and init policy.
+- OLY-67 runs managed init before recreating tools during secret rotation and automatic revert, removes orphan containers during project teardown, and checks rollback error types and the current generation in confirmation-cleanup tests. See ADR 0057.
 
 - Added `docs/security/release-review-2026-11-22.md`: a review of `development` against `main` (#19 to #60) with four serious and nine minor findings, indexed in `docs/README.md` and the security-review tracker. Documentation only; no ADR.
 

@@ -23,9 +23,73 @@ import (
 // labNginxImage pins the multi-architecture nginx index used by both lab recipes.
 const labNginxImage = "nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10"
 
+// labOriginalCredential is a synthetic value that exercises shell quoting.
+const labOriginalCredential = "OLYM_SENTINEL_one_$literal\\end'quote\""
+
 // Reset the canonical VM before running. All credentials/cache are explicit lab
 // settings; no developer SSH files or real secrets are read.
 func TestLabM1(t *testing.T) {
+	runLabM1(t, nil)
+}
+
+func TestLabSecretRotationInit(t *testing.T) {
+	runLabM1(t, func(t *testing.T, recipes string, writeEnv func(string), apply func(int), remote func(...string) []byte) {
+		recipe := filepath.Join(recipes, "lab-one", "recipe.yaml")
+		original, err := os.ReadFile(recipe)
+		if err != nil {
+			t.Fatal(err)
+		}
+		write := func(path string, data []byte) {
+			t.Helper()
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		config := "/etc/nginx/conf.d/default.conf"
+		execTool := func(args ...string) string {
+			return string(remote(append([]string{"docker", "compose", "-p", "olympus", "-f", "/var/lib/olympus/current/compose.yaml", "exec", "-T", "one"}, args...)...))
+		}
+		current := func() string {
+			return string(remote("readlink", "-f", "/var/lib/olympus/current"))
+		}
+		before := current()
+		originalConfig := execTool("cat", config)
+		changed := "server { listen 80; location / { return 200 'rotated config'; } }\n"
+		write(filepath.Join(recipes, "lab-one", "default.conf.tmpl"), []byte(changed))
+		writeEnv("OLYM_SENTINEL_rotated_init")
+		// Distinguish a failed readiness check from a failure to start the tool.
+		failing := bytes.ReplaceAll(original, []byte("command: [nginx, -t]"), []byte("command: [sh, -c, 'nginx -t && exit 1']"))
+		failing = bytes.ReplaceAll(failing, []byte("timeout: 10s"), []byte("timeout: 2s"))
+		write(recipe, failing)
+		apply(3)
+		if current() != before {
+			t.Fatal("failed activation changed current")
+		}
+		if got := execTool("cat", config); got != originalConfig {
+			t.Errorf("rolled-back config = %q, want %q", got, originalConfig)
+		}
+		if got := execTool("wget", "-qO-", "http://127.0.0.1/"); got != "first" {
+			t.Errorf("rolled-back nginx serves %q, want first", got)
+		}
+		if got := execTool("printenv", "LAB_CREDENTIAL"); got != labOriginalCredential+"\n" {
+			t.Error("rolled-back nginx did not receive the original credential")
+		}
+		write(recipe, original)
+		apply(0)
+		if got := execTool("cat", config); got != changed {
+			t.Errorf("forward config = %q, want %q", got, changed)
+		}
+		if got := execTool("wget", "-qO-", "http://127.0.0.1/"); got != "rotated config" {
+			t.Errorf("forward nginx serves %q, want rotated config", got)
+		}
+		if got := execTool("printenv", "LAB_CREDENTIAL"); got != "OLYM_SENTINEL_rotated_init\n" {
+			t.Error("forward nginx did not receive the rotated credential")
+		}
+	})
+}
+
+func runLabM1(t *testing.T, afterFirstApply func(*testing.T, string, func(string), func(int), func(...string) []byte)) {
+	t.Helper()
 	if os.Getenv("OLYMPUS_LAB") != "1" {
 		t.Skip("set OLYMPUS_LAB=1 with lab.sh env on a reset VM")
 	}
@@ -57,6 +121,9 @@ func TestLabM1(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if afterFirstApply != nil && name == "lab-one" && file == "recipe.yaml" {
+				b = append(b, []byte("\nwritable: [/etc/nginx/conf.d/default.conf]\n")...)
+			}
 			if err = os.WriteFile(filepath.Join(recipes, name, file), b, 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -67,7 +134,6 @@ func TestLabM1(t *testing.T) {
 	if err := os.WriteFile(file, []byte(body), 0600); err != nil {
 		t.Fatal(err)
 	}
-	secretOne := "OLYM_SENTINEL_one_$literal\\end'quote\""
 	writeEnv := func(first string) {
 		t.Helper()
 		b := fmt.Sprintf("LAB_ONE=%q\nLAB_TWO=OLYM_SENTINEL_two\n", first)
@@ -75,7 +141,7 @@ func TestLabM1(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	writeEnv(secretOne)
+	writeEnv(labOriginalCredential)
 	s, d := stack.Load(file)
 	if len(d.Errors) > 0 {
 		t.Fatal(d.Errors)
@@ -156,6 +222,12 @@ func TestLabM1(t *testing.T) {
 		}
 	}
 	run("apply", 0, saved, "--yes", "-activator", binary)
+	if afterFirstApply != nil {
+		afterFirstApply(t, recipes, writeEnv, func(want int) {
+			run("apply", want, "--yes", "-activator", binary)
+		}, runRemote)
+		return
+	}
 	checkHookMarker := func() {
 		t.Helper()
 		got := runRemote("docker", "compose", "-p", "olympus", "-f", "/var/lib/olympus/current/compose.yaml", "exec", "-T", "one", "cat", "/tmp/olympus-post-install")
@@ -177,7 +249,7 @@ func TestLabM1(t *testing.T) {
 	}
 	// Check exact delivery without returning the value to test diagnostics.
 	delivered := runRemote("docker", "compose", "-p", "olympus", "-f", "/var/lib/olympus/current/compose.yaml", "exec", "-T", "one", "printenv", "LAB_CREDENTIAL")
-	if string(delivered) != secretOne+"\n" {
+	if string(delivered) != labOriginalCredential+"\n" {
 		t.Fatal("environment delivery changed secret bytes")
 	}
 	if output := run("apply", 0, "--yes", "-activator", binary); !strings.Contains(output, "No changes.") {
@@ -384,6 +456,11 @@ templates:
 	}
 	runRemote("docker", "run", "-d", "--name", "olympus-lab-unrelated", labNginxImage)
 	runRemote("docker", "volume", "create", "olympus-lab-unrelated")
+	// Simulate a container declared only by a former generation.
+	orphan := fmt.Sprintf("services:\n  previous-only:\n    image: %s\n", labNginxImage)
+	if _, _, err := c.Run(ctx, remote.Sudo([]string{"docker", "compose", "-p", "olympus", "-f", "-", "up", "-d", "--no-build", "--pull", "never", "previous-only"}), strings.NewReader(orphan)); err != nil {
+		t.Fatalf("start previous-only fixture: %v", err)
+	}
 	run("destroy", 0, "-activator", binary)
 	if strings.TrimSpace(ids()) != "" {
 		t.Fatal("destroy left project containers")
