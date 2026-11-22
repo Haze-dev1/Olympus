@@ -2,6 +2,8 @@
 
 ## Development
 
+- Added `docs/security/release-review-2026-11-22.md`: a review of `development` against `main` (#19 to #60) with four serious and nine minor findings, indexed in `docs/README.md` and the security-review tracker. Documentation only; no ADR.
+
 - OLY-66: disable npm lifecycle scripts in the `claude-code`, `codex` and `gemini-cli` image builds (security review R5). Audited every install script at the pinned versions from the npm tarballs: Codex has none; Gemini CLI's keytar prebuild copy and node-pty cleanup are optional helpers the CLI does not need; Claude Code's postinstall only links the platform binary shipped inside the integrity-pinned optional-dependency tarball, with no egress. All three Dockerfiles now run `npm ci --omit=dev --ignore-scripts`; Claude Code invokes only that audited `install.cjs` by path afterwards because its `bin` stays an error stub until then. Added `TestRecipeNpmInstallScriptsDisabled` (red before the Dockerfile change), regenerated the claude-code, gemini-cli and real-stack goldens, updated the three recipe READMEs and marked R5 resolved. Fresh single-tool lab applies on reset VMs with sentinel secrets passed for all three: `claude --version` 2.1.318, `codex --version` 0.116.0 and `gemini --version` 0.67.0; each was healthy with 0 restarts, 0600 per-tool secret files, no published ports and no sentinel in CLI output, store, activation logs or container logs. Full validation including race and branch-scoped lint passed. ADR 0056 amends 0051.
 - OLY-65 reads semantic plan config through the checksum- and version-verified activator, escapes and limits displayed configuration keys, caps expanded catalog archives and entry counts, and makes any managed-file copy failure stop init.
 
