@@ -24,6 +24,8 @@ type Compose struct {
 	Log io.Writer // optional sink for command output
 }
 
+var _ Runner = Compose{}
+
 // Pull pulls the generation's images.
 func (c Compose) Pull(ctx context.Context, composeFile string) error {
 	return c.run(ctx, c.args(composeFile, "pull", "--ignore-buildable"))
@@ -83,6 +85,13 @@ func (c Compose) Down(ctx context.Context, composeFile string) error {
 // Exec runs a command inside one tool's container (A8).
 func (c Compose) Exec(ctx context.Context, composeFile, tool string, args []string) error {
 	return c.run(ctx, c.args(composeFile, append([]string{"exec", "-T", tool}, args...)...))
+}
+
+// PostInstall runs recipe arguments in the tool container and discards output,
+// which could contain values from the container's secret environment.
+func (c Compose) PostInstall(ctx context.Context, file, tool string, args []string) error {
+	argv := c.args(file, append([]string{"exec", "-T", "--interactive=false", "--", tool}, args...)...)
+	return exec.CommandContext(ctx, argv[0], argv[1:]...).Run() //nolint:gosec // Recipe argv follows the option terminator and tool name in a scoped Compose exec.
 }
 
 func (c Compose) args(composeFile string, rest ...string) []string {

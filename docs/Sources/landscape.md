@@ -102,6 +102,30 @@ Not competitors: tools from other ecosystems whose models Olympus copies. Descri
 
 A personal agent from Meta, launched September 2026 ([announcement](https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/), [ABC News](https://abcnews.com/Business/metas-muse-ai-agent/story?id=136680507)). It runs each user's tasks on a dedicated virtual machine and keeps working in the background. It is a closed, Meta-hosted product; no self-hostable version or public API was found. The author mentioned a possible SDK; not yet checked.
 
+### Grok bot (OLY-25, 2026-11-21)
+
+The v1 catalog line "a Grok bot" has no single self-hostable open-source referent.
+[Grok Bot](https://docs.x.ai/grok-bot/overview) is xAI's closed hosted agent with a
+persistent cloud computer and Cursor sign-in ([FAQ](https://docs.x.ai/grok-bot/faq));
+there is no `grok-bot` repo in `xai-org`. The official `xai-org/grok-build` is a
+coding agent. `milind-soni/OpenMausBot`, `elie222/rakazo` and `stablyai/orca` are
+widely used, licensed and actively released open-source **alternatives** to that
+product, with different architectures and no Grok-specific identity. The
+catalog owner has to name the repository before a recipe is written.
+
+Candidates checked with `gh api repos/<owner>/<repo>` on 2026-11-21:
+
+| Candidate (`gh api repos/…`) | Stars | Fork / licensed | Maintenance | Headless/container evidence | Verdict |
+| --- | ---: | --- | --- | --- | --- |
+| [xai-org/grok-build](https://github.com/xai-org/grok-build) | 27,821 | non-fork, Apache-2.0 | pushed 2026-09-29; no tags or releases in the GitHub API | README documents headless mode and ACP and a released binary via `x.ai/cli/install.sh`; no official container image found in the README | Official, but a **coding agent/TUI**, not a bot |
+| [xai-org/grok-prompts](https://github.com/xai-org/grok-prompts) | 4,610 | non-fork, AGPL-3.0 | pushed 2025-11-17; no recent release | Prompts for the Grok chat assistant and `@grok` on X, not a runnable tool | Not a tool |
+| [superagent-ai/grok-cli](https://github.com/superagent-ai/grok-cli) | 3,514 | non-fork, MIT | pushed 2026-07-06; release `grok-dev@1.1.7` (2026-05-15) | README describes an interactive/headless coding agent for the Grok API | Coding agent, not a bot; last release months old |
+| [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot) | 26,297 | non-fork, Apache-2.0 | pushed 2026-11-21; release `v0.1.175` (2026-11-21) | README links headless CLI and self-hosting docs and Docker; local harness runs `claude`/`codex`/`grok` CLIs | Widely used and maintained, but explicitly an independent **alternative** to Grok Bot (Electron desktop app with local agents) |
+| [elie222/rakazo](https://github.com/elie222/rakazo) | 9,348 | non-fork, Apache-2.0 | pushed 2026-11-21; release `v0.13.0` (2026-11-18) | README documents published Docker images, a Compose installer and a self-hosted web server | Closest self-hosted fit, but a generic **alternative** to Grok Bot, not a Grok bot |
+| [stablyai/orca](https://github.com/stablyai/orca) | 131,303 | non-fork, MIT | pushed 2026-11-21; release `v1.4.268` (2026-11-21) | README documents a remote server and bots driven by Claude Code/Codex | Agent IDE with bots; not Grok-specific |
+| [alexsergivan/kwant](https://github.com/alexsergivan/kwant) | 683 | non-fork, AGPL-3.0 | pushed 2026-11-21; release `mac-v0.9.34` (2026-11-21) | README documents a self-hosted server binary/Docker | Alternative to several closed bots; small and not Grok-specific |
+| Small Grok chat bots: [artickc/grok-telegram-bot](https://github.com/artickc/grok-telegram-bot), [JiminLee-way/GrokBotCLI](https://github.com/JiminLee-way/GrokBotCLI), [jdmsharpe/discord-grok](https://github.com/jdmsharpe/discord-grok) | 10, 1, 1 | various | pushed 2026-08-30, 2026-10-14, 2026-11-21 | Telegram/Discord bridges around Grok Build or the xAI API | Not widely used; unsuitable as a v1 catalog recipe |
+
 ### ChatGPT Spaces alternatives
 
 - [OpenSpaces](https://github.com/Anil-matcha/open-spaces): MIT, self-hostable workspace for shared pages and conversations. Its README says agent execution is not production-ready.

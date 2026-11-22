@@ -1,6 +1,6 @@
 # Recipe catalog
 
-- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose, Aider, OpenClaw, Pi and Oh My Pi recipes added and rendered offline; none lab-verified.
+- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose, Aider, OpenClaw, Pi and Oh My Pi recipes added and rendered offline; none lab-verified. Grok bot blocked on tool identity (OLY-25).
 - **Milestone:** M5
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -508,3 +508,34 @@ Arch host (amd64, KVM, Go 1.27.4), fresh `lab/lab.sh reset` each run. Each stack
   - First attempt: `apt-get update` in the fetch stage stalled, a TCP connection idle for over 800 s inside the QEMU user-mode network. After the download was killed, `apply` reported `deploy: activation failed; server rolled back`.
   - Second attempt: the fetch stage got through `apt`, then downloaded the 284,477,616-byte `omp-linux-x64` at about 33 KiB/s, matching the 36 KB/s the host itself got from GitHub's release CDN. The CLI was stopped at its 25-minute cap with about 17 MB fetched.
   - Still unverified: the SHA-256 check of the binary, `omp --version`, and the config, MCP and skill files in a running container. Rerun when GitHub downloads are faster.
+
+## Grok bot (OLY-25) — research only, STOP
+
+**Status:** blocked on tool identity; no recipe, testdata or golden written.
+
+Evidence, with the candidate table: the dated note in
+[Sources/landscape.md](../../Sources/landscape.md#grok-bot-oly-25-2026-11-21).
+
+- Checked with `gh api repos/<owner>/<repo>` and the official docs on 2026-11-21:
+  xAI's Grok Bot is closed and cloud-hosted (Cursor sign-in, cloud computer,
+  no self-host/API-key path), and `xai-org` has no `grok-bot` repo.
+- `xai-org/grok-build` (27,821 stars, non-fork, Apache-2.0, pushed 2026-09-29,
+  no GitHub tags/releases) is official and headless-capable but a coding agent.
+  `superagent-ai/grok-cli` and `xai-org/grok-prompts` are also not bots.
+- `milind-soni/OpenMausBot` (26,297 stars, Apache-2.0, `v0.1.175` on
+  2026-11-21), `elie222/rakazo` (9,348 stars, Apache-2.0, `v0.13.0` on
+  2026-11-18), `stablyai/orca` (131,303 stars, MIT, `v1.4.268` on 2026-11-21)
+  and `alexsergivan/kwant` (683 stars, AGPL-3.0, active) are maintained,
+  licensed, non-fork **alternatives** to Grok Bot, not one identifiable tool.
+  Telegram/Discord Grok bots found were 1–14-star projects.
+- The task's STOP rule applies: none is clearly official *and* a Grok bot, and
+  several alternatives are widely used and maintained, so the catalog line is
+  ambiguous. The catalog owner must name the repository before recipe work.
+- Verification: `go build`, `go vet ./...`, `go test ./...`,
+  `go test -race -short ./...`, `gofmt -l .` and
+  `golangci-lint run --new-from-merge-base=origin/development ./...` pass
+  (`0 issues`); docs links and `progress.json` checked. No lab run (none needed
+  without a recipe; once a tool is named: a fresh single-tool lab apply with sentinel secrets, health, localhost-only ports, 0600 secrets and scoped destroy).
+- ADR: none added. ADR.md reviewed; research changes no architecture, format or
+  durable behaviour. UNVERIFIED: candidate image digests, pinned build inputs,
+  health endpoints and MCP/skills surfaces were not checked after STOP.
