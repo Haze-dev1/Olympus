@@ -88,3 +88,7 @@ Evidence:
 - Live lab verification: Started HTTP listeners on `[::1]:9876` and `127.0.0.2:9876` simultaneously on the Ubuntu 24.04 QEMU lab VM (`.lab/`, SSH port 2272). `olym plan` for a stack with private port 9876 successfully passed preflight. Tested positive conflict detection by starting a listener on `127.0.0.1:9876` (preflight failed with `web: port 9876 is already in use (process python3 listening on 127.0.0.1:9876)`) and on `0.0.0.0:9876` (preflight failed with `web: port 9876 is already in use (process python3 listening on 0.0.0.0:9876)`).
 - No new ADR: adheres to ADR 0044 and TRD 7.2.
 
+
+### Orchestrator review of OLY-70 (2026-11-22)
+
+Added the IPv4-mapped `::ffff:127.0.0.1` listener as a conflict (a v6 socket bound there blocks 127.0.0.1) with a test case. Checked that untagged release-script builds (`0.1.0-dev+<sha>`) no longer equal `DevelopmentVersion`, so they are held to their embedded checksums (A12 unchanged or stricter). After merging `development`, the full offline set and whole-tree lint pass; `TestLabDeploy` passes in 135.8 s and `TestLabM1` in 150.4 s on fresh Ubuntu 24.04 VMs.
