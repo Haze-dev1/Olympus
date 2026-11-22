@@ -44,3 +44,10 @@ Review evidence and limits:
 - Validation: `python3 /private/tmp/olym-doc-links.py` reported 0 JSON errors and 0 doc link/anchor errors. `go build -o /tmp/olym-agy-flow-bin ./cmd/olym/`, `go vet ./...`, and `gofmt -l .` (empty) passed cleanly. `go test ./...` reproduced only the three known macOS deploy failures (`TestUploadGeneration`, `TestUploadActivatorVersionAndPublication`, and `TestToolEntryReuseAndVerification`).
 
 - 2026-11-08 lead review: independent build/vet/formatting passed; full tests reproduced only the three baseline-identical macOS deploy failures. Corrected remaining source-line citations and removed unsupported network, logging and blanket secrecy claims in the detached review tree. Docs links/anchors and tracker JSON pass. No new ADR warranted. The documented hook-execution gap is tracked as OLY-63; no bundled recipe currently uses a hook.
+
+
+## Pre-release delta review (2026-11-22)
+
+Reviewed `fd8743d..187f33f`. The [findings report](../../security/review-2026-11-22.md) records four confirmed findings and two plausible ones. Outstanding work includes the remediation, dependency and secret scans, and the earlier upstream chat and release artifact checks.
+
+Build, vet, full and race-short Go tests, formatting and branch-scoped lint passed. The first attempts hit read-only caches and blocked mock listener sockets. Retries used writable caches and loopback access. Govulncheck and gitleaks were unavailable. No lab run. Reviewed ADRs 0048–0052. The review changes documentation only, so no ADR was added.
