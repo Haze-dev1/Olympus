@@ -1,5 +1,5 @@
 {
-  "id": "sha256-2dbdf9c98fd9ffbe7658324fe787bb3b9952a069d70bc1753adc33e0d93db585",
+  "id": "sha256-23b741df3b65a66b504c293f0a1e0aab028f1a2ff34142701cafbd36f89788a2",
   "inputs": {
     "recipes": "sha256-1f97f6d114240bca74b3d64de9a6fc14d2f218f7f73e15e919e36bf942b7a64c"
   },
@@ -9,7 +9,7 @@
       "files": {
         "/home/node/.openclaw/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-d5f81f34dde0d75402f490e7eccc120b0d4b131def237709439a87d34156d1c8",
+      "hash": "sha256-34b90a1fbc04d5122de6db829e20730d2f9e3d077bf4a26525ea0640267de74a",
       "health": {
         "http": {
           "path": "/healthz",

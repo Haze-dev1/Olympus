@@ -4,7 +4,7 @@ services:
     build:
       args:
         BASE_IMAGE: node:22-bookworm-slim@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-      context: /var/lib/olympus/store/sha256-8299dd8a8fd7f374f26ef155c498cde38278a467a5bf5c51a6581790476cd684/files/root/.olympus-build
+      context: /var/lib/olympus/store/sha256-edda755a1c384ec0e208e7529b02ec0060775a50c2cea0947060a39a74fc3408/files/root/.olympus-build
       dockerfile: Dockerfile
     command:
     - sleep
@@ -22,11 +22,11 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-8299dd8a8fd7f374f26ef155c498cde38278a467a5bf5c51a6581790476cd684/files/root/.agents/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-edda755a1c384ec0e208e7529b02ec0060775a50c2cea0947060a39a74fc3408/files/root/.agents/skills/deploy-checklist/SKILL.md
       target: /root/.agents/skills/deploy-checklist/SKILL.md
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-8299dd8a8fd7f374f26ef155c498cde38278a467a5bf5c51a6581790476cd684/files/root/.olympus-build/Dockerfile
+      source: /var/lib/olympus/store/sha256-edda755a1c384ec0e208e7529b02ec0060775a50c2cea0947060a39a74fc3408/files/root/.olympus-build/Dockerfile
       target: /root/.olympus-build/Dockerfile
       type: bind
 volumes:

@@ -2,6 +2,7 @@
 
 ## Development
 
+- OLY-68 fixes release-review findings 1 and 9. Non-secret tool store files deploy as 0644 under 0755 entry directories behind the root-only store. Managed-file init services inherit their tool's security options and create copies owned by the effective container user. ADR 0058 records the store and init policy.
 - OLY-70: resolve release review findings 4, 8, 11, and 12.
   - Finding 4 (serious): `conflictsWithLoopback` in `internal/deploy/preflight.go` now only reports conflicts on the same address (`127.0.0.1`) and wildcards (`0.0.0.0`, `[::]`, `*`, `""`), allowing distinct loopback listeners (`127.0.0.2`, `[::1]`) to bind side by side. Added table-driven red-before test `TestConflictsWithLoopback` and verified live on a disposable Ubuntu 24.04 QEMU lab VM: listeners on `[::1]:9876` and `127.0.0.2:9876` passed preflight for `127.0.0.1:9876`, while listeners on `127.0.0.1:9876` and `0.0.0.0:9876` correctly failed.
   - Finding 8 (minor): `warnDevActivator` in `internal/cli/commands.go` now prints the development-build warning only when actionable: suppressed when `-unsafe-dev-activator` is already supplied, when embedded release checksums are present, or in release builds. `scripts/build-release.sh` now assigns distinguishable version `0.1.0-dev+<shortsha>` on untagged commits rather than bare `0.1.0-dev`. Added unit test `TestWarnDevActivator` covering warning suppression conditions. Rule A12 enforcement is unchanged.

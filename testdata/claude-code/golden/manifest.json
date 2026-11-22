@@ -1,5 +1,5 @@
 {
-  "id": "sha256-d2e095fcec82e5204a9eee1dc46436233a6f204579b880bc225def36bc1ebd21",
+  "id": "sha256-25abc57e5cf5ef8eb98e8bb03a24a2d5ec4c4e72ca1bbb4aa25c47eb6d144e61",
   "inputs": {
     "recipes": "sha256-a0e7b255a0692ea97099ad9b274da6f2893231acc4640e7fe116f3dc46e308ab"
   },
@@ -13,7 +13,7 @@
         "/root/.olympus-build/package-lock.json": "sha256-7ad2897ed7a1672532384227d03c7f5b7feaf7c7b6a5f27affac31d388b23900",
         "/root/.olympus-build/package.json": "sha256-de7ce6d53440f4717a687b81f45090e6ee00ffe0c24fc99eec9c9ce58bbc0d4c"
       },
-      "hash": "sha256-7f43d0977f11d9a49d74b422935cd066a32e9638fc60786b00e2e33edfbde5b4",
+      "hash": "sha256-4014c234e10dc16d5582c8cc40b254035b53b1818c9073ed425741e63913b34d",
       "health": {
         "command": [
           "claude",
