@@ -83,7 +83,7 @@ func ParseSource(s string) (Source, error) {
 		if strings.HasPrefix(src.Path, "/") || path.Clean(src.Path) != src.Path || strings.HasPrefix(src.Path, "..") {
 			return Source{}, fmt.Errorf("catalog: source %q: invalid catalog path", s)
 		}
-		for _, part := range strings.Split(src.Path, "/") {
+		for part := range strings.SplitSeq(src.Path, "/") {
 			if part == "" || part == "." || part == ".." {
 				return Source{}, fmt.Errorf("catalog: source %q: invalid catalog path", s)
 			}

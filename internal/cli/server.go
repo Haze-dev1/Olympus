@@ -158,18 +158,15 @@ func server(args []string, out, stderr io.Writer) int {
 	}
 	// Errors from payload decoding may include input bytes. Keep the CLI output
 	// generic; the activator log contains only validated operational events.
-	var locked *activate.LockedError
-	if errors.As(err, &locked) {
+	if locked, ok := errors.AsType[*activate.LockedError](err); ok {
 		fmt.Fprintln(stderr, locked)
 		return 4
 	}
-	var rollbackFailed *activate.RollbackFailedError
-	if errors.As(err, &rollbackFailed) {
+	if _, ok := errors.AsType[*activate.RollbackFailedError](err); ok {
 		fmt.Fprintln(stderr, "activation failed and the server could not roll back; it may be down")
 		return 5
 	}
-	var rolledBack *activate.RolledBackError
-	if errors.As(err, &rolledBack) {
+	if _, ok := errors.AsType[*activate.RolledBackError](err); ok {
 		fmt.Fprintln(stderr, "activation failed; server rolled back")
 		return 3
 	}
