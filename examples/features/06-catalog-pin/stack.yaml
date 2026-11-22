@@ -1,0 +1,22 @@
+# Source repository for Olympus recipes pinned to a git reference
+inputs:
+  # Catalog URL with an explicit ?ref= query parameter (branch, tag, or commit)
+  recipes: github:Haze-dev1/Olympus/recipes?ref=v1.0.0
+
+# Target server deployment configuration
+server:
+  # Host IP address (TEST-NET placeholder)
+  host: 203.0.113.10
+  # SSH user with root access
+  user: root
+
+# Agents deployed on the server
+agents:
+  # Hermes agent harness
+  hermes:
+    # Recipe name resolved from the pinned catalog
+    recipe: hermes
+    # Secrets required by the Hermes recipe
+    secrets:
+      # Anthropic API key for model inference
+      model-key: ${ANTHROPIC_API_KEY}

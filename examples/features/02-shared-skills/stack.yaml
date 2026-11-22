@@ -1,0 +1,43 @@
+# Source repository for Olympus recipes
+inputs:
+  # Official Olympus recipes repository
+  recipes: github:Haze-dev1/Olympus/recipes
+
+# Target server deployment configuration
+server:
+  # Host IP address (TEST-NET placeholder)
+  host: 203.0.113.10
+  # SSH user with root access
+  user: root
+
+# Shared skills defined once at the stack level
+skills:
+  # Deployment verification checklist
+  - ./skills/deploy-checklist
+  # Code review process guidelines
+  - ./skills/code-review
+
+# Agents deployed on the server
+agents:
+  # Hermes agent harness receives all declared skills
+  hermes:
+    # Recipe name from the catalog
+    recipe: hermes
+    # "all" grants every skill declared in the top-level skills list
+    skills: all
+    # Secrets required by the Hermes recipe
+    secrets:
+      # Anthropic API key for model inference
+      model-key: ${ANTHROPIC_API_KEY}
+
+  # Codex coding agent selectively receives only the deployment checklist
+  codex:
+    # Recipe name from the catalog
+    recipe: codex
+    # Explicit list grants only the named skills to this agent
+    skills:
+      - ./skills/deploy-checklist
+    # Secrets required by the Codex recipe
+    secrets:
+      # OpenAI API key for model inference
+      api-key: ${CODEX_API_KEY}
