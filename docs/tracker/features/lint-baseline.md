@@ -77,3 +77,7 @@ All 17 findings in the concurrent packages (`internal/activate`, `internal/deplo
 ### Orchestrator review of the round-3 cleanup (2026-11-22)
 
 Reviewed the diff: changes are mechanical. `hasDotDot` (A3 path confinement) is equivalent to the old loop. `status --json` and `gc` now fail on a write error instead of ignoring it. Narrowed the new `errname` exclusion to `internal/schema/`. After merging `development` (OLY-63 and OLY-25), the full offline set passes, the whole tree has 17 findings, and `TestLabM1` passes on a fresh Ubuntu 24.04 lab VM in 125.6 s.
+
+### Orchestrator review of the final cleanup (2026-11-22)
+
+Reviewed all 17 changes as behaviour-neutral. The De Morgan rewrite of the activator ELF check is logically identical, and the `state.json` `deadline` tag change (`omitzero`) only drops a zero value that the activator, its sole reader, decodes the same way. After merging `development`, the full offline set passes and `golangci-lint run --build-tags lab ./...` reports 0 issues on the whole tree. On fresh Ubuntu 24.04 lab VMs `TestLabDeploy` passes in 137.9 s and `TestLabM1` in 136.1 s. `AGENTS.md` now requires whole-tree lint.
