@@ -154,6 +154,12 @@
       "file": "features/lint-baseline.md",
       "updated": "2026-11-22",
       "summary": "Cleared all remaining lint baseline findings across the entire codebase (0 issues on whole-tree golangci-lint run). Resolved final 17 findings in internal/activate, internal/deploy, internal/eval, internal/remote; verified with full offline suite, TestLabDeploy, and TestLabM1 on fresh Ubuntu 24.04 QEMU lab VM."
+    },
+    "ci": {
+      "status": "done",
+      "file": "features/ci.md",
+      "updated": "2026-11-22",
+      "summary": "GitHub Actions CI on PRs and pushes to development/main: test matrix (ubuntu/macos) for build, vet, lab-tag vet and race tests; format and go mod tidy; four cross-build targets; release bundle checksum and TestReleaseBundle; docs JSON and link/anchor checks via scripts/check-links.py. Release workflow now tests before building. Local validation passed; first remote run happens on the PR."
     }
   },
   "decisions": [

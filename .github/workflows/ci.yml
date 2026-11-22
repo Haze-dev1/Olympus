@@ -1,0 +1,167 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [development, main]
+  push:
+    branches: [development, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Vet lab-tagged code
+        run: go vet -tags lab ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Test with race detector
+        run: go test -race -short ./...
+
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Check gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            printf 'gofmt -l reported unformatted files:\n%s\n' "$unformatted"
+            exit 1
+          fi
+
+      - name: Check go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+  cross-build:
+    name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Build CLI
+        env:
+          CGO_ENABLED: '0'
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -o "olym_${GOOS}_${GOARCH}" ./cmd/olym
+
+  release-bundle:
+    name: release-bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DIST_DIR: ${{ runner.temp }}/dist
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Build release bundle
+        run: ./scripts/build-release.sh 0.0.0-ci
+
+      - name: Verify checksums
+        run: cd "$DIST_DIR" && sha256sum -c SHA256SUMS
+
+      - name: Test bundled activator
+        run: |
+          set -euo pipefail
+          amd64=$(awk '$2 == "olym-activator_linux_amd64" {print $1}' "$DIST_DIR/SHA256SUMS")
+          arm64=$(awk '$2 == "olym-activator_linux_arm64" {print $1}' "$DIST_DIR/SHA256SUMS")
+          test -n "$amd64" && test -n "$arm64"
+          go test -c -o "$DIST_DIR/deploy.test" \
+            -ldflags="-X github.com/Haze-dev1/Olympus/internal/deploy.ReleaseChecksumLinuxAmd64=${amd64} -X github.com/Haze-dev1/Olympus/internal/deploy.ReleaseChecksumLinuxArm64=${arm64}" \
+            ./internal/deploy
+          cd "$DIST_DIR"
+          OLYM_TEST_RELEASE_BUNDLE=1 ./deploy.test -test.run '^TestReleaseBundle$' -test.v
+
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Check tracker JSON
+        run: python3 -c 'import json; json.load(open("docs/tracker/progress.json"))'
+
+      - name: Check Markdown links
+        run: python3 scripts/check-links.py
