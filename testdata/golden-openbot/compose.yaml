@@ -1,0 +1,25 @@
+name: olympus
+services:
+  openbot:
+    env_file:
+    - /var/lib/olympus/secrets/openbot/environment
+    image: ghcr.io/nightly-labs/openbot:0.62.0
+    labels:
+      org.olympus.tool: openbot
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    - seccomp=/var/lib/olympus/store/sha256-ef6019b00e686f1948891a40dcc8dfb70154191caabe6f43447fbfc0e052c42d/files/data/.olympus/seccomp.json
+    shm_size: 1g
+    stop_grace_period: 60s
+    volumes:
+    - source: openbot_data
+      target: /data
+      type: volume
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-ef6019b00e686f1948891a40dcc8dfb70154191caabe6f43447fbfc0e052c42d/files/data/.olympus/seccomp.json
+      target: /data/.olympus/seccomp.json
+      type: bind
+volumes:
+  openbot_data:
+    name: olympus_openbot_data

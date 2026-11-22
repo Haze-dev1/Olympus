@@ -10,8 +10,11 @@ import (
 	"path"
 	"reflect"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/Haze-dev1/Olympus/internal/activate"
 	"github.com/Haze-dev1/Olympus/internal/encode"
 	"github.com/Haze-dev1/Olympus/internal/generation"
 	"github.com/Haze-dev1/Olympus/internal/recipe"
@@ -20,22 +23,47 @@ import (
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
+// Reader runs bounded commands against a server.
 type Reader interface {
 	Run(context.Context, []string, io.Reader) ([]byte, []byte, error)
 }
 
-type Change struct {
-	Name, Kind   string
-	Files, Drift []string
-	Image        bool
-	Secret       bool
+// KeyChange represents an added, changed, or removed configuration key.
+type KeyChange struct {
+	Path string
+	Kind string
 }
+
+// FileChange holds the key-level changes for a single configuration file.
+type FileChange struct {
+	Path string
+	Keys []KeyChange
+}
+
+// FileContents maps tool names to file paths and their contents.
+type FileContents struct {
+	Want    map[string]map[string][]byte
+	Current map[string]map[string][]byte
+}
+
+// Change describes modifications to a single tool.
+type Change struct {
+	Name, Kind string
+	Files      []string
+	FileDiffs  []FileChange
+	Drift      []string
+	Image      bool
+	Secret     bool
+}
+
+// Diff holds the overall differences between two generations.
 type Diff struct {
 	Changes   []Change
 	Unchanged int
 }
 
-func Compare(want, current generation.Manifest, actual map[string]map[string]string) Diff {
+// Compare returns the difference between the desired and current manifests.
+func Compare(want, current generation.Manifest, actual map[string]map[string]string, contents ...FileContents) Diff {
 	d := Diff{}
 	names := map[string]bool{}
 	for n := range want.Tools {
@@ -66,6 +94,17 @@ func Compare(want, current generation.Manifest, actual map[string]map[string]str
 			for _, f := range schema.Keys(files) {
 				if w.Files[f] != c.Files[f] {
 					change.Files = append(change.Files, f)
+					fc := FileChange{Path: f}
+					if len(contents) > 0 && contents[0].Want != nil && contents[0].Current != nil {
+						wantBytes := contents[0].Want[n][f]
+						curBytes := contents[0].Current[n][f]
+						if len(wantBytes) > 0 && len(curBytes) > 0 {
+							if keys, err := DiffConfig(f, curBytes, wantBytes); err == nil && len(keys) > 0 {
+								fc.Keys = keys
+							}
+						}
+					}
+					change.FileDiffs = append(change.FileDiffs, fc)
 				}
 			}
 		}
@@ -195,8 +234,22 @@ func (d Diff) Print(out io.Writer) {
 			if c.Image {
 				fmt.Fprintf(out, "  ~ %-16s image changed\n", c.Name)
 			}
-			for _, f := range c.Files {
-				fmt.Fprintf(out, "  ~ %-16s config: %s\n", c.Name, f)
+			if len(c.FileDiffs) > 0 {
+				for _, f := range c.FileDiffs {
+					if len(f.Keys) > 0 {
+						parts := make([]string, 0, len(f.Keys))
+						for _, k := range f.Keys {
+							parts = append(parts, fmt.Sprintf("%s %s", k.Path, k.Kind))
+						}
+						fmt.Fprintf(out, "  ~ %-16s config: %s (%s)\n", c.Name, f.Path, strings.Join(parts, ", "))
+					} else {
+						fmt.Fprintf(out, "  ~ %-16s config: %s\n", c.Name, f.Path)
+					}
+				}
+			} else {
+				for _, f := range c.Files {
+					fmt.Fprintf(out, "  ~ %-16s config: %s\n", c.Name, f)
+				}
 			}
 			if !c.Secret && !c.Image && len(c.Files) == 0 && len(c.Drift) == 0 {
 				fmt.Fprintf(out, "  ~ %-16s configuration changed\n", c.Name)
@@ -228,4 +281,176 @@ func (d *Diff) SecretChanges(changed map[string]bool) {
 			d.Unchanged--
 		}
 	}
+}
+
+const (
+	maxConfigBytes = activate.MaxConfigBytes
+	maxPlanBytes   = 16 << 20
+	maxPlanReads   = 32
+)
+
+// DiffConfig parses oldBytes and newBytes according to filePath's format and returns sorted key-level changes.
+// It falls back to an error for unsupported extensions or invalid structured content.
+func DiffConfig(filePath string, oldBytes, newBytes []byte) ([]KeyChange, error) {
+	if len(oldBytes) > maxConfigBytes || len(newBytes) > maxConfigBytes {
+		return nil, errors.New("config exceeds semantic diff size limit")
+	}
+	format := configFormat(filePath)
+	if format == "" {
+		return nil, fmt.Errorf("unsupported config format: %s", filePath)
+	}
+	oldDoc, err := encode.Unmarshal(format, oldBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parsing current config: %w", err)
+	}
+	newDoc, err := encode.Unmarshal(format, newBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parsing desired config: %w", err)
+	}
+	keys, err := diffKeys("", oldDoc, newDoc)
+	if err != nil {
+		return nil, err
+	}
+	displayBytes := 0
+	for _, key := range keys {
+		displayBytes += len(key.Path) + len(key.Kind) + len(" , ")
+		if displayBytes > 4096 {
+			return nil, errors.New("config changes exceed display limit")
+		}
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].Path == keys[j].Path {
+			return keys[i].Kind < keys[j].Kind
+		}
+		return keys[i].Path < keys[j].Path
+	})
+	return keys, nil
+}
+
+func configFormat(filePath string) string {
+	ext := strings.ToLower(path.Ext(filePath))
+	switch ext {
+	case ".yaml", ".yml":
+		return "yaml"
+	case ".toml":
+		return "toml"
+	case ".json":
+		return "json"
+	default:
+		return ""
+	}
+}
+
+func diffKeys(prefix string, oldMap, newMap map[string]any) ([]KeyChange, error) {
+	keys := map[string]bool{}
+	for k := range oldMap {
+		keys[k] = true
+	}
+	for k := range newMap {
+		keys[k] = true
+	}
+	var changes []KeyChange
+	for _, k := range schema.Keys(keys) {
+		p := k
+		if len(k) > 256 {
+			return nil, errors.New("config key path exceeds display limit")
+		}
+		if k == "" || strings.ContainsAny(k, ".,\\\"") || strings.ContainsFunc(k, func(r rune) bool { return !strconv.IsPrint(r) }) {
+			p = strconv.QuoteToASCII(k)
+		}
+		if prefix != "" {
+			p = prefix + "." + p
+		}
+		if len(p) > 256 {
+			return nil, errors.New("config key path exceeds display limit")
+		}
+		vOld, hadOld := oldMap[k]
+		vNew, hadNew := newMap[k]
+		switch {
+		case !hadOld:
+			changes = append(changes, KeyChange{Path: p, Kind: "added"})
+		case !hadNew:
+			changes = append(changes, KeyChange{Path: p, Kind: "removed"})
+		default:
+			mOld, okOld := vOld.(map[string]any)
+			mNew, okNew := vNew.(map[string]any)
+			if okOld && okNew {
+				nested, err := diffKeys(p, mOld, mNew)
+				if err != nil {
+					return nil, err
+				}
+				changes = append(changes, nested...)
+			} else if !reflect.DeepEqual(vOld, vNew) {
+				changes = append(changes, KeyChange{Path: p, Kind: "changed"})
+			}
+		}
+	}
+	return changes, nil
+}
+
+// ChangedFiles returns the file paths that changed between want and current for each tool.
+func ChangedFiles(want, current generation.Manifest) map[string][]string {
+	out := map[string][]string{}
+	for n, w := range want.Tools {
+		c, ok := current.Tools[n]
+		if !ok {
+			continue
+		}
+		for f, h := range w.Files {
+			if c.Files[f] != h && c.Files[f] != "" {
+				out[n] = append(out[n], f)
+			}
+		}
+	}
+	for n := range out {
+		sort.Strings(out[n])
+	}
+	return out
+}
+
+// ToolFiles extracts the generated tool files for want.
+func ToolFiles(g *generation.Generation) map[string]map[string][]byte {
+	out := map[string]map[string][]byte{}
+	if g == nil {
+		return out
+	}
+	for name, tool := range g.Manifest.Tools {
+		out[name] = map[string][]byte{}
+		for f := range tool.Files {
+			rel := path.Join("store", tool.Hash, "files", strings.TrimPrefix(f, "/"))
+			if b, ok := g.Files[rel]; ok {
+				out[name][f] = b
+			}
+		}
+	}
+	return out
+}
+
+// ReadCurrentFiles reads the store files for the specified changed files from the server.
+func ReadCurrentFiles(ctx context.Context, read func(context.Context, string, string, int, string) ([]byte, error), current generation.Manifest, changed map[string][]string) map[string]map[string][]byte {
+	out := map[string]map[string][]byte{}
+	remaining, reads := maxPlanBytes, 0
+	for _, toolName := range schema.Keys(changed) {
+		tool, ok := current.Tools[toolName]
+		if !ok || !hashPattern.MatchString(tool.Hash) {
+			continue
+		}
+		out[toolName] = map[string][]byte{}
+		for _, f := range changed[toolName] {
+			if reads == maxPlanReads || remaining <= 0 {
+				return out
+			}
+			if configFormat(f) == "" || !hashPattern.MatchString(tool.Files[f]) || !recipe.CleanAbsolute(f) || f == "/" || strings.ContainsAny(f, "\x00\r\n\x1b") {
+				continue
+			}
+			limit := min(maxConfigBytes, remaining)
+			reads++
+			b, err := read(ctx, tool.Hash, strings.TrimPrefix(f, "/"), limit, tool.Files[f])
+			remaining -= len(b)
+			if err == nil && len(b) <= limit {
+				out[toolName][f] = b
+			}
+		}
+	}
+	return out
 }

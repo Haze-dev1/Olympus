@@ -1,0 +1,11 @@
+inputs:
+  recipes: github:Haze-dev1/Olympus/recipes
+
+server:
+  host: offline.example.test
+
+agents:
+  aider:
+    recipe: aider
+    secrets:
+      model-key: ${OPENAI_API_KEY}

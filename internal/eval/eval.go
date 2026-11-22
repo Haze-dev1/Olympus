@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -19,8 +21,14 @@ import (
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
-const Version = "0.1.0-dev"
+// DevelopmentVersion is the default version string assigned to unversioned local builds.
+const DevelopmentVersion = "0.1.0-dev"
 
+// Version is the Olympus CLI version, populated via linker flags (-ldflags -X) during release builds.
+// Package-level mutable state is permitted here as an exception for linker injection.
+var Version = DevelopmentVersion
+
+// Service describes a Docker Compose service definition generated for a tool.
 type Service struct {
 	Image       string             `json:"image"`
 	User        string             `json:"user,omitempty"`
@@ -33,22 +41,33 @@ type Service struct {
 	EnvFile     []string           `json:"env_file,omitempty"`
 	Build       *ServiceBuild      `json:"build,omitempty"`
 	DependsOn   map[string]Depends `json:"depends_on,omitempty"`
+	ShmSize     string             `json:"shm_size,omitempty"`
+	StopGrace   string             `json:"stop_grace_period,omitempty"`
+	SecurityOpt []string           `json:"security_opt,omitempty"`
 	Labels      map[string]string  `json:"labels"`
 }
+
+// ServiceBuild describes container build options for a Docker Compose service.
 type ServiceBuild struct {
 	Context    string            `json:"context"`
 	Dockerfile string            `json:"dockerfile"`
 	Args       map[string]string `json:"args,omitempty"`
 }
+
+// Depends describes a service dependency relationship in Docker Compose.
 type Depends struct {
 	Condition string `json:"condition"`
 }
+
+// Mount describes a volume mount for a Docker Compose service.
 type Mount struct {
 	Type     string `json:"type"`
 	Source   string `json:"source"`
 	Target   string `json:"target"`
 	ReadOnly bool   `json:"read_only,omitempty"`
 }
+
+// Compose describes the generated Docker Compose project specification.
 type Compose struct {
 	Name     string                       `json:"name"`
 	Services map[string]Service           `json:"services"`
@@ -58,14 +77,18 @@ type Compose struct {
 // Inputs are collected before evaluation. Keeping file IO outside Build makes
 // the evaluator pure and lets tests supply exactly the same bytes twice.
 type Inputs struct {
-	Revision  string
-	Images    map[string]string
+	Revision string
+	Images   map[string]string
+	// Platforms are the locked image-index platforms per tool. They are not
+	// build inputs; the apply preflight compares them with the server.
+	Platforms map[string][]string
 	Stack     *stack.Stack
 	Recipes   map[string]*recipe.Recipe
 	Templates map[string]map[string][]byte
 	Skills    map[string]map[string][]byte
 }
 
+// Load collects stack recipes, templates, and shared skills into pure evaluation inputs.
 func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 	in := Inputs{Stack: s, Recipes: map[string]*recipe.Recipe{}, Templates: map[string]map[string][]byte{}, Skills: map[string]map[string][]byte{}}
 	var errors []schema.Diagnostic
@@ -95,6 +118,22 @@ func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 				d.Add("/build/src", "cannot read confined build source")
 			} else {
 				in.Templates[t.Recipe][r.Build.Src] = b
+			}
+			for i, f := range r.Build.Files {
+				b, e := recipe.ReadFile(r.Dir, f)
+				if e != nil {
+					d.Add(fmt.Sprintf("/build/files/%d", i), "cannot read confined build file")
+				} else {
+					in.Templates[t.Recipe][f] = b
+				}
+			}
+		}
+		if rt := r.RuntimeOptions(); rt.Seccomp != "" {
+			b, e := recipe.ReadFile(r.Dir, rt.Seccomp)
+			if e != nil {
+				d.Add("/runtime/seccomp", "cannot read confined seccomp profile")
+			} else {
+				in.Templates[t.Recipe][rt.Seccomp] = b
 			}
 		}
 		errors = append(errors, d.Errors...)
@@ -139,6 +178,8 @@ func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 	}
 	return in, errors
 }
+
+// Build evaluates inputs into a complete generation artifact containing Compose definitions and files.
 func Build(in Inputs) (*generation.Generation, error) {
 	g := &generation.Generation{Files: map[string][]byte{}, Manifest: generation.Manifest{Version: 1, Olym: Version, Inputs: map[string]string{}, Tools: map[string]generation.Tool{}}}
 	compose := Compose{Name: "olympus", Services: map[string]Service{}, Volumes: map[string]map[string]string{}}
@@ -164,10 +205,12 @@ func Build(in Inputs) (*generation.Generation, error) {
 			return nil, fmt.Errorf("%s: recipe was not loaded", name)
 		}
 		environment := map[string]string{}
-		for k, v := range r.Env {
-			environment[k] = v
+		maps.Copy(environment, r.Env)
+		opts := r.RuntimeOptions()
+		service := Service{Image: r.Image, User: r.User, Restart: "unless-stopped", Command: r.Command, Environment: environment, Labels: map[string]string{"org.olympus.tool": name}, ShmSize: opts.ShmSize, StopGrace: opts.StopGracePeriod}
+		if opts.NoNewPrivileges {
+			service.SecurityOpt = append(service.SecurityOpt, "no-new-privileges:true")
 		}
-		service := Service{Image: r.Image, User: r.User, Restart: "unless-stopped", Command: r.Command, Environment: environment, Labels: map[string]string{"org.olympus.tool": name}}
 		if in.Images != nil {
 			pinned, ok := in.Images[name]
 			if !ok {
@@ -252,9 +295,9 @@ func Build(in Inputs) (*generation.Generation, error) {
 			if err = json.Unmarshal(b, &obj); err != nil {
 				return nil, err
 			}
-			translated, err := translateMCP(obj, r.Supports.MCPs.Style)
+			translated, err := translateMCP(obj, r.Supports.MCPs.Style, r.Supports.MCPs.SSE == nil || *r.Supports.MCPs.SSE)
 			if err != nil {
-				return nil, fmt.Errorf("%s: %w", name, err)
+				return nil, fmt.Errorf("%s: MCP %s: %w", name, mcpName, err)
 			}
 			mcps[mcpName] = translated
 		}
@@ -294,7 +337,19 @@ func Build(in Inputs) (*generation.Generation, error) {
 				return nil, fmt.Errorf("%s: unsafe or colliding build destination", name)
 			}
 			files[r.Build.Dst] = source
-			service.Image = builtImage(name, source, baseRef)
+			// Build files share the Dockerfile's directory, which is the build
+			// context, and feed the image tag so a changed lockfile rebuilds.
+			hashed := source
+			for _, f := range r.Build.Files {
+				content, ok := in.Templates[entry.Recipe][f]
+				dst := path.Join(path.Dir(r.Build.Dst), path.Base(f))
+				if !ok || files[dst] != nil {
+					return nil, fmt.Errorf("%s: missing or colliding build file", name)
+				}
+				files[dst] = content
+				hashed = bytes.Join([][]byte{hashed, []byte(path.Base(f)), content}, []byte{0})
+			}
+			service.Image = builtImage(name, hashed, baseRef)
 			buildDst, buildBase = r.Build.Dst, baseRef
 		}
 		managed := map[string]map[string]any{}
@@ -357,8 +412,17 @@ func Build(in Inputs) (*generation.Generation, error) {
 			if schema.Variables(provided)[0] != schema.Variables(c.Token)[0] {
 				return nil, fmt.Errorf("%s: channel token does not match secret %q", name, secretName)
 			}
-			if allowEnv := support.Env["allow"]; allowEnv != "" {
-				service.Environment[allowEnv] = strings.Join(c.Allow, ",")
+			allowEnv := support.Env["allow"]
+			if allowEnv == "" {
+				return nil, fmt.Errorf("%s: channel requires an allow environment variable", name)
+			}
+			service.Environment[allowEnv] = strings.Join(c.Allow, ",")
+			if len(c.Roles) > 0 {
+				rolesEnv := support.Env["roles"]
+				if rolesEnv == "" {
+					return nil, fmt.Errorf("%s: channel %q does not support roles", name, channel)
+				}
+				service.Environment[rolesEnv] = strings.Join(c.Roles, ",")
 			}
 		}
 		var skillCopies []string
@@ -394,13 +458,55 @@ func Build(in Inputs) (*generation.Generation, error) {
 				}
 			}
 		}
+		prune := ""
+		if support := r.Supports.Skills; support != nil && support.Mode == "copy" {
+			prune, err = pruneSkills(support.Dir)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", name, err)
+			}
+			ledger := path.Join(support.Dir, skillLedger)
+			if files[ledger] != nil || managed[ledger] != nil {
+				return nil, fmt.Errorf("%s: skill ledger collides with generated file", name)
+			}
+			var owned strings.Builder
+			for _, dst := range skillCopies {
+				rel := strings.TrimPrefix(dst, support.Dir+"/")
+				if strings.HasPrefix(strings.Split(rel, "/")[0], skillLedger) {
+					return nil, fmt.Errorf("%s: skill name is reserved", name)
+				}
+				fmt.Fprintln(&owned, rel)
+			}
+			files[ledger] = []byte(owned.String())
+			skillCopies = append(skillCopies, ledger)
+		}
+		// The seccomp profile is a generated file like any other, so it is
+		// hashed, uploaded under the tool entry and shown by plan. Its read-only
+		// bind also gives Compose the host path the daemon needs.
+		seccompDst := ""
+		if opts.Seccomp != "" {
+			if len(r.Volumes) == 0 {
+				return nil, fmt.Errorf("%s: seccomp profile requires a tool volume", name)
+			}
+			seccompDst = path.Join(r.Volumes[schema.Keys(r.Volumes)[0]], ".olympus/seccomp.json")
+			profile, ok := in.Templates[entry.Recipe][opts.Seccomp]
+			if !ok {
+				return nil, fmt.Errorf("%s: missing seccomp profile", name)
+			}
+			if slices.Contains(r.Writable, seccompDst) {
+				return nil, fmt.Errorf("%s: seccomp profile cannot be writable", name)
+			}
+			if files[seccompDst] != nil || managed[seccompDst] != nil {
+				return nil, fmt.Errorf("%s: seccomp profile collides with a generated file", name)
+			}
+			files[seccompDst] = profile
+		}
 		for _, p := range schema.Keys(managed) {
 			files[p], err = encode.Marshal(formats[p], managed[p])
 			if err != nil {
 				return nil, fmt.Errorf("%s: cannot encode structured config", name)
 			}
 		}
-		tool := generation.Tool{Image: service.Image, Files: map[string]string{}, Secrets: secretNames}
+		tool := generation.Tool{Image: service.Image, Files: map[string]string{}, Secrets: secretNames, PostInstall: r.Hooks.PostInstall}
 		if r.Health.HTTP != nil || len(r.Health.Command) > 0 {
 			tool.Health = &generation.Health{Command: r.Health.Command, Timeout: r.Health.Timeout}
 			if r.Health.HTTP != nil {
@@ -413,7 +519,20 @@ func Build(in Inputs) (*generation.Generation, error) {
 			}
 			tool.Files[p] = generation.Hash(files[p])
 		}
-		tool.Hash, err = generation.ToolHash(files, service)
+		copies := append(append([]string(nil), r.Writable...), skillCopies...)
+		const copyFailure = " || exit 1"
+		var identity any = service
+		if len(files) > 0 {
+			// Publish a new store entry instead of reusing a legacy 0600 entry.
+			// The same identity also versions the managed-file init policy.
+			identity = struct {
+				Service     Service
+				Copies      []string
+				Failure     string
+				StorePolicy string
+			}{service, copies, copyFailure, "readable-tool-files"}
+		}
+		tool.Hash, err = generation.ToolHash(files, identity)
 		if err != nil {
 			return nil, err
 		}
@@ -421,6 +540,19 @@ func Build(in Inputs) (*generation.Generation, error) {
 			rel := path.Join("store", tool.Hash, "files", strings.TrimPrefix(p, "/"))
 			g.Files[rel] = files[p]
 			service.Volumes = append(service.Volumes, Mount{Type: "bind", Source: "/var/lib/olympus/" + rel, Target: p, ReadOnly: true})
+		}
+		if seccompDst != "" {
+			found := false
+			for _, m := range service.Volumes {
+				if m.Target == seccompDst {
+					service.SecurityOpt = append(service.SecurityOpt, "seccomp="+m.Source)
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, fmt.Errorf("%s: seccomp profile was not mounted", name)
+			}
 		}
 		// Compose build derives its context from the bind mount just created for
 		// the Dockerfile, so it follows the store layout without depending on it.
@@ -439,19 +571,18 @@ func Build(in Inputs) (*generation.Generation, error) {
 		// Writable managed files and copied skills are delivered by a one-shot
 		// init service: Compose cannot copy, so the init container mounts the
 		// rendered file read-only and copies it into the tool volume first.
-		copies := append([]string{}, r.Writable...)
-		copies = append(copies, skillCopies...)
 		if len(copies) > 0 {
 			initName := name + "-init"
 			if _, exists := compose.Services[initName]; exists {
 				return nil, fmt.Errorf("%s: init service name collides", name)
 			}
 			init := Service{
-				Image:   service.Image,
-				Build:   service.Build,
-				User:    r.User,
-				Restart: "no",
-				Labels:  map[string]string{"org.olympus.tool": name, "org.olympus.role": "init"},
+				Image:       service.Image,
+				Build:       service.Build,
+				User:        r.User,
+				Restart:     "no",
+				SecurityOpt: service.SecurityOpt,
+				Labels:      map[string]string{"org.olympus.tool": name, "org.olympus.role": "init"},
 			}
 			for _, m := range service.Volumes {
 				if m.Type == "volume" {
@@ -459,6 +590,7 @@ func Build(in Inputs) (*generation.Generation, error) {
 				}
 			}
 			var script strings.Builder
+			script.WriteString(prune)
 			for i, dst := range copies {
 				source := ""
 				for j := 0; j < len(service.Volumes); j++ {
@@ -473,9 +605,16 @@ func Build(in Inputs) (*generation.Generation, error) {
 				}
 				staging := fmt.Sprintf("/olympus-init/%d", i)
 				init.Volumes = append(init.Volumes, Mount{Type: "bind", Source: source, Target: staging, ReadOnly: true})
-				fmt.Fprintf(&script, "mkdir -p '%s' && cp -a '%s' '%s'\n", path.Dir(dst), staging, dst)
+				if prune != "" {
+					fmt.Fprintf(&script, "check_path '%s'\n", dst)
+				}
+				if prune != "" && dst == path.Join(r.Supports.Skills.Dir, skillLedger) {
+					fmt.Fprintf(&script, "check_path '%s.next'\nmkdir -p '%s' && cp '%s' '%s.next' && mv -f '%s.next' '%s'%s\n", dst, path.Dir(dst), staging, dst, dst, dst, copyFailure)
+				} else {
+					fmt.Fprintf(&script, "mkdir -p '%s' && cp '%s' '%s'%s\n", path.Dir(dst), staging, dst, copyFailure)
+				}
 			}
-			init.Entrypoint = []string{"/bin/sh", "-c", script.String()}
+			init.Entrypoint = []string{"/bin/sh", "-c", strings.ReplaceAll(script.String(), "$", "$$")}
 			compose.Services[initName] = init
 			service.DependsOn = map[string]Depends{initName: {Condition: "service_completed_successfully"}}
 		}
@@ -510,20 +649,42 @@ func runtimeReferences(values map[string]string, names map[string]string) (map[s
 // translateMCP rewrites the generic stack MCP entry into the tool's own config
 // shape. Secret values are never written: they become the tool's runtime
 // reference syntax (Hermes ${VAR}, OpenCode {env:VAR}) or an environment
-// variable name (Codex).
-func translateMCP(obj map[string]any, style string) (map[string]any, error) {
+// variable name (Codex). A recipe that declares sse: false rejects remote
+// servers with transport sse instead of emitting a config its tool cannot use.
+func translateMCP(obj map[string]any, style string, supportsSSE bool) (map[string]any, error) {
 	command, hasCommand := obj["command"]
 	url, hasURL := obj["url"]
+	if !supportsSSE && hasURL && mcpTransport(obj) == "sse" {
+		return nil, fmt.Errorf("transport sse is not supported by this tool (Streamable HTTP only)")
+	}
 	switch style {
-	case "hermes":
+	case "hermes", "claude-code", "gemini-cli":
 		out := map[string]any{}
 		for _, key := range []string{"command", "args", "env", "url", "headers"} {
 			if v, ok := obj[key]; ok {
 				out[key] = v
 			}
 		}
+		if !hasURL {
+			return out, nil
+		}
+		if style == "claude-code" {
+			out["type"] = mcpTransport(obj)
+		}
+		// Hermes defaults to Streamable HTTP; only an explicit sse selects its SSE client.
+		if style == "hermes" && mcpTransport(obj) == "sse" {
+			out["transport"] = "sse"
+		}
+		if style == "gemini-cli" && mcpTransport(obj) == "http" {
+			out["httpUrl"] = url
+			delete(out, "url")
+		}
 		return out, nil
 	case "codex":
+		if hasURL && mcpTransport(obj) == "sse" {
+			// Codex 0.116.0 has only stdio and Streamable HTTP transports.
+			return nil, fmt.Errorf("transport sse is not supported by Codex (Streamable HTTP only)")
+		}
 		if hasURL {
 			out := map[string]any{"url": url}
 			headers, _ := obj["headers"].(map[string]any)
@@ -575,6 +736,7 @@ func translateMCP(obj map[string]any, style string) (map[string]any, error) {
 		}
 		return out, nil
 	case "opencode":
+		// OpenCode tries Streamable HTTP, then SSE, for every remote entry, so transport needs no key.
 		if hasURL {
 			out := map[string]any{"type": "remote", "url": url}
 			headers, _ := obj["headers"].(map[string]any)
@@ -618,6 +780,14 @@ func translateMCP(obj map[string]any, style string) (map[string]any, error) {
 		return out, nil
 	}
 	return nil, fmt.Errorf("unknown MCP style %q", style)
+}
+
+// mcpTransport returns the declared remote transport, defaulting to http.
+func mcpTransport(obj map[string]any) string {
+	if transport, ok := obj["transport"].(string); ok && transport != "" {
+		return transport
+	}
+	return "http"
 }
 
 // soleReference accepts exactly ${VAR} or "Bearer ${VAR}" and returns VAR.

@@ -144,7 +144,7 @@ agents:
     skills: all
     secrets: { model_key: ${ANTHROPIC_KEY} }
     channels:
-      telegram: { token: ${TG_TOKEN}, allow: ["@haze"] }
+      telegram: { token: ${TG_TOKEN}, allow: ["123456789"] }
   codex:
     recipe: codex
     mcps: [github, docs]
@@ -200,12 +200,13 @@ The Hermes recipe above is the shipped `recipes/hermes` shape. The recipe README
 Rules:
 
 - `image` has a default tag; the lock pins its digest. With `build`, `image` is the registry-resolvable base and the lock pins the base digest.
-- Every `supports.*.file`, template `dst`, `writable` path and `build.dst` must be inside one of the recipe's `volumes` paths (rule A3, section 9.2).
-- `hooks.post_install` is an argument list, never a shell string, and runs inside the tool's container (rule A8).
+- Every `supports.*.file`, template `dst`, `writable` path, `build.dst` and generated seccomp path must be inside one of the recipe's `volumes` paths (rule A3, section 9.2). A `runtime.seccomp` source is a relative path inside the recipe folder, never a URL.
+- `hooks.post_install` is an argument list that runs inside the tool container after readiness checks (rule A8). See section 8.5.
 - `command` replaces the image command as an argument list; it is never a shell string.
 - `supports.mcps.style` selects the tool's secret syntax; `supports.skills.mode` selects a read-only mount or a copy into the volume ([ADR 0037](ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references), [0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
 - `writable` files are copied into the tool volume by a one-shot init service ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
 - `build` names a Dockerfile in the recipe folder and a path inside a volume; Compose builds the image on the server ([ADR 0035](ADR.md#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile)).
+- `runtime` renders only fixed Compose keys: `shm_size`, `stop_grace_period`, and `security_opt` entries for `no_new_privileges` and a seccomp profile from the recipe folder. The profile is a hashed store file, so a change appears in `plan`; it is uploaded under `/var/lib/olympus` and passed to the daemon by its store path ([ADR 0045](ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)). There is no generic Compose passthrough.
 - Recipes have no version field: the whole catalog is versioned by its git revision.
 
 ### 5.3 Lock file (`stack.lock`)
@@ -223,13 +224,13 @@ JSON, written only by Olympus, keys sorted, one trailing newline:
     }
   },
   "tools": {
-    "codex":  { "image": "ghcr.io/…/codex@sha256:…" },
-    "hermes": { "image": "nousresearch/hermes-agent@sha256:…" }
+    "codex":  { "image": "ghcr.io/…/codex@sha256:…", "platforms": ["linux/amd64", "linux/arm64"] },
+    "hermes": { "image": "nousresearch/hermes-agent@sha256:…", "platforms": ["linux/amd64", "linux/arm64"] }
   }
 }
 ```
 
-JSON rather than YAML because nobody edits it by hand and its diffs stay simple. `image` pins the multi-architecture index digest, so one lock works for amd64 and arm64 servers.
+JSON rather than YAML because nobody edits it by hand and its diffs stay simple. `image` pins the multi-architecture index digest, so one lock works for amd64 and arm64 servers. `platforms` records the `os/architecture` pairs the index was resolved to, sorted and de-duplicated, so the apply preflight can compare them with the server without contacting a registry again (7.2). It is optional: a lock written before this field, or a reference already pinned by digest, has no platforms and the preflight warns instead of guessing.
 
 ### 5.4 Generation manifest (`manifest.json`)
 
@@ -280,7 +281,7 @@ For each tool, the output is a set of files plus one Compose service.
 
 - **Managed config files.** For each `supports.*.file`: start from the template output for that file if the recipe has one, else an empty document; decode it; set the managed key (`mcp_servers`, `channels.telegram`, …) to the data built from the stack file; encode with the deterministic encoder for its format. The core owns the managed key entirely; everything else in the file comes from the recipe.
 - **Secrets inside managed files.** A value such as `${GH_TOKEN}` inside an MCP entry is never written into the file. It is replaced with a reference the tool resolves at runtime: an environment variable placeholder in the tool's own syntax (`${VAR}` for Hermes, `{env:VAR}` for OpenCode) or, for Codex, the environment variable's name in `env_vars` / `bearer_token_env_var` / `env_http_headers`. Compose delivers the values through `/var/lib/olympus/secrets/<tool>/environment`. No wrapper scripts are generated ([ADR 0037](ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references)).
-- **Skills.** Each listed skill folder is rendered under `supports.skills.dir`. With `mode: mount` the files stay read-only binds; with `mode: copy` a one-shot init service copies them into the tool's volume ([ADR 0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
+- **Skills.** Each listed skill folder is rendered under `supports.skills.dir`. With `mode: mount` the files stay read-only binds; with `mode: copy` a one-shot init service copies them into the tool's volume and records relative file ownership in `.olympus-managed-files`. On subsequent init it validates and removes only recorded files before copying the current selection, preserving unrecorded files and directories. An empty selection still runs init to prune prior copies. Copies predating the ledger remain untouched; unsafe ledger paths or symlinks fail init ([ADR 0042](ADR.md#0042-track-and-prune-only-previously-copied-skill-files)) ([ADR 0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
 - **Writable managed files.** Paths listed in `writable` lose their read-only bind. A `<tool>-init` service mounts the rendered file under `/olympus-init/<n>` and copies it into the volume; the tool uses `depends_on: service_completed_successfully` ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
 - **Built images.** With `build`, the Dockerfile becomes a generation file at `build.dst`, the service image becomes `olympus/<tool>:sha256-<12 hex>` over the Dockerfile bytes and pinned base, and Compose gets `build.context`, `build.dockerfile` and `BASE_IMAGE` from the generated bind source ([ADR 0035](ADR.md#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile)).
 - **Plain templates.** `text/template` with the tool's entry, resolved MCP servers and skills as input, with `missingkey=error`. Secrets are not available to templates.
@@ -311,7 +312,7 @@ Published stack and recipe schemas are embedded. The core evaluates the schema v
 
 The local generation contains `compose.yaml`, `manifest.json` and `store/<tool hash>/files/<container path>` ([ADR 0030](ADR.md#0030-address-rendered-files-by-tool-hash-across-generations)). Compose binds those files read-only from their `/var/lib/olympus/store/...` server path and uses named data volumes. Catalog builds record the full locked catalog revision in manifest inputs and the locked image digests in Compose and manifest tools. Explicit local recipe overrides retain the hash of canonical recipe data and template source bytes. There is no tool-hash label because including a tool hash in the service being hashed would be circular. This is an offline artifact contract; server store assembly and hash labels belong to activation.
 
-All ports remain bound to localhost. Public port requests still fail explicitly in this slice. Channels are rendered for recipes that declare them as environment variables; every channel requires a non-empty allow-list. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity. Health checks are also persisted in each manifest tool for the activator; builds execute neither hooks nor checks. Skills, when requested and supported, are rendered from confined local folders and either bind-mounted or copied by the init service.
+All ports remain bound to localhost. Public port requests still fail explicitly in this slice. Channels are rendered for recipes that declare them as environment variables; every channel requires a non-empty allow-list. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity. Each manifest tool also carries its optional health check and post-install argument list for the activator. Builds execute neither. Skills, when requested and supported, are rendered from confined local folders and either bind-mounted or copied by the init service.
 
 Every MCP variable must map to an explicitly supplied recipe secret with an `env` target. The evaluator rewrites it to that environment variable and encodes the server in the tool's declared syntax; no secret value is built. Compose points to `/var/lib/olympus/secrets/<tool>/environment`. The shipped Hermes, Codex and OpenCode recipes exercise the YAML, TOML and JSON shapes, and the three formats are checked by the golden build. The activator pulls non-buildable services with `--ignore-buildable`, builds missing content-addressed images once and starts with `--no-build --pull never`. Built init services share the build declaration so their local tags are never pulled. Existing built images are reused on rollback ([ADR 0041](ADR.md#0041-prepare-content-addressed-built-images-before-starting-services)).
 
@@ -327,8 +328,8 @@ The build directory is tool-owned only when it contains a valid version-1 Olympu
   lock                                    flock target
   lock.json                               who holds the lock: pid, user, command, started
   key                                     32 random bytes, 0600; fingerprints secrets (8.4)
-  store/
-    <tool hash>/files/<container path>    rendered files for one tool
+  store/                              root:root 0700
+    <tool hash>/files/<container path>    0644 non-secret files under 0755 entry directories
     gen-<generation hash>/
       compose.yaml
       manifest.json
@@ -338,13 +339,14 @@ The build directory is tool-owned only when it contains a valid version-1 Olympu
   current -> generations/2
   secrets/<tool>/<name>                   0600, owned by the tool's container user
   secrets/<tool>/fingerprints.json        HMACs of current secret values
+  post-install/<tool>                     0600, successful hook completion
   state.json                              activation in progress: id, status, nonce, deadline
   log/<timestamp>-<command>.log           activator logs
 ```
 
-Local builds mirror tool entries at `store/<tool hash>/files/<container path without leading slash>`. Generation entries upload only `compose.yaml` and `manifest.json`. Tool hashes cover rendered paths/bytes and service configuration before generated config bind mounts are added; their absolute sources are derived from that hash. Unchanged tools therefore keep identical bind sources across generations. See [ADR 0030](ADR.md#0030-address-rendered-files-by-tool-hash-across-generations).
+Local builds mirror tool entries at `store/<tool hash>/files/<container path without leading slash>`. Generation entries upload only `compose.yaml` and `manifest.json`. Tool hashes cover rendered paths/bytes, the tool store policy, and service configuration before generated config bind mounts are added; their absolute sources are derived from that hash. Unchanged tools therefore keep identical bind sources across generations. See [ADR 0030](ADR.md#0030-address-rendered-files-by-tool-hash-across-generations).
 
-Store paths are immutable once written: uploads go to `store/.incoming/<random>/` and are renamed into place only after their hash is verified, so a dropped connection never leaves a half-written entry.
+Store paths are immutable once written: uploads go to `store/.incoming/<random>/` and are renamed into place only after their hash is verified, so a dropped connection never leaves a half-written entry. The root-only store contains rendered non-secret data. See [ADR 0058](ADR.md#0058-make-tool-store-files-readable-to-the-container-user).
 
 ### 7.2 Server preparation
 
@@ -353,10 +355,20 @@ On the first `plan` or `apply`, over SSH:
 1. Verify the host key against `-known-hosts <path>`, else `OLYM_KNOWN_HOSTS`, else `~/.ssh/known_hosts`. An unknown host asks `y/N` on a terminal with the key fingerprint and is refused without a terminal; a changed key is always an error (rule A6). Use `server.ssh_key` (expanding a leading `~/`) or, when absent, the SSH agent.
 2. Detect the OS from `/etc/os-release`; refuse anything but Ubuntu 22.04, 24.04 and Debian 12.
 3. Check for root, or passwordless sudo; with neither, stop and print the exact command that needs it.
-4. Install Docker Engine and the Compose plugin from Docker's apt repository if missing (only during `apply`).
-5. Create `/var/lib/olympus/` and `key` if missing, only during `apply`.
+4. Run the read-only preflight described below. `plan` and `apply` both run it; a failure stops before anything is installed or written.
+5. Install Docker Engine and the Compose plugin from Docker's apt repository if missing (only during `apply`, after the preflight passes).
+6. Create `/var/lib/olympus/` and `key` if missing, only during `apply`.
 
-The implemented `plan` slice only verifies SSH and root/passwordless sudo, then reads generation metadata and file hashes. It does not install software, create server files, or perform the future OS/capacity/port/image-architecture preflight.
+The preflight compares the server with the stack before any mutation:
+
+| Check | Source | Outcome |
+| --- | --- | --- |
+| Architecture | `uname -m`, mapped to `amd64` or `arm64` | Unsupported machines fail. Each tool's image platforms come from `stack.lock`; an image without `linux/<server arch>` fails naming the tool, image and architecture. A lock without recorded platforms warns and asks the user to run `olym update`. |
+| Memory | `MemTotal` from `/proc/meminfo` | A recipe's `resources.min_ram`, below the server total, warns naming the tool and both sizes. |
+| Disk | `df -kP /var/lib` | Below 5 GiB warns; below 1 GiB fails with the free space. |
+| Ports | `ss -ltnp` for listeners, `docker ps` filtered to the `olympus` Compose project for the current generation's own published ports | A conflicting listener fails, naming the tool, port and process. A private port conflicts with loopback or wildcard listeners on that number; a public port with any listener. Ports held by the current generation are ignored, so re-applying is not a conflict. |
+
+The preflight is read-only: it installs nothing and writes no server files. Warnings are printed after the plan diff. `apply` continues only after its normal confirmation prompt, which shows them; `--yes` counts as that confirmation. Every preflight command is an argument list, and remote text (process names, addresses) is sanitized before it reaches a message (rules A1, A2). The failure exits with status 1.
 
 ### 7.3 Compose project
 
@@ -368,9 +380,10 @@ One project named `olympus`, one service per tool:
 - `volumes:` the recipe's named volumes as `olympus_<tool>_<name>`; rendered files bind-mounted read-only from `store/<tool hash>/files/…`.
 - `secrets:` file-based Compose secrets from `secrets/<tool>/`, mounted at `/run/secrets/<name>`; or `env_file` for secrets the recipe delivers as environment variables.
 - `restart: unless-stopped`; `labels:` tool name. For built and copied files, a one-shot `<tool>-init` service runs first and the tool depends on `service_completed_successfully` ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
+- `shm_size:`, `stop_grace_period:` and `security_opt:` come only from the recipe's `runtime` block; `no-new-privileges:true` is opt-in and a seccomp profile is referenced by its `/var/lib/olympus/store/…` path ([ADR 0045](ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)).
 - One project network; tools reach each other by service name. No host networking.
 
-A file a tool rewrites at runtime cannot be a read-only bind. Recipes list it under `writable`; the evaluator removes the bind, and the init service copies the rendered file into the tool's named volume before the tool starts. The stack file remains the source of truth, so tool edits are overwritten on the next apply. This replaces the former open question in [section 16](#16-open-technical-questions).
+A file a tool rewrites at runtime cannot be a read-only bind. Recipes list it under `writable`; the evaluator removes the bind, and the init service copies the rendered file into the tool's named volume before the tool starts. Init runs with the tool's user and security options. New copies belong to the effective container user. The stack file remains the source of truth, so tool edits are overwritten on the next apply. Any managed-file copy failure exits the init service and prevents Compose from starting the dependent tool. This replaces the former open question in [section 16](#16-open-technical-questions).
 
 ## 8. Activation
 
@@ -388,7 +401,7 @@ CLI                                         SERVER
  │                                            2. install secrets; update fingerprints
  │                                            3. docker compose pull --ignore-buildable; build missing local images once
  │                                            4. docker compose up --no-build --pull never -d --remove-orphans
- │                                               (+ --force-recreate --no-deps for only tools whose secrets changed)
+ │                                               (first --force-recreate tools whose secrets changed, with init dependencies)
  │                                            5. health checks, per tool, in parallel
  │                                               fail → re-activate previous generation, exit
  │                                            6. state.json: awaiting-confirm, nonce, deadline
@@ -412,7 +425,7 @@ An exclusive `flock` on `/var/lib/olympus/lock`, held by the activator process f
 
 ### 8.3 Rollback
 
-- **Automatic** (health failure or confirm timeout): the activator runs steps 2–5 for the previous generation, with its manifest and secrets fingerprints, then exits with status 3. If there is no previous generation (first deploy), it runs `docker compose down` for the project and leaves no `current`.
+- **Automatic** (health failure or confirm timeout): the activator restores the secret values the failed transaction replaced, recreates exactly the previous generation's tools whose values it restored, then runs steps 4–5 for the previous generation, with its manifest and secrets fingerprints, and exits with status 3. If restoring the previous values fails, it takes the project down with orphan removal and exits with status 5 instead, because the failed generation may still hold the new values. If there is no previous generation (first deploy), it runs `docker compose down --remove-orphans` for the project and leaves no `current`.
 - **`rollback` command:** the activator re-activates the generation before `current`, with the same health checks and the same confirm-or-revert protection.
 - Data volumes are never touched by a rollback.
 
@@ -424,11 +437,13 @@ An exclusive `flock` on `/var/lib/olympus/lock`, held by the activator process f
 4. Change detection: the activator stores `HMAC-SHA256(server key, value)` per secret. `plan` fetches the key over SSH (root-only file), computes the same HMACs locally and compares, so it can report "secret changed" for a tool without either side storing or sending a plain hash. The server key is random per server, so fingerprints cannot be compared across servers.
 5. Tools whose fingerprints changed are recreated with `--force-recreate`; others keep running.
 
-Fingerprints include both named secret and environment delivery targets, domain-separated by kind/name. They live in each tool's secrets directory and are backed up with the values. A partial installation restores earlier tools; a restoration failure returns exit 5. Explicit rollback uses current credentials, while an automatic revert restores the failed transaction's previous values. No historical secret archive is retained. See [ADR 0032](ADR.md#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs).
+Fingerprints include both named secret and environment delivery targets, domain-separated by kind/name. They live in each tool's secrets directory and are backed up with the values. A partial installation restores earlier tools; a restoration failure returns exit 5. Explicit rollback uses current credentials. An automatic revert restores the failed transaction's previous values and recreates only the previous generation's tools whose values it restored; if that restoration fails, the project is taken down and the run reports exit 5 rather than leaving the failed generation running. No historical secret archive is retained. See [ADR 0032](ADR.md#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs) and [ADR 0043](ADR.md#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert).
 
 ### 8.5 Health checks
 
 Run by the activator from the host, so images do not need `curl` or `wget`: an HTTP GET to `127.0.0.1:<port><path>` expecting a 2xx, or `docker exec <container> <command>` expecting exit 0. Each tool is polled every 2 seconds until it passes or its `timeout` (default 120 s) expires. All tools are checked in parallel; one failure fails the generation.
+
+After the health checks pass and before awaiting confirmation, a forward activation runs outstanding manifest `post_install` commands in tool-name order under the activation lock. Each command runs via `docker compose exec` in its own service. The activator waits up to 120 seconds per hook and discards output. Exit zero creates an empty marker under `post-install/`. Failure rolls back or takes the project down on first apply. Rollback paths skip hooks. Completion is preserved across generation changes, garbage collection, and removal and re-addition under the same name. `destroy --delete-data` clears it. See [ADR 0052](ADR.md#0052-record-post-install-completion-by-stack-tool-name).
 
 ### 8.6 Garbage collection
 
@@ -483,7 +498,7 @@ Every secret value read from `.env` is registered with `internal/redact` before 
 | `rollback` | write | yes | Previous generation, with confirm-or-revert |
 | `update` | no | no | Rewrites `stack.lock` |
 | `gc [-keep N]` | write | yes | Uses server.keep, else 5; section 8.6 |
-| `destroy [--delete-data]` | write | yes | `docker compose down`; keeps volumes and `/var/lib/olympus/` unless `--delete-data` |
+| `destroy [--delete-data]` | write | yes | `docker compose down --remove-orphans`; keeps volumes and `/var/lib/olympus/` unless `--delete-data` |
 | `activate`, `confirm` | — | — | Internal; run on the server by the CLI |
 
 All client server commands share stack connection settings and the known_hosts selection/prompt policy. `status --json` returns an array of name, state, health, image and generation; status runs a bounded current readiness check when declared. `rollback` uses the same detached start and fresh SSH confirmation as apply. `destroy` always asks y/N; without `--delete-data` it keeps project volumes and server state. With that flag it also deletes all volumes labelled for the Olympus project, including removed tools' volumes, and the Olympus root.
@@ -503,17 +518,19 @@ All client server commands share stack connection settings and the known_hosts s
 
 `plan` uses the same stack, catalog and lock preparation as `build`, including explicit `-recipes` development overrides. It never writes `.olympus/build`. It does not read runtime secret values or require their presence. Secret value change detection is deferred until server fingerprints exist; changes to declared secret names appear as a generic configuration change.
 
+For changed YAML, TOML and JSON config, `plan` and the apply preview may show escaped, bounded key paths when the installed activator passes the same checksum and version checks as `status`. Its read-only command opens only regular store files without following symlinks and verifies each body against the current manifest within the read budget. Use semantic diffs for formats whose keys are safe metadata. Otherwise the preview shows the changed file path. See [ADR 0054](ADR.md#0054-bound-and-verify-semantic-plan-reads).
+
 Resolve `current -> generations/<n>` once and resolve that numbered link to `/var/lib/olympus/store/gen-<manifest-id>`. Read the bounded manifest there, verify its version, identity and canonical hash, then hash each recorded file at `tools/<tool>/files/<container path>` in that same generation with `sha256sum`. An absent current is an empty server; malformed/dangling links, unreadable state and hashing failures are errors. A missing regular file counts as drift. Non-root readers first verify `sudo -n id -u`, then run all generation reads with `sudo -n`. All commands use quoted argument lists; no shell script or write command runs remotely.
 
-Output lists added/removed tools, changed file paths, image changes and drift paths, plus an unchanged count and add/remove/restart totals. Other tool-manifest changes, including health or secret-name changes, use `configuration changed`. File contents, old/new values and semantic managed-key diffs are not printed. Drift makes `--detailed-exitcode` return 2 even when the desired tool manifest is unchanged. Default success is 0; errors are 1.
+Output lists added/removed tools, changed file paths, image changes and drift paths, plus an unchanged count and add/remove/restart totals. When semantic diffing succeeds, `plan` prints added, changed or removed keys using dotted paths. Secret values and raw file contents are never printed (rule A1). Other tool-manifest changes, including health or secret-name changes, use `configuration changed`. Drift makes `--detailed-exitcode` return 2 even when the desired tool manifest is unchanged. Default success is 0; errors are 1.
 
-The example below illustrates the wider v1 output, including future semantic and secret-value diffs:
+The example below illustrates the plan output:
 
 ```text
 Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)
 
   + opencode     new tool
-  ~ hermes       config: /opt/data/config.yaml (mcp_servers: +docs)
+  ~ hermes       config: /opt/data/config.yaml (mcp_servers.docs added)
   ~ codex        secret changed: login_token
   ! open-spaces  drift: /app/config.json changed on server
   - old-agent    removed
@@ -529,6 +546,8 @@ Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)
 | Missing secret | Name the variable and every line using it | 1 |
 | Unknown or changed host key | Prompt for unknown (show fingerprint); refuse changed | 1 |
 | Unsupported OS, no sudo | Stop before changes; print what is needed | 1 |
+| Server preflight fails: image has no server architecture, less than 1 GiB free disk, or a declared port is in use | Stop before changes; name the tool and image, the free space, or the port and process | 1 |
+| Server preflight warns: less than 5 GiB free disk or less RAM than a recipe's `min_ram` | Print the warning after the plan; `apply` continues only after confirmation | 1 if declined |
 | Lock held | Print holder from `lock.json` | 4 |
 | Connection drops during upload | Nothing activated; partial uploads stay in `.incoming` and are cleaned next run | 1 |
 | Image pull fails | Activator rolls back; reports image and registry error | 3 |
@@ -536,6 +555,7 @@ Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)
 | Connection drops after activation began | Activator continues; rolls back at the confirm deadline | 3 on next contact |
 | New generation blocks SSH | CLI cannot confirm; server rolls back by itself | 3 |
 | Confirmation after the deadline | `confirm` reports the server already rolled back | 3 |
+| Rollback fails, or the previous secret values cannot be restored | Take the project down, record `rollback_failed`, say the server may be down | 5 |
 | Activator checksum or version mismatch | Re-upload; refuse to run a mismatched binary | 1 |
 | `rollback` with no previous generation | Refuse | 1 |
 | Rolling back to a generation removed by `gc` | Refuse; name missing store entries | 1 |
@@ -548,7 +568,7 @@ Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)
 | Golden | `build` output for sample stacks | Committed expected generations under `testdata/`; byte comparison |
 | Purity | Same inputs → identical output; different secret values → identical output; shuffled map order → identical output | Build twice in one test and compare hashes |
 | Recipe | Every catalog recipe validates and builds; image digests resolve | CI job over `recipes/` |
-| Integration | The full cycle on a real server: apply, re-apply, upgrade, rollback, kill-the-CLI, destroy | The disposable lab VM from `lab/lab.sh` ([ADR 0025](ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)); one real VPS run before release |
+| Integration | The full cycle on a real server: apply, re-apply, upgrade, rollback, kill-the-CLI, destroy | The disposable QEMU lab from `lab/lab.sh` supports selecting Ubuntu 24.04, Ubuntu 22.04 or Debian 12 on amd64 or arm64 ([ADR 0053](ADR.md#0053-select-the-test-lab-guest-os-and-architecture)). A real VPS run is required before release. |
 | Security | Rules A1–A12; leak search using sentinel secret values (`OLYM_SENTINEL_…`) in all output, logs, lock and server files | Integration suite plus the project's security review skill |
 
 Every case in [edgecases/apply.md](edgecases/apply.md) becomes a test at one of these levels, or is listed as a gap.
@@ -556,10 +576,10 @@ Every case in [edgecases/apply.md](edgecases/apply.md) becomes a test at one of 
 ## 13. Build and release
 
 - Targets: `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`, built with `CGO_ENABLED=0`.
-- Each release publishes the binaries and a `SHA256SUMS` file. The CLI embeds the checksums of its own Linux builds at build time, so it can verify the activator it uploads (rule A12).
+- Each release publishes the binaries and a `SHA256SUMS` file. Each CLI archive bundles both Linux activator architectures beside the CLI. The CLI embeds their checksums at build time, selects the server architecture and verifies the activator (rule A12); release clients missing checksums refuse server commands.
 - A CLI running on macOS downloads the matching Linux build of its own version, verifies it against the embedded checksum, and caches it. A CLI on Linux with the server's architecture uploads itself.
 - Development builds take `--activator <path>` and skip the release check with a visible warning.
-- Release tooling (**proposed:** GoReleaser) is chosen in M1; it can build the archives, `SHA256SUMS`, the Homebrew formula and the AUR package from one config.
+- Release tooling uses a native cross-compilation pipeline (`scripts/build-release.sh` and GitHub Actions `.github/workflows/release.yml`) using official `actions/*` and standard Go toolchain, embedding activator checksums via `-ldflags` ([ADR 0048](ADR.md#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build)).
 
 ### 13.1 Names and paths
 
@@ -581,6 +601,8 @@ Every case in [edgecases/apply.md](edgecases/apply.md) becomes a test at one of 
 | AUR | `olym` | AUR convention names a prebuilt-binary package `olym-bin` and a build-from-source package `olym`; decide which to publish (**open**) |
 
 Before the first release, check that `olym` is not already taken in Homebrew and the AUR (**open**).
+
+Release archives and `SHA256SUMS` carry GitHub build provenance attestations; consumers can verify each file with `gh attestation verify <file> --repo Haze-dev1/Olympus`.
 
 ## 14. Performance budget
 
@@ -615,6 +637,7 @@ Before the first release, check that `olym` is not already taken in Homebrew and
 - [x] Skills: a shared read-only mount for Codex and OpenCode, a copy into the volume for Hermes, selected by `supports.skills.mode` ([ADR 0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
 - [x] Tools that rewrite their own config files: a Compose one-shot init service copies the rendered file into the volume ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
 - [x] Activation prepares missing built images before up and reuses them on rollback ([ADR 0041](ADR.md#0041-prepare-content-addressed-built-images-before-starting-services)).
-- [x] Integration test servers: a local QEMU VM from the Ubuntu cloud image ([ADR 0025](ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)), plus one VPS run before release.
+- [x] Disposable local QEMU lab with selectable Ubuntu and Debian cloud images ([ADR 0053](ADR.md#0053-select-the-test-lab-guest-os-and-architecture)).
+- [ ] Integration run on a real VPS before release.
 - [ ] The final URL scheme for the catalog input and whether `git` is ever required locally.
 - [ ] CLI framework: `cobra` or the standard library.

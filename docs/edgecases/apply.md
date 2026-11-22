@@ -23,6 +23,9 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Duplicate tool name across agents and apps, or invalid tool-name syntax | Fail before building |
 | Variable in a key or a field that is not secret-capable | Fail without echoing the input value |
 | Template or managed destination escapes a recipe volume, including a prefix lookalike | Fail in recipe validation and recheck during evaluation |
+| `runtime.shm_size` or `stop_grace_period` is malformed, zero or negative | Fail with the field and the expected size or positive duration |
+| `runtime.seccomp` is a URL, absolute path, traversal, or the recipe has no volume | Fail in recipe validation; never fetch a remote profile |
+| Seccomp profile changes | Hash it into the tool, upload the new store file and list the config path in `plan` |
 | Source template or skill is a symlink, traverses `..`, or names a sensitive source file | Fail without reading the target |
 | YAML aliases, anchors, tags, duplicate keys or extra documents | Reject; do not expand aliases or construct objects |
 | MCP secret reference has no supplied recipe secret with an environment target | Fail in the test-recipe convention; real-tool delivery remains open |
@@ -41,9 +44,11 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | OS is not Ubuntu or Debian | Fail before changing anything; list supported systems |
 | SSH user is not root and has no sudo | Fail with the exact command that needed sudo |
 | Docker already installed, with containers Olympus did not create | Leave them alone; manage only the `olympus` Compose project ([ADR 0015](../ADR.md#0015-use-one-docker-compose-project-as-the-runtime)) |
-| Port already used by something else | Fail for that tool in `plan`; name the port and the process using it |
-| Server has less RAM than a recipe's `min_ram` | Warn in `plan`; continue only if the user confirms |
-| ARM server and an image with no ARM build | Fail for that tool; name the image and architecture |
+| Port already used by something else | Fail for that tool in `plan`; name the port and the process using it. Ports published by the current `olympus` generation are ignored. |
+| Server has less RAM than a recipe's `min_ram` | Warn in `plan`; `apply` continues only after its confirmation prompt shows the warning |
+| ARM server and an image with no ARM build | Fail for that tool; name the image, the architecture and the platforms the lock recorded |
+| `stack.lock` has no image platforms (written before the field existed) | Warn in `plan` and suggest `olym update`; do not guess compatibility. `update` fills platforms for digest-pinned references by fetching and verifying their index ([ADR 0061](../ADR.md#0061-resolve-platforms-for-digest-pinned-images-on-update)) |
+| Server has less than 5 GiB free disk | Warn in `plan`; below 1 GiB fail and report the free space and path |
 | Built tool and init service share a local tag | Skip both during pull, build once before up; reuse the image on rollback |
 | Build fails before up | Restore the previous generation or take down the first failed deployment; suppress build output |
 | Catalog ref changes while a lock exists | Keep the locked commit until update; reject a changed source URL |
@@ -54,6 +59,12 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Case | Intended behaviour |
 | --- | --- |
 | One tool fails to start, or its health check never passes | Re-activate the previous generation; report the failed tool and its last log lines; exit non-zero |
+| Writable config changes with a secret rotation | Complete the selected tool's init before it starts. On failed health, complete the previous generation's init before restarting the restored tool |
+| A recipe runs as a non-root user | Mounted non-secret tool files are readable and new managed copies belong to the effective container user. The host-side store remains root-only |
+| A tool with a managed-copy init service declares runtime security options | Init inherits the main service's no-new-privileges and seccomp settings |
+| A managed file cannot be copied into its tool volume | Init fails immediately and Compose blocks the dependent tool. Activation restores the previous generation on update |
+| A post-install hook fails or times out | Re-activate the previous generation or take the project down on first apply. A later forward apply can retry the failed hook |
+| A tool with a completed hook is removed, re-added, or rolled back to | Keep the completion marker by tool name. The hook stays complete until `destroy --delete-data` clears it |
 | Connection drops during upload | Nothing activated; `current` unchanged; re-running `apply` re-uploads only missing store entries |
 | Connection drops after activation starts | The activator keeps running; with no confirmation by `confirm_timeout` it re-activates the previous generation and releases the lock ([ADR 0017](../ADR.md#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms)) |
 | The new generation breaks SSH access (for example a port or firewall change) | The CLI cannot reconnect to confirm, so the server rolls back by itself |
@@ -63,7 +74,7 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Activator binary fails its checksum | Refuse to run it; re-upload |
 | Another `apply`, `rollback` or `gc` is running | Fail with who holds the lock and since when |
 | Someone edited a tool's config file on the server | `plan` reports drift (store file no longer matches its hash); `apply` writes a fresh store entry |
-| First `apply` on a server (no generations yet) | A failure leaves no current generation; containers that started are removed |
+| First `apply` on a server (no generations yet) | A failure leaves no current generation; containers that started are removed, even when restoring the previous secret files also fails (then the project is taken down and the run reports exit 5) |
 | Tool needs an interactive login (Claude Code, Codex) | Recipe takes a token secret; if none is given, `plan` warns that the tool will start logged out |
 | Telegram token valid but `allow` is empty | Fail; an open bot lets anyone run the agent |
 
@@ -75,7 +86,8 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | `rollback` to a generation whose store entries `gc` deleted | Fail; name the missing entries; suggest re-applying from that generation's `stack.lock` in git |
 | `gc` | Never deletes entries used by `current` or the previous kept generations; reports space freed |
 | Two runs render the same stack | Byte-identical generation and hashes (test for purity) |
-| Only a secret value changed in `.env` | Hash unchanged; `plan` reports a secret change for that tool and `apply` restarts only it |
+| Only a secret value changed in `.env` | Hash unchanged; `plan` reports a secret change for that tool and `apply` restarts only it; a failed revert recreates the previous generation's tools whose values it restored |
+| Restoring the previous secret values fails during a revert | Take the project down including containers declared only in the previous generation, retain volumes, record `rollback_failed`, report that the server may be down, exit 5; never claim a rollback |
 
 ## Destroy
 

@@ -159,8 +159,12 @@ var storeRefPattern = regexp.MustCompile(`store/([^/'"\\\s]+)/`)
 
 // storeRefs collects the store entries a Compose file references.
 func storeRefs(compose []byte) []string {
-	var entries []string
-	for _, match := range storeRefPattern.FindAllSubmatch(compose, -1) {
+	matches := storeRefPattern.FindAllSubmatch(compose, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	entries := make([]string, 0, len(matches))
+	for _, match := range matches {
 		entries = append(entries, string(match[1]))
 	}
 	return entries
@@ -169,7 +173,7 @@ func storeRefs(compose []byte) []string {
 // dirSize is the number of regular-file bytes under path.
 func dirSize(path string) int64 {
 	var total int64
-	filepath.WalkDir(path, func(_ string, entry fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(path, func(_ string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}

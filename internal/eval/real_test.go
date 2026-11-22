@@ -195,8 +195,23 @@ func TestRealStackCompose(t *testing.T) {
 
 	hermesService := object(t, services["hermes"], "hermes service")
 	env := object(t, hermesService["environment"], "hermes environment")
-	if env["TELEGRAM_ALLOWED_USERS"] != "@alice,@bob" {
+	if env["TELEGRAM_ALLOWED_USERS"] != "111111111,222222222" {
 		t.Errorf("allow-list = %v", env["TELEGRAM_ALLOWED_USERS"])
+	}
+	if env["DISCORD_ALLOWED_USERS"] != "123456789" {
+		t.Errorf("discord allow-list = %v", env["DISCORD_ALLOWED_USERS"])
+	}
+	if env["DISCORD_ALLOWED_ROLES"] != "987654321" {
+		t.Errorf("discord roles = %v", env["DISCORD_ALLOWED_ROLES"])
+	}
+	if _, ok := env["DISCORD_BOT_TOKEN"]; ok {
+		t.Errorf("secret token DISCORD_BOT_TOKEN leaked into service environment")
+	}
+	if bytes.Contains(g.Files["compose.yaml"], []byte("DISCORD_BOT_TOKEN")) {
+		t.Errorf("secret token DISCORD_BOT_TOKEN leaked into compose.yaml")
+	}
+	if bytes.Contains(g.Files["manifest.json"], []byte("DISCORD_BOT_TOKEN")) {
+		t.Errorf("secret token DISCORD_BOT_TOKEN leaked into manifest.json")
 	}
 
 	for _, name := range []string{"hermes", "codex", "opencode"} {
@@ -230,6 +245,16 @@ func TestRealStackEmptyTelegramAllowListFails(t *testing.T) {
 	}
 }
 
+func TestRealStackEmptyDiscordAllowListFails(t *testing.T) {
+	in := realInputs(t)
+	tool := in.Stack.Agents["hermes"]
+	tool.Channels["discord"] = stack.Channel{Token: "${DISCORD_BOT_TOKEN}"}
+	in.Stack.Agents["hermes"] = tool
+	if _, err := Build(in); err == nil || !strings.Contains(err.Error(), "allow-list") {
+		t.Fatalf("error = %v, want allow-list rejection", err)
+	}
+}
+
 func mustUnmarshal(t *testing.T, format string, b []byte) any {
 	t.Helper()
 	v, err := encode.Unmarshal(format, b)
@@ -237,4 +262,26 @@ func mustUnmarshal(t *testing.T, format string, b []byte) any {
 		t.Fatalf("cannot decode %s: %v", format, err)
 	}
 	return v
+}
+
+// A changed lockfile must change the built image tag, or ADR 0041 would reuse
+// the image built from the old dependency set.
+func TestBuildFilesFeedImageTag(t *testing.T) {
+	in := realInputs(t)
+	g, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock := toolFile(t, g, "codex", "/root/.olympus-build/package-lock.json")
+	if !bytes.Equal(lock, in.Templates["codex"]["package-lock.json"]) {
+		t.Fatal("lockfile is not next to the Dockerfile")
+	}
+	before := g.Manifest.Tools["codex"].Image
+	in.Templates["codex"]["package-lock.json"] = append(append([]byte{}, lock...), ' ')
+	if g, err = Build(in); err != nil {
+		t.Fatal(err)
+	}
+	if after := g.Manifest.Tools["codex"].Image; after == before {
+		t.Fatalf("image tag %s did not change with the lockfile", after)
+	}
 }

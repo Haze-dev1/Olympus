@@ -136,19 +136,22 @@ agents:
 	}
 	run := func(command string, extra ...string) string {
 		t.Helper()
-		args := []string{command, "-f", file, "-known-hosts", os.Getenv("OLYMPUS_LAB_KNOWN_HOSTS")}
+		args := []string{command, "-f", file, "-known-hosts", os.Getenv("OLYMPUS_LAB_KNOWN_HOSTS"), "-unsafe-dev-activator"}
 		if command != "update" {
 			args = append(args, "-recipes", recipes)
 		}
 		args = append(args, extra...)
 		cmd := exec.CommandContext(ctx, binary, args...)
 		cmd.Stdin = strings.NewReader("y\n")
-		b, e := cmd.CombinedOutput()
-		if bytes.Contains(b, []byte("OLYM_SENTINEL_")) {
+		// Keep stderr apart so warnings cannot corrupt --json output on stdout.
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		b, e := cmd.Output()
+		if bytes.Contains(b, []byte("OLYM_SENTINEL_")) || bytes.Contains(stderr.Bytes(), []byte("OLYM_SENTINEL_")) {
 			t.Fatal("sentinel in CLI output")
 		}
 		if e != nil {
-			t.Fatalf("%s: %v %s", command, e, b)
+			t.Fatalf("%s: %v %s%s", command, e, b, stderr.Bytes())
 		}
 		t.Logf("%s: exit 0", command)
 		return string(b)
@@ -241,7 +244,7 @@ assert "OLYM_SENTINEL_" not in Path("/opt/data/.env").read_text()
 			t.Fatalf("%s MCP fixture failed", name)
 		}
 
-		skill := map[string]string{"hermes": "/opt/data/skills/lab-skill/SKILL.md", "codex": "/root/.agents/skills/lab-skill/SKILL.md", "opencode": "/root/.config/opencode/skills/lab-skill/SKILL.md"}[name]
+		skill := map[string]string{"hermes": "/opt/data/skills/lab-skill/SKILL.md", "codex": "/root/.agents/skills/lab-skill/SKILL.md", "opencode": "/root/.config/opencode/skill/lab-skill/SKILL.md"}[name]
 		if !bytes.Contains(compose("exec", "-T", name, "cat", skill), []byte("Check health")) {
 			t.Fatalf("missing %s skill", name)
 		}

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/Haze-dev1/Olympus/internal/activate"
@@ -141,6 +142,18 @@ func server(args []string, out, stderr io.Writer) int {
 			return 1
 		}
 		err = a.Destroy(context.Background(), *data)
+	case "read-config":
+		var body []byte
+		limit, parseErr := strconv.Atoi(flags.Arg(2))
+		if flags.NArg() != 4 || parseErr != nil {
+			err = errors.New("invalid read-config arguments")
+			break
+		}
+		body, err = a.ReadConfig(flags.Arg(0), flags.Arg(1), limit, flags.Arg(3))
+		if err == nil {
+			_, err = out.Write(body)
+		}
+
 	case "status":
 		if flags.NArg() != 0 {
 			return 1
@@ -158,18 +171,15 @@ func server(args []string, out, stderr io.Writer) int {
 	}
 	// Errors from payload decoding may include input bytes. Keep the CLI output
 	// generic; the activator log contains only validated operational events.
-	var locked *activate.LockedError
-	if errors.As(err, &locked) {
+	if locked, ok := errors.AsType[*activate.LockedError](err); ok {
 		fmt.Fprintln(stderr, locked)
 		return 4
 	}
-	var rollbackFailed *activate.RollbackFailedError
-	if errors.As(err, &rollbackFailed) {
+	if _, ok := errors.AsType[*activate.RollbackFailedError](err); ok {
 		fmt.Fprintln(stderr, "activation failed and the server could not roll back; it may be down")
 		return 5
 	}
-	var rolledBack *activate.RolledBackError
-	if errors.As(err, &rolledBack) {
+	if _, ok := errors.AsType[*activate.RolledBackError](err); ok {
 		fmt.Fprintln(stderr, "activation failed; server rolled back")
 		return 3
 	}

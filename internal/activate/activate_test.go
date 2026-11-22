@@ -65,19 +65,29 @@ func (c *fakeClock) advance(d time.Duration) {
 	c.waiters = kept
 }
 
-// fakeRunner records Compose calls and fails the verbs a test names.
+// fakeRunner records Compose calls and fails the verbs a test names. hooks run
+// after a call is recorded, so a test can change the world between two calls.
 type fakeRunner struct {
-	mu    sync.Mutex
-	log   []string
-	fail  map[string]error
-	execs []string
+	mu        sync.Mutex
+	log       []string
+	fail      map[string]error
+	hooks     map[string]func()
+	execs     []string
+	recreates [][]string
 }
 
 func (r *fakeRunner) record(call string) error {
+	verb := strings.Fields(call)[0]
+	r.mu.Lock()
+	r.log = append(r.log, call)
+	hook := r.hooks[verb]
+	r.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.log = append(r.log, call)
-	return r.fail[strings.Fields(call)[0]]
+	return r.fail[verb]
 }
 
 func (r *fakeRunner) Pull(_ context.Context, file string) error  { return r.record("pull " + file) }
@@ -85,11 +95,29 @@ func (r *fakeRunner) Build(_ context.Context, file string) error { return r.reco
 func (r *fakeRunner) Up(_ context.Context, file string) error    { return r.record("up " + file) }
 func (r *fakeRunner) Down(_ context.Context, file string) error  { return r.record("down " + file) }
 
+func (r *fakeRunner) Recreate(_ context.Context, file string, tools []string) error {
+	r.mu.Lock()
+	r.recreates = append(r.recreates, append([]string(nil), tools...))
+	r.mu.Unlock()
+	return r.record("recreate " + file)
+}
+
+// recreated lists the tool sets every Recreate call was given, oldest first.
+func (r *fakeRunner) recreated() [][]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([][]string(nil), r.recreates...)
+}
+
 func (r *fakeRunner) Exec(_ context.Context, file, tool string, args []string) error {
 	r.mu.Lock()
 	r.execs = append(r.execs, tool+" "+strings.Join(args, " "))
 	r.mu.Unlock()
 	return r.record("exec " + file)
+}
+
+func (r *fakeRunner) PostInstall(ctx context.Context, file, tool string, args []string) error {
+	return r.Exec(ctx, file, tool, args)
 }
 
 func (r *fakeRunner) calls() []string {
@@ -183,7 +211,7 @@ func newFixture(t *testing.T) *fixture {
 	clock := newFakeClock()
 	f := &fixture{
 		clock:   clock,
-		runner:  &fakeRunner{fail: map[string]error{}},
+		runner:  &fakeRunner{fail: map[string]error{}, hooks: map[string]func(){}},
 		checker: &fakeChecker{fail: map[string]int{}},
 		health:  fakeHealth{},
 	}
@@ -330,6 +358,70 @@ func TestActivateConfirmedBecomesCurrent(t *testing.T) {
 	}
 	if exists(filepath.Join(f.Root, "confirm")) {
 		t.Error("the confirmation file outlived the activation")
+	}
+}
+
+func TestActivateRollsBackIfClearConfirmFails(t *testing.T) {
+	f := newFixture(t)
+	first := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.activate(t, first)
+	id := f.addGeneration(t, "gen2", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.health[id] = map[string]Health{"observatory": {HTTP: &HTTPCheck{Port: 8080, Path: "/healthz"}}}
+
+	var calls int
+	f.removeConfirm = func() error {
+		calls++
+		if calls > 1 {
+			return errors.New("simulated disk error removing confirm")
+		}
+		return nil
+	}
+
+	result := make(chan error, 1)
+	go func() { result <- f.Activate(context.Background(), id) }()
+	state := f.waitAwaiting(t)
+	if err := f.Confirm(id, state.Nonce); err != nil {
+		t.Fatalf("confirm %s: %v", id, err)
+	}
+	err := f.wait(t, result)
+	var rolled *RolledBackError
+	if !errors.As(err, &rolled) {
+		t.Fatalf("want a RolledBackError, got %v", err)
+	}
+	if got := readlink(t, filepath.Join(f.Root, "current")); got != "generations/1" {
+		t.Errorf("current = %q, want generations/1", got)
+	}
+}
+
+func TestRollbackRollsBackIfClearConfirmFails(t *testing.T) {
+	f := newFixture(t)
+	first := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	second := f.addGeneration(t, "gen2", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.activate(t, first)
+	f.activate(t, second)
+
+	var calls int
+	f.removeConfirm = func() error {
+		calls++
+		if calls > 1 {
+			return errors.New("simulated disk error removing confirm during rollback")
+		}
+		return nil
+	}
+
+	result := make(chan error, 1)
+	go func() { result <- f.Rollback(context.Background()) }()
+	state := f.waitAwaiting(t)
+	if err := f.Confirm(first, state.Nonce); err != nil {
+		t.Fatal(err)
+	}
+	err := f.wait(t, result)
+	var rolled *RolledBackError
+	if !errors.As(err, &rolled) {
+		t.Fatalf("want a RolledBackError, got %v", err)
+	}
+	if got := readlink(t, filepath.Join(f.Root, "current")); got != "generations/2" {
+		t.Errorf("current = %q, want generations/2", got)
 	}
 }
 
@@ -713,6 +805,9 @@ func TestComposeCommandsAreScopedAndListed(t *testing.T) {
 	if err := c.Up(ctx, "/srv/compose.yaml"); err != nil {
 		t.Fatal(err)
 	}
+	if err := c.Recreate(ctx, "/srv/compose.yaml", []string{"observatory", "notes"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := c.Down(ctx, "/srv/compose.yaml"); err != nil {
 		t.Fatal(err)
 	}
@@ -724,7 +819,8 @@ func TestComposeCommandsAreScopedAndListed(t *testing.T) {
 	for _, want := range []string{
 		"compose -p olympus -f /srv/compose.yaml pull",
 		"compose -p olympus -f /srv/compose.yaml up -d --no-build --pull never --remove-orphans",
-		"compose -p olympus -f /srv/compose.yaml down",
+		"compose -p olympus -f /srv/compose.yaml up -d --no-build --pull never --force-recreate observatory notes",
+		"compose -p olympus -f /srv/compose.yaml down --remove-orphans",
 		"compose -p olympus -f /srv/compose.yaml exec -T observatory curl -fsS http://127.0.0.1:8080/healthz",
 	} {
 		if !strings.Contains(got, want) {
@@ -908,6 +1004,176 @@ func TestConfirmedActivationKeepsOnlyTheNewSecrets(t *testing.T) {
 	}
 }
 
+func TestSecretRotationRecreatesOnlyTheChangedTool(t *testing.T) {
+	f := newFixture(t)
+	tools := map[string]generation.Tool{"one": tool("credential"), "two": tool("credential")}
+	id := f.addGeneration(t, "gen1", tools, "services: {}\n")
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"one":{"secrets":{"credential":"a"},"environment":{"CREDENTIAL":"a"}},"two":{"secrets":{"credential":"b"},"environment":{"CREDENTIAL":"b"}}}}`)
+	f.activate(t, id)
+
+	before := len(f.runner.recreated())
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"one":{"secrets":{"credential":"rotated"},"environment":{"CREDENTIAL":"rotated"}},"two":{"secrets":{"credential":"b"},"environment":{"CREDENTIAL":"b"}}}}`)
+	f.activate(t, id)
+
+	calls := f.runner.recreated()
+	if len(calls) != before+1 {
+		t.Fatalf("recreate calls are %v, want one more for the rotated tool: %v", calls, f.runner.calls())
+	}
+	if got := strings.Join(calls[before], ","); got != "one" {
+		t.Errorf("recreated %q, want only the tool whose secret changed", got)
+	}
+}
+
+func TestRevertRecreatesTheRestoredTools(t *testing.T) {
+	f := newFixture(t)
+	tools := map[string]generation.Tool{"observatory": tool("model_key")}
+	first := f.addGeneration(t, "gen1", tools, "services: {}\n")
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"observatory":{"secrets":{"model_key":"old"}}}}`)
+	f.activate(t, first)
+
+	second := f.addGeneration(t, "gen2", tools, "services: {}\n")
+	f.checker.contains = "gen-" + second
+	f.checker.fail["observatory"] = -1
+	f.health[second] = map[string]Health{"observatory": {HTTP: &HTTPCheck{Port: 8080, Path: "/"}}}
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"observatory":{"secrets":{"model_key":"new"}}}}`)
+
+	before := len(f.runner.recreated())
+	err := f.wait(t, func() <-chan error {
+		result := make(chan error, 1)
+		go func() { result <- f.Activate(context.Background(), second) }()
+		return result
+	}())
+	var rolled *RolledBackError
+	if !errors.As(err, &rolled) {
+		t.Fatalf("want a RolledBackError, got %v", err)
+	}
+
+	calls := f.runner.recreated()
+	if len(calls) != before+2 {
+		t.Fatalf("recreate calls are %v, want the failed generation and the revert: %v", calls, f.runner.calls())
+	}
+	if got := strings.Join(calls[len(calls)-1], ","); got != "observatory" {
+		t.Errorf("the revert recreated %q, want the tool whose secrets were restored", got)
+	}
+}
+
+func TestRevertSkipsToolsThePreviousGenerationDoesNotDeclare(t *testing.T) {
+	f := newFixture(t)
+	first := f.addGeneration(t, "gen1", map[string]generation.Tool{"one": tool("credential")}, "services: {}\n")
+	f.activate(t, first)
+
+	second := f.addGeneration(t, "gen2", map[string]generation.Tool{"one": tool("credential"), "added": tool("credential")}, "services: {}\n")
+	f.checker.contains = "gen-" + second
+	f.checker.fail["one"] = -1
+	f.health[second] = map[string]Health{"one": {Command: []string{"true"}}}
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"one":{"secrets":{"credential":"a"}},"added":{"secrets":{"credential":"b"}}}}`)
+
+	before := len(f.runner.recreated())
+	err := f.wait(t, func() <-chan error {
+		result := make(chan error, 1)
+		go func() { result <- f.Activate(context.Background(), second) }()
+		return result
+	}())
+	var rolled *RolledBackError
+	if !errors.As(err, &rolled) {
+		t.Fatalf("want a RolledBackError, got %v", err)
+	}
+
+	calls := f.runner.recreated()
+	if len(calls) != before+2 {
+		t.Fatalf("recreate calls are %v, want the failed generation and the revert: %v", calls, f.runner.calls())
+	}
+	if got := strings.Join(calls[len(calls)-1], ","); got != "one" {
+		t.Errorf("the revert recreated %q, want only the previous generation's tools", got)
+	}
+}
+
+func TestFirstActivationTakesTheProjectDownWhenSecretRestoreFails(t *testing.T) {
+	f := newFixture(t)
+	id := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool("model_key")}, "services: {}\n")
+	if err := f.ensureRoot(); err != nil {
+		t.Fatal(err)
+	}
+	dir := f.secretsDir("observatory")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "model_key"), []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"observatory":{"secrets":{"model_key":"new"}}}}`)
+	// Break the secrets directory once Compose has started, so restoring the
+	// previous value fails after the new one is live.
+	f.runner.hooks["up"] = func() {
+		os.RemoveAll(dir)
+		os.WriteFile(dir, []byte("not a directory"), 0o600)
+	}
+	f.runner.fail["up"] = errors.New("up failed")
+
+	err := f.Activate(context.Background(), id)
+	var failed *RollbackFailedError
+	if !errors.As(err, &failed) {
+		t.Fatalf("want a RollbackFailedError, got %v", err)
+	}
+	if failed.Activation == nil || failed.Rollback == nil {
+		t.Errorf("both causes must be kept: %v", err)
+	}
+	if got := f.runner.count("down"); got != 1 {
+		t.Errorf("the project was taken down %d times, want 1: %v", got, f.runner.calls())
+	}
+	if exists(filepath.Join(f.Root, "current")) {
+		t.Error("a current generation was left behind")
+	}
+	if got := f.mustState(t).Status; got != StatusRollbackFailed {
+		t.Errorf("state is %q, want %q", got, StatusRollbackFailed)
+	}
+}
+
+func TestFailedFirstActivationLeavesARetryableState(t *testing.T) {
+	f := newFixture(t)
+	id := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool("model_key")}, "services: {}\n")
+	f.checker.fail["observatory"] = -1
+	f.health[id] = map[string]Health{"observatory": {Command: []string{"true"}}}
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"observatory":{"secrets":{"model_key":"a"}}}}`)
+
+	err := f.wait(t, func() <-chan error {
+		result := make(chan error, 1)
+		go func() { result <- f.Activate(context.Background(), id) }()
+		return result
+	}())
+	var rolled *RolledBackError
+	if !errors.As(err, &rolled) {
+		t.Fatalf("want a RolledBackError, got %v", err)
+	}
+	if got := f.runner.count("down"); got != 1 {
+		t.Errorf("the project was taken down %d times, want 1: %v", got, f.runner.calls())
+	}
+	if exists(filepath.Join(f.Root, "current")) {
+		t.Error("a current generation was left behind")
+	}
+	if exists(filepath.Join(f.Root, "generations", "1")) {
+		t.Error("a generation link was left behind")
+	}
+	if got := f.mustState(t).Status; got != StatusRolledBack {
+		t.Errorf("state is %q, want %q", got, StatusRolledBack)
+	}
+	if exists(f.secretsDir("observatory")) || exists(f.previousSecretsDir("observatory")) {
+		t.Error("the failed activation left secret files behind")
+	}
+
+	// A retry with a fresh payload reaches the same clean state as any first
+	// activation: nothing from the failure blocks it.
+	f.checker.fail["observatory"] = 0
+	writePayload(t, f.PayloadPath(), `{"version":1,"tools":{"observatory":{"secrets":{"model_key":"a"}}}}`)
+	f.activate(t, id)
+	if got := readlink(t, filepath.Join(f.Root, "current")); got != "generations/1" {
+		t.Errorf("current is %q after the retry, want generations/1", got)
+	}
+	if got := f.mustState(t).Status; got != StatusConfirmed {
+		t.Errorf("state is %q after the retry, want %q", got, StatusConfirmed)
+	}
+}
+
 func TestRollbackRecordsTheGenerationItTriedToActivate(t *testing.T) {
 	f := newFixture(t)
 	first := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
@@ -1008,5 +1274,66 @@ func TestBuildFailureTakesFirstGenerationDown(t *testing.T) {
 	var rolled *RolledBackError
 	if !errors.As(err, &rolled) || f.runner.count("up") != 0 || f.runner.count("down") != 1 {
 		t.Fatalf("build failure did not stop activation: %v %v", err, f.runner.calls())
+	}
+}
+
+func TestPostInstall(t *testing.T) {
+	for _, name := range []string{"first activation", "reapply and re-add", "failure rolls back"} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			plain := f.addGeneration(t, "plain", map[string]generation.Tool{"other": tool()}, "services: {}\n")
+			hooked := tool()
+			hooked.PostInstall = []string{"setup", "literal ; arg"}
+			id := f.addGeneration(t, "hook", map[string]generation.Tool{"demo": hooked}, "services: {}\n")
+			f.health[id] = map[string]Health{"demo": {Command: []string{"ready"}}}
+
+			switch name {
+			case "first activation":
+				f.runner.hooks["exec"] = func() {
+					if f.checker.count("demo") != 1 {
+						t.Error("post-install ran before the health check")
+					}
+				}
+				f.activate(t, id)
+				if got := f.runner.execs; len(got) != 1 || got[0] != "demo setup literal ; arg" {
+					t.Fatalf("hook calls got %v, want one setup call", got)
+				}
+			case "reapply and re-add":
+				f.activate(t, id)
+				f.activate(t, id)
+				f.activate(t, plain)
+				result := make(chan error, 1)
+				go func() { result <- f.Rollback(context.Background()) }()
+				state := f.waitAwaiting(t)
+				if err := f.Confirm(id, state.Nonce); err != nil {
+					t.Fatal(err)
+				}
+				if err := f.wait(t, result); err != nil {
+					t.Fatal(err)
+				}
+				f.activate(t, plain)
+				f.activate(t, id)
+				if got := f.runner.count("exec"); got != 1 {
+					t.Fatalf("hook count got %d, want 1", got)
+				}
+			case "failure rolls back":
+				f.activate(t, plain)
+				f.runner.fail["exec"] = errors.New("hook failed")
+				result := make(chan error, 1)
+				go func() { result <- f.Activate(context.Background(), id) }()
+				var rolled *RolledBackError
+				if err := f.wait(t, result); !errors.As(err, &rolled) || !strings.Contains(err.Error(), "post-install") {
+					t.Fatalf("activation got %v, want post-install rollback", err)
+				}
+				if got := readlink(t, filepath.Join(f.Root, "current")); got != "generations/1" {
+					t.Fatalf("current got %q, want generations/1", got)
+				}
+				delete(f.runner.fail, "exec")
+				f.activate(t, id)
+				if got := f.runner.count("exec"); got != 2 {
+					t.Fatalf("hook count got %d, want 2", got)
+				}
+			}
+		})
 	}
 }

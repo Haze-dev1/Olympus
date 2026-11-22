@@ -1,0 +1,63 @@
+# Source repository for Olympus recipes
+inputs:
+  # Official Olympus recipes repository
+  recipes: github:Haze-dev1/Olympus/recipes
+
+# Target server deployment configuration
+server:
+  # Host IP address (TEST-NET placeholder)
+  host: 203.0.113.10
+  # SSH user with root access
+  user: root
+
+# Shared Model Context Protocol (MCP) server definitions
+mcps:
+  # Stdio MCP server: spawned as a local child process inside the container
+  github:
+    # Command binary to execute
+    command: npx
+    # Arguments passed to the command
+    args: ["@modelcontextprotocol/server-github"]
+    # Environment variables for the MCP server process
+    env:
+      # GitHub personal access token referenced from .env
+      GITHUB_TOKEN: ${GH_TOKEN}
+
+  # Remote HTTP MCP server: reachable over a Streamable HTTP endpoint
+  docs:
+    # Endpoint URL for the remote MCP service
+    url: https://mcp.example.test/mcp
+    # Remote wire protocol: http (Streamable HTTP, default) or sse
+    transport: http
+    # HTTP headers sent with each request
+    headers:
+      # Authorization bearer header referencing the GitHub token
+      Authorization: Bearer ${GH_TOKEN}
+
+# Agents that use the shared MCP servers
+agents:
+  # Hermes agent harness (uses YAML configuration)
+  hermes:
+    # Recipe name from the catalog
+    recipe: hermes
+    # List of MCP servers granted to Hermes
+    mcps: [github, docs]
+    # Secrets declared by the recipe
+    secrets:
+      # Anthropic API key for model inference
+      model-key: ${ANTHROPIC_API_KEY}
+      # GitHub token mapped to container environment
+      github-token: ${GH_TOKEN}
+
+  # Codex coding agent (uses TOML configuration)
+  codex:
+    # Recipe name from the catalog
+    recipe: codex
+    # List of MCP servers granted to Codex
+    mcps: [github, docs]
+    # Secrets declared by the recipe
+    secrets:
+      # OpenAI API key for model inference
+      api-key: ${CODEX_API_KEY}
+      # GitHub token mapped to container environment
+      github-token: ${GH_TOKEN}

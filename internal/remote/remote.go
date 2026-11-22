@@ -164,8 +164,7 @@ func (c *Client) HasPasswordlessSudo(ctx context.Context) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	var exit *ssh.ExitError
-	if errors.As(err, &exit) {
+	if _, ok := errors.AsType[*ssh.ExitError](err); ok {
 		return false, nil
 	}
 	return false, err
@@ -190,6 +189,7 @@ func authMethods(cfg Config) ([]ssh.AuthMethod, net.Conn, error) {
 	if sock == "" {
 		return nil, nil, errors.New("remote: no SSH credentials: set KeyFile or start an SSH agent")
 	}
+	//nolint:gosec // G704: connects to local ssh-agent UNIX domain socket from standard SSH_AUTH_SOCK
 	conn, err := net.Dial("unix", sock)
 	if err != nil {
 		return nil, nil, fmt.Errorf("remote: connect to SSH agent: %w", err)
@@ -266,7 +266,7 @@ func appendKnownHost(path, host string, key ssh.PublicKey) error {
 	if err != nil {
 		return err
 	}
-	for _, l := range strings.Split(string(existing), "\n") {
+	for l := range strings.SplitSeq(string(existing), "\n") {
 		if strings.TrimSpace(l) == line {
 			return nil
 		}

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 )
 
 // File is the contents of stack.lock. Map keys are written in sorted order by
@@ -28,10 +29,13 @@ type Input struct {
 	Hash string `json:"hash"`
 }
 
-// Tool pins one tool's image by index digest.
+// Tool pins one tool's image by index digest. Platforms lists the
+// "os/architecture" pairs the resolved index contains, so the apply preflight
+// can compare them with the server without contacting a registry again.
 type Tool struct {
-	Image    string `json:"image"`
-	ImageTag string `json:"image_tag,omitempty"`
+	Image     string   `json:"image"`
+	ImageTag  string   `json:"image_tag,omitempty"`
+	Platforms []string `json:"platforms,omitempty"`
 }
 
 var (
@@ -67,8 +71,38 @@ func (f *File) Validate() error {
 		if name == "" || !imageRE.MatchString(tool.Image) {
 			return fmt.Errorf("lock: tool %q is not pinned to a digest: %q", name, tool.Image)
 		}
+		for _, platform := range tool.Platforms {
+			if !validPlatform(platform) {
+				return fmt.Errorf("lock: tool %q has an invalid image platform %q", name, platform)
+			}
+		}
 	}
 	return nil
+}
+
+var platformRE = regexp.MustCompile(`^[a-z0-9]+/[a-z0-9]+$`)
+
+// validPlatform bounds registry-supplied text that is written to the lock and
+// later printed in a plan message.
+func validPlatform(p string) bool {
+	return len(p) <= 64 && platformRE.MatchString(p)
+}
+
+// canonicalPlatforms sorts and de-duplicates without mutating the input.
+func canonicalPlatforms(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(in))
+	for _, p := range in {
+		if !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Read parses a lock file, rejecting unknown fields and trailing data.
@@ -104,6 +138,13 @@ func Marshal(f *File) ([]byte, error) {
 	}
 	if c.Tools == nil {
 		c.Tools = map[string]Tool{}
+	} else {
+		tools := make(map[string]Tool, len(c.Tools))
+		for name, tool := range c.Tools {
+			tool.Platforms = canonicalPlatforms(tool.Platforms)
+			tools[name] = tool
+		}
+		c.Tools = tools
 	}
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {

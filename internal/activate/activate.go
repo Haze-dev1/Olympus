@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,6 +43,7 @@ const (
 	DefaultRetryInterval = 2 * time.Second
 	// DefaultHealthTimeout is the per-tool health timeout from TRD 8.5.
 	DefaultHealthTimeout = 120 * time.Second
+	postInstallTimeout   = 120 * time.Second
 	// DefaultKeep is how many generations `gc` keeps by default.
 	DefaultKeep = 5
 )
@@ -65,8 +67,14 @@ type Clock interface {
 // Runner runs Docker Compose for the "olympus" project. Implementations build
 // argument lists, never shell strings (A2).
 type Runner interface {
+	PostInstall(ctx context.Context, composeFile, tool string, args []string) error
 	Pull(ctx context.Context, composeFile string) error
 	Build(ctx context.Context, composeFile string) error
+	// Recreate starts the named services again with their secret files on
+	// disk, without touching the services it was not given. Activation calls
+	// it for exactly the tools whose secrets changed, so unrelated tools keep
+	// running (TRD 8.1).
+	Recreate(ctx context.Context, composeFile string, tools []string) error
 	Up(ctx context.Context, composeFile string) error
 	Down(ctx context.Context, composeFile string) error
 	Exec(ctx context.Context, composeFile, tool string, args []string) error
@@ -112,10 +120,8 @@ func (h Health) validate() error {
 			return fmt.Errorf("health check path %q does not start with /", h.HTTP.Path)
 		}
 	case len(h.Command) > 0:
-		for _, arg := range h.Command {
-			if arg == "" {
-				return errors.New("health check command has an empty argument")
-			}
+		if slices.Contains(h.Command, "") {
+			return errors.New("health check command has an empty argument")
 		}
 	default:
 		return errors.New("health check sets neither http nor command")
@@ -133,7 +139,7 @@ type State struct {
 	ID       string    `json:"id"`
 	Status   string    `json:"status"`
 	Nonce    string    `json:"nonce,omitempty"`
-	Deadline time.Time `json:"deadline,omitempty"`
+	Deadline time.Time `json:"deadline,omitzero"`
 }
 
 // pending is the confirmation file Confirm writes and Activate waits for.
@@ -189,8 +195,9 @@ type Activator struct {
 	PollInterval    time.Duration
 	RetryInterval   time.Duration
 
-	mu sync.Mutex
-	lg *logFile
+	removeConfirm func() error // test hook to simulate clearConfirm failure
+	mu            sync.Mutex
+	lg            *logFile
 }
 
 // target is one generation resolved from the store.
@@ -255,6 +262,9 @@ func (a *Activator) Activate(ctx context.Context, id string) error {
 	if err := a.startWithSecrets(ctx, t, changed); err != nil {
 		return a.revertOrDown(ctx, t, err, bk)
 	}
+	if err := a.postInstall(ctx, t); err != nil {
+		return a.revertOrDown(ctx, t, err, bk)
+	}
 	// A confirmation left behind by an earlier activation is never reused.
 	if err := a.clearConfirm(); err != nil {
 		return a.revertOrDown(ctx, t, err, bk)
@@ -271,11 +281,13 @@ func (a *Activator) Activate(ctx context.Context, id string) error {
 	if err := a.waitConfirm(ctx, state); err != nil {
 		return a.revertOrDown(ctx, t, err, bk)
 	}
+	if err := a.clearConfirm(); err != nil {
+		return a.revertOrDown(ctx, t, err, bk)
+	}
 	n, err := a.publish(t.id)
 	if err != nil {
 		return a.revertOrDown(ctx, t, err, bk)
 	}
-	a.clearConfirm()
 	a.discardSecrets(bk)
 	a.finish(t.id, StatusConfirmed)
 	a.logf("generation %s is live as generations/%d", t.id, n)
@@ -362,10 +374,12 @@ func (a *Activator) Rollback(ctx context.Context) error {
 	if err := a.waitConfirm(ctx, state); err != nil {
 		return a.revertOrDown(ctx, prev, err, nil)
 	}
+	if err := a.clearConfirm(); err != nil {
+		return a.revertOrDown(ctx, prev, err, nil)
+	}
 	if err := a.pointCurrent(pn); err != nil {
 		return a.revertOrDown(ctx, prev, err, nil)
 	}
-	a.clearConfirm()
 	a.finish(prev.id, StatusConfirmed)
 	a.logf("generation %s is live as generations/%d", prev.id, pn)
 	return nil
@@ -393,18 +407,46 @@ func (a *Activator) startWithSecrets(ctx context.Context, t target, changed []st
 		return fmt.Errorf("build images for %s: %w", t.id, err)
 	}
 	if len(changed) > 0 {
-		if r, ok := a.Runner.(interface {
-			Recreate(context.Context, string, []string) error
-		}); ok {
-			if err := r.Recreate(ctx, file, changed); err != nil {
-				return err
-			}
+		a.logf("recreating %s for changed secrets", strings.Join(changed, ", "))
+		if err := a.Runner.Recreate(ctx, file, changed); err != nil {
+			return fmt.Errorf("recreate %s: %w", strings.Join(changed, ", "), err)
 		}
 	}
 	if err := a.Runner.Up(ctx, file); err != nil {
 		return fmt.Errorf("start %s: %w", t.id, err)
 	}
 	return a.healthy(ctx, t)
+}
+
+// postInstall runs only on forward activation under the activation lock.
+func (a *Activator) postInstall(ctx context.Context, t target) error {
+	for _, name := range schema.Keys(t.manifest.Tools) {
+		args := t.manifest.Tools[name].PostInstall
+		if len(args) == 0 {
+			continue
+		}
+		marker := filepath.Join(a.root(), "post-install", name)
+		info, err := os.Lstat(marker)
+		if err == nil {
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("invalid post-install completion marker for %s", name)
+			}
+			continue
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("check post-install completion for %s: %w", name, err)
+		}
+		hookCtx, cancel := context.WithTimeout(ctx, postInstallTimeout)
+		err = a.Runner.PostInstall(hookCtx, t.composeFile(), name, args)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("post-install hook for %s: %w", name, err)
+		}
+		if err := writeFile(marker, nil, 0o600); err != nil {
+			return fmt.Errorf("record post-install completion for %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 // revertDown takes the project down when no generation was live before.
@@ -424,10 +466,18 @@ func (a *Activator) revertDown(ctx context.Context, failed target, cause error) 
 // current points at, or takes the project down when the failed generation was
 // the first one. It reports RolledBackError only when that worked.
 func (a *Activator) revertOrDown(ctx context.Context, failed target, cause error, bk *secretsBackup) error {
-	restoreErr := a.restoreSecrets(bk)
-	if restoreErr != nil {
+	if restoreErr := a.restoreSecrets(bk); restoreErr != nil {
+		// The previous values are not back in place, so the failed generation
+		// may be running with the new ones. Take the project down rather than
+		// leave half a server up, but report that the rollback did not finish.
+		a.logf("generation %s failed: %v; restoring the previous secrets failed: %v", failed.id, cause, restoreErr)
+		rollback := restoreErr
+		if err := a.Runner.Down(ctx, failed.composeFile()); err != nil {
+			a.logf("taking the project down failed: %v", err)
+			rollback = errors.Join(restoreErr, fmt.Errorf("taking the project down: %w", err))
+		}
 		a.finish(failed.id, StatusRollbackFailed)
-		return &RollbackFailedError{Activation: cause, Rollback: restoreErr}
+		return &RollbackFailedError{Activation: cause, Rollback: rollback}
 	}
 	prev, _, ok, err := a.current()
 	if err != nil {
@@ -438,13 +488,32 @@ func (a *Activator) revertOrDown(ctx context.Context, failed target, cause error
 		return a.revertDown(ctx, failed, cause)
 	}
 	a.logf("generation %s failed: %v; re-activating %s", failed.id, cause, prev.id)
-	if err := a.start(ctx, prev); err != nil {
+	// The containers of the previous generation still hold the values the
+	// failed activation replaced, so recreate exactly those tools once their
+	// own secret files are back.
+	if err := a.startWithSecrets(ctx, prev, restoredTools(bk, prev)); err != nil {
 		a.logf("re-activating %s failed: %v", prev.id, err)
 		a.finish(failed.id, StatusRollbackFailed)
 		return &RollbackFailedError{Activation: cause, Rollback: err}
 	}
 	a.finish(failed.id, StatusRolledBack)
 	return &RolledBackError{Cause: cause}
+}
+
+// restoredTools lists the tools the previous generation declares whose secrets
+// an activation replaced. A tool the previous generation does not declare is
+// skipped: it is not a service in that Compose file.
+func restoredTools(bk *secretsBackup, prev target) []string {
+	if bk == nil {
+		return nil
+	}
+	var tools []string
+	for _, tool := range bk.changed {
+		if _, ok := prev.manifest.Tools[tool]; ok {
+			tools = append(tools, tool)
+		}
+	}
+	return tools
 }
 
 // healthy runs every declared health check in parallel, each with its own
@@ -575,7 +644,13 @@ func (a *Activator) load(id string) (target, error) {
 		if !stack.ValidName(tool) {
 			return target{}, fmt.Errorf("activate: generation %s names the tool %q", id, tool)
 		}
-		for _, name := range manifest.Tools[tool].Secrets {
+		declared := manifest.Tools[tool]
+		for i, arg := range declared.PostInstall {
+			if (i == 0 && arg == "") || strings.ContainsRune(arg, 0) {
+				return target{}, fmt.Errorf("activate: tool %s has an invalid post-install argument", tool)
+			}
+		}
+		for _, name := range declared.Secrets {
 			if !safeName(name) {
 				return target{}, fmt.Errorf("activate: tool %s declares the secret name %q", tool, name)
 			}
@@ -975,6 +1050,9 @@ func (a *Activator) readState() (State, error) {
 // before state.json announces a new nonce, so a confirmation can only match
 // the activation that is actually waiting.
 func (a *Activator) clearConfirm() error {
+	if a.removeConfirm != nil {
+		return a.removeConfirm()
+	}
 	if err := os.Remove(a.pendingPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("activate: discard stale confirmation: %w", err)
 	}
@@ -1008,7 +1086,7 @@ func (a *Activator) ensureRoot() error {
 	case !info.IsDir():
 		return fmt.Errorf("activate: root %s is not a directory", root)
 	}
-	for _, name := range []string{"store", "generations", "secrets", "log"} {
+	for _, name := range []string{"store", "generations", "secrets", "log", "post-install"} {
 		if err := os.MkdirAll(filepath.Join(root, name), 0o700); err != nil {
 			return fmt.Errorf("activate: %w", err)
 		}

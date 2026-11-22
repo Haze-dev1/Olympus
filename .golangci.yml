@@ -1,0 +1,75 @@
+# Adapted from Caddy's .golangci.yml (github.com/caddyserver/caddy).
+# Web-server-only linters are dropped (bodyclose, canonicalheader,
+# promlinter, sloglint, sqlclosecheck, zerologlint). gosec G204 stays on:
+# Olympus builds remote commands, and rule A2 needs every case reviewed.
+version: "2"
+run:
+  issues-exit-code: 1
+  tests: false
+  build-tags:
+    - lab
+output:
+  formats:
+    text:
+      path: stdout
+      print-linter-name: true
+      print-issued-lines: true
+linters:
+  default: none
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - decorder
+    - dogsled
+    - dupl
+    - dupword
+    - durationcheck
+    - errcheck
+    - errname
+    - exhaustive
+    - gosec
+    - govet
+    - importas
+    - ineffassign
+    - misspell
+    - modernize
+    - prealloc
+    - staticcheck
+    - testableexamples
+    - tparallel
+    - unconvert
+    - unused
+    - wastedassign
+    - whitespace
+  settings:
+    staticcheck:
+      checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-QF1006", "-QF1008"]
+    errcheck:
+      exclude-functions:
+        - fmt.*
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - gosec
+        text: G115
+      - linters:
+          - errcheck
+        path: _test\.go
+      # schema.Diagnostic represents a positioned validation diagnostic rather than
+      # a conventional error type; renaming to DiagnosticError would churn callers across
+      # concurrent branches.
+      - linters:
+          - errname
+        path: internal/schema/
+        text: "Diagnostic"
+formatters:
+  enable:
+    - gofmt
+    - goimports

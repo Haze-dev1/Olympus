@@ -62,8 +62,7 @@
             "items": {
               "type": "string",
               "minLength": 1
-            },
-            "uniqueItems": true
+            }
           },
           "env": {
             "type": "object",
@@ -76,6 +75,13 @@
           "url": {
             "type": "string",
             "minLength": 1
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "http",
+              "sse"
+            ]
           },
           "headers": {
             "type": "object",
@@ -164,6 +170,14 @@
                   },
                   "uniqueItems": true,
                   "minItems": 1
+                },
+                "roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
                 }
               },
               "required": [
@@ -262,6 +276,14 @@
                   },
                   "uniqueItems": true,
                   "minItems": 1
+                },
+                "roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
                 }
               },
               "required": [

@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,17 +15,47 @@ import (
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
+// Secret declares an environment variable populated from a secret.
 type Secret struct{ Env string }
-type Managed struct{ File, Format, Style, Key string }
+
+// Managed describes a tool's managed MCP file. SSE nil means the tool accepts
+// remote servers with transport sse; false rejects them at evaluation time.
+type Managed struct {
+	File, Format, Style, Key string
+	SSE                      *bool `json:"sse,omitempty"`
+}
+
+// Skills declares how a tool receives shared skills.
 type Skills struct{ Dir, Mode string }
+
+// Channel declares environment variables for a chat channel integration.
 type Channel struct{ Env map[string]string }
-type Build struct{ Src, Dst string }
+
+// Build declares files to copy into a tool's container build context.
+type Build struct {
+	Src, Dst string
+	// Files are copied next to Dst so the Dockerfile can COPY them (lockfiles).
+	Files []string
+}
+
+// Template declares a templated file rendered into the tool's container.
 type Template struct{ Src, Dst string }
+
+// Runtime specifies container runtime configuration for a tool.
+type Runtime struct {
+	ShmSize         string `json:"shm_size"`
+	StopGracePeriod string `json:"stop_grace_period"`
+	NoNewPrivileges bool   `json:"no_new_privileges"`
+	Seccomp         string
+}
+
+// Recipe declares an agent tool definition and container specification.
 type Recipe struct {
 	Name, Kind, Image, User string
 	Resources               struct {
 		MinRAM string `json:"min_ram"`
 	}
+	Runtime  *Runtime `json:"runtime,omitempty"`
 	Volumes  map[string]string
 	Ports    []int
 	Command  []string
@@ -52,6 +83,7 @@ type Recipe struct {
 	Dir string `json:"-"`
 }
 
+// Load reads and validates a recipe from the specified root directory.
 func Load(root, name string) (*Recipe, *schema.Document) {
 	file := filepath.Join(root, name, "recipe.yaml")
 	d := &schema.Document{File: file}
@@ -89,6 +121,8 @@ func Load(root, name string) (*Recipe, *schema.Document) {
 	}
 	return r, d
 }
+
+// Parse decodes and validates recipe YAML bytes against the schema.
 func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 	d := schema.Parse(file, b, "recipe")
 	if len(d.Errors) > 0 {
@@ -130,7 +164,7 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 		if !r.Confined(m.File) {
 			d.Add("/supports/mcps/file", "managed file must be inside a tool volume")
 		}
-		for _, part := range strings.Split(m.Key, ".") {
+		for part := range strings.SplitSeq(m.Key, ".") {
 			if part == "" {
 				d.Add("/supports/mcps/key", "managed key must contain nonempty dot-separated components")
 			}
@@ -143,6 +177,16 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 		if !r.Confined(b.Dst) {
 			d.Add("/build/dst", "build destination must be inside a tool volume")
 		}
+		names := map[string]bool{path.Base(b.Dst): true}
+		for i, f := range b.Files {
+			if !SafeRelative(f) {
+				d.Add(fmt.Sprintf("/build/files/%d", i), "build file must be a confined relative path")
+			}
+			if names[path.Base(f)] {
+				d.Add(fmt.Sprintf("/build/files/%d", i), "duplicate build file name")
+			}
+			names[path.Base(f)] = true
+		}
 	}
 	for i, p := range r.Writable {
 		if !r.Confined(p) || !ShellSafe(p) {
@@ -152,6 +196,9 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 	for k, c := range r.Supports.Channels {
 		if c.Env["token"] == "" {
 			d.Add(schema.Child("/supports/channels", k)+"/env", "channel requires a token environment variable")
+		}
+		if c.Env["allow"] == "" {
+			d.Add(schema.Child("/supports/channels", k)+"/env", "channel requires an allow environment variable")
 		}
 	}
 	if r.Supports.Skills != nil {
@@ -171,6 +218,31 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 	if r.Health.HTTP != nil && len(r.Health.Command) > 0 {
 		d.Add("/health", "choose HTTP or command health check")
 	}
+	if r.Resources.MinRAM != "" {
+		if _, err := ParseSize(r.Resources.MinRAM); err != nil {
+			d.Add("/resources/min_ram", "expected a size such as 4GB or 512MiB")
+		}
+	}
+	if rt := r.RuntimeOptions(); rt.ShmSize != "" {
+		if n, err := ParseSize(rt.ShmSize); err != nil || n == 0 {
+			d.Add("/runtime/shm_size", "expected a positive size such as 1GB or 64MiB")
+		}
+	}
+	if rt := r.RuntimeOptions(); rt.StopGracePeriod != "" {
+		if t, err := time.ParseDuration(rt.StopGracePeriod); err != nil || t <= 0 {
+			d.Add("/runtime/stop_grace_period", "expected a positive duration such as 60s")
+		}
+	}
+	if rt := r.RuntimeOptions(); rt.Seccomp != "" {
+		switch {
+		case !SafeRelative(rt.Seccomp):
+			d.Add("/runtime/seccomp", "seccomp profile must be a confined relative path")
+		case schemeRe.MatchString(rt.Seccomp):
+			d.Add("/runtime/seccomp", "seccomp profile must be a file in the recipe folder, not a URL")
+		case len(r.Volumes) == 0:
+			d.Add("/runtime/seccomp", "seccomp profile requires a tool volume")
+		}
+	}
 	if !validImage(r.Image) {
 		d.Add("/image", "image must have an explicit tag or sha256 digest")
 	}
@@ -189,9 +261,22 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 	}
 	return &r, d
 }
+
+// RuntimeOptions returns the recipe's runtime block, or zero values when the
+// recipe has none, so callers need no nil checks.
+func (r *Recipe) RuntimeOptions() Runtime {
+	if r.Runtime == nil {
+		return Runtime{}
+	}
+	return *r.Runtime
+}
+
+// CleanAbsolute reports whether a path is clean, absolute, and free of directory traversal.
 func CleanAbsolute(p string) bool {
 	return strings.HasPrefix(p, "/") && !strings.Contains(p, "\\") && path.Clean(p) == p && !hasDotDot(p)
 }
+
+// SafeRelative reports whether a path is a non-empty relative path free of traversal.
 func SafeRelative(p string) bool {
 	return p != "" && filepath.Clean(p) != "." && !filepath.IsAbs(p) && !strings.Contains(p, "\\") && !hasDotDot(p)
 }
@@ -202,15 +287,16 @@ func ShellSafe(p string) bool { return shellSafeRe.MatchString(p) }
 
 var shellSafeRe = regexp.MustCompile(`^/[A-Za-z0-9._@+-]+(/[A-Za-z0-9._@+-]+)*$`)
 
+// schemeRe matches a URL scheme such as https: in a path that must name a file
+// inside the recipe folder.
+var schemeRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
+
 func hasDotDot(p string) bool {
-	for _, c := range strings.Split(p, "/") {
-		if c == ".." {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(strings.Split(p, "/"), "..")
 }
 func inside(p, root string) bool { return p == root || strings.HasPrefix(p, root+"/") }
+
+// Confined reports whether an absolute path resolves inside one of the recipe's volumes.
 func (r *Recipe) Confined(p string) bool {
 	if !CleanAbsolute(p) {
 		return false
@@ -234,7 +320,7 @@ func ReadFile(root, rel string) ([]byte, error) {
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, fmt.Errorf("unsafe root")
 	}
-	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+	for part := range strings.SplitSeq(rel, string(filepath.Separator)) {
 		if strings.HasPrefix(part, ".env") || part == "id_rsa" || part == "id_ed25519" || strings.HasSuffix(part, ".pem") || strings.HasSuffix(part, ".key") {
 			return nil, fmt.Errorf("sensitive source file is forbidden")
 		}

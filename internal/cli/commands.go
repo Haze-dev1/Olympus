@@ -35,7 +35,20 @@ func ask(prompt string, stderr io.Writer) bool {
 	return err == nil && strings.EqualFold(strings.TrimSpace(line), "y")
 }
 
-func manageGeneration(command string, in eval.Inputs, g *generation.Generation, file, known, activator, saved, output string, yes, detailed bool, out, stderr io.Writer) int {
+// warnDevActivator warns the operator when running a development build without
+// embedded checksums unless the -unsafe-dev-activator flag was already supplied.
+func warnDevActivator(stderr io.Writer, unsafeDevActivator bool) {
+	if eval.Version == eval.DevelopmentVersion && !unsafeDevActivator && (deploy.ExpectedChecksum("amd64") == "" || deploy.ExpectedChecksum("arm64") == "") {
+		fmt.Fprintln(stderr, "Warning: development build; unsigned activators require -unsafe-dev-activator")
+	}
+}
+
+func manageGeneration(command string, in eval.Inputs, g *generation.Generation, file, known, activator, saved, output string, yes, detailed, unsafeDevActivator bool, out, stderr io.Writer) int {
+	if err := deploy.CheckReleaseBuild(eval.Version); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	warnDevActivator(stderr, unsafeDevActivator)
 	secrets, err := toolSecrets(in, file)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -52,10 +65,15 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 		return 1
 	}
 	defer c.Conn.Close()
+	c.UnsafeDevActivator = unsafeDevActivator
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	fail := func(err error) int { fmt.Fprintln(stderr, err); return 1 }
 	if err = c.UseServer(ctx); err != nil {
+		return fail(err)
+	}
+	preflight, err := c.Preflight(ctx, preflightRequest(in))
+	if err != nil {
 		return fail(err)
 	}
 	current, actual, err := plan.ReadCurrent(ctx, c.Conn, cfg.User == "root")
@@ -92,10 +110,20 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 			return fail(errors.New("saved plan is stale: generation, server current or secrets changed; run olym plan"))
 		}
 	}
-	diff := plan.Compare(g.Manifest, current, actual)
+	// Semantic reads are optional. Compare still reports every changed path.
+	changedFiles := plan.ChangedFiles(g.Manifest, current)
+	var curFiles map[string]map[string][]byte
+	if len(changedFiles) > 0 && c.VerifyActivator(ctx, activator) == nil {
+		curFiles = plan.ReadCurrentFiles(ctx, c.ReadConfig, current, changedFiles)
+	}
+	wantFiles := plan.ToolFiles(g)
+	diff := plan.Compare(g.Manifest, current, actual, plan.FileContents{Want: wantFiles, Current: curFiles})
 	diff.SecretChanges(changed)
 	fmt.Fprintf(out, "Plan: stack %q → %s\n", file, snapshot.Server)
 	diff.Print(out)
+	for _, warning := range preflight.Warnings {
+		fmt.Fprintln(out, "Warning:", warning)
+	}
 	if command == "plan" {
 		if output != "" {
 			b, e := json.MarshalIndent(snapshot, "", "  ")
@@ -148,7 +176,12 @@ func manageGeneration(command string, in eval.Inputs, g *generation.Generation, 
 	return code
 }
 
-func serverCommand(command string, s *stack.Stack, known, activator string, keep int, data, jsonOutput bool, out, stderr io.Writer) int {
+func serverCommand(command string, s *stack.Stack, known, activator string, keep int, data, jsonOutput, unsafeDevActivator bool, out, stderr io.Writer) int {
+	if err := deploy.CheckReleaseBuild(eval.Version); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	warnDevActivator(stderr, unsafeDevActivator)
 	if command == "destroy" && !ask("Destroy the Olympus project?", stderr) {
 		fmt.Fprintln(out, "Cancelled.")
 		return 1
@@ -164,6 +197,7 @@ func serverCommand(command string, s *stack.Stack, known, activator string, keep
 		return 1
 	}
 	defer c.Conn.Close()
+	c.UnsafeDevActivator = unsafeDevActivator
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	fail := func(e error) int { fmt.Fprintln(stderr, e); return deploy.ExitCode(e) }
@@ -195,7 +229,9 @@ func serverCommand(command string, s *stack.Stack, known, activator string, keep
 			return fail(errors.New("invalid server status"))
 		}
 		if jsonOutput {
-			json.NewEncoder(out).Encode(rows)
+			if err := json.NewEncoder(out).Encode(rows); err != nil {
+				return fail(err)
+			}
 		} else {
 			for _, r := range rows {
 				fmt.Fprintf(out, "%s\t%s\t%s\t%s\tgeneration %d\n", r.Name, r.State, r.Health, r.Image, r.Generation)
@@ -227,7 +263,9 @@ func serverCommand(command string, s *stack.Stack, known, activator string, keep
 		if e != nil {
 			return fail(e)
 		}
-		out.Write(b)
+		if _, err = out.Write(b); err != nil {
+			return fail(err)
+		}
 	case "destroy":
 		if err = c.Destroy(ctx, data); err != nil {
 			return fail(err)

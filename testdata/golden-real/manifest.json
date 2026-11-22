@@ -1,16 +1,18 @@
 {
-  "id": "sha256-2bca3f9e8dea2716467c29403dc08d31809f75768ae9133109f949167de8fe53",
+  "id": "sha256-e007b01f6a7f0c6da33d90d2c7e41731ffebc544f6ca165398927903b4fb3b05",
   "inputs": {
-    "recipes": "sha256-b288a0038f28a628bd4a1f1ab0b368e074e3e42ab460fce7ce67ff9e9bf88dfb"
+    "recipes": "sha256-870905ee571a45b930f1774884bee14f52f63aefce11e33d7ce69828720d4b6b"
   },
   "olym": "0.1.0-dev",
   "tools": {
     "codex": {
       "files": {
         "/root/.codex/config.toml": "sha256-2ea2eabdca78723415237f1d5d9109b95f84992b2a6da231b9aba3f17b4873bf",
-        "/root/.olympus-build/Dockerfile": "sha256-0866f6b35bbd87d010c87f08124b7411f08e7071cd697d36bf3994147ffdf74f"
+        "/root/.olympus-build/Dockerfile": "sha256-18a36d800b8debf8060ed4a3fe6891433f5d8714b229c1428e99db1e7ae79f37",
+        "/root/.olympus-build/package-lock.json": "sha256-07f71ebc953b423e1b627f79842a0042a5b2f37cac4d4cfe286f32b49401eba2",
+        "/root/.olympus-build/package.json": "sha256-b77493f6fd4b00226b3fca9aed37ec462012a4954e4cf596f3adc20a4bb28d0a"
       },
-      "hash": "sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db",
+      "hash": "sha256-75a7d0ba5c8827b698af8f2a7e1e30fb423d1ab708eab01b33419fd1fd1cfc83",
       "health": {
         "command": [
           "codex",
@@ -18,7 +20,7 @@
         ],
         "timeout": "60s"
       },
-      "image": "olympus/codex:sha256-3d123fc04a15",
+      "image": "olympus/codex:sha256-3c8bea06f27b",
       "secrets": [
         "api-key",
         "github-token"
@@ -27,9 +29,10 @@
     "hermes": {
       "files": {
         "/opt/data/config.yaml": "sha256-0a7f7cecdf0e730006d8528d3e4dbc030cd6338bf6ebc8727a485405d40b7ff2",
+        "/opt/data/skills/.olympus-managed-files": "sha256-6010f28d44d93f45e923ed30b6879219b49abe1092286b1aaba8fe724088fc03",
         "/opt/data/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-2bd8c9fb544a0176653e4998434b0b644a6a2b74f43024e85de3fb9b1032d3ac",
+      "hash": "sha256-464360da8765f65f86c7cc88dfe36b39cde2b030811b590218049e08580a0551",
       "health": {
         "command": [
           "hermes",
@@ -39,6 +42,7 @@
       },
       "image": "nousresearch/hermes-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "secrets": [
+        "discord-token",
         "github-token",
         "model-key",
         "telegram-token"
@@ -47,9 +51,9 @@
     "opencode": {
       "files": {
         "/root/.config/opencode/opencode.json": "sha256-9765633802f5a3692220f9d994f73c87edee3ba4965559ee1de1b0f9cdcf536a",
-        "/root/.config/opencode/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
+        "/root/.config/opencode/skill/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
       },
-      "hash": "sha256-9efb9c26f0458870d820b794cafef5de2541bd0c729e1cc2ab39313961bb53d3",
+      "hash": "sha256-22a7a39d4b146b1099ff1c58b5a9d13a788b4a45b40a43db00c0f1ad8612b61b",
       "health": {
         "http": {
           "path": "/global/health",

@@ -291,6 +291,12 @@ func TestUploadActivatorVersionAndPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	data, err := os.ReadFile(binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A non-development version needs its release checksum (rule A12).
+	sums := map[string]string{"x86_64": fmt.Sprintf("%x", sha256.Sum256(data))}
 	for _, version := range []string{"test", "wrong"} {
 		t.Run(version, func(t *testing.T) {
 			var uploaded []byte
@@ -308,7 +314,7 @@ func TestUploadActivatorVersionAndPublication(t *testing.T) {
 				}
 				return okOutput("")
 			}}
-			c := Client{Conn: f, Version: "test"}
+			c := Client{Conn: f, Version: "test", ReleaseChecksums: sums}
 			err = c.UploadActivator(context.Background(), binary)
 			if (err == nil) != (version == "test") {
 				t.Fatal(err)
@@ -349,6 +355,23 @@ func TestToolEntryReuseAndVerification(t *testing.T) {
 	}
 	if err := c.UploadGeneration(context.Background(), g); err != nil {
 		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		path string
+		mode os.FileMode
+	}{
+		{"store/" + hash, 0755},
+		{"store/" + hash + "/files", 0755},
+		{"store/" + hash + "/files/config", 0644},
+		{"store/gen-" + g.Manifest.ID + "/manifest.json", 0600},
+	} {
+		info, err := os.Stat(filepath.Join(dir, tc.path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := info.Mode().Perm(); got != tc.mode {
+			t.Errorf("%s mode = %04o, want %04o", tc.path, got, tc.mode)
+		}
 	}
 	g.Manifest.Inputs["recipes"] = "different"
 	if err := g.Finish(); err != nil {

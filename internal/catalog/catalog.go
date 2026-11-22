@@ -31,9 +31,11 @@ const (
 
 	hashDomain = "olympus-catalog-v1\x00"
 
-	maxTarball = 64 << 20
-	maxTree    = 256 << 20
-	maxFiles   = 10000
+	maxTarball  = 64 << 20
+	maxFile     = 64 << 20
+	maxTree     = 256 << 20
+	maxExpanded = maxTree + (16 << 20)
+	maxFiles    = 10000
 )
 
 var (
@@ -82,7 +84,7 @@ func ParseSource(s string) (Source, error) {
 		if strings.HasPrefix(src.Path, "/") || path.Clean(src.Path) != src.Path || strings.HasPrefix(src.Path, "..") {
 			return Source{}, fmt.Errorf("catalog: source %q: invalid catalog path", s)
 		}
-		for _, part := range strings.Split(src.Path, "/") {
+		for part := range strings.SplitSeq(src.Path, "/") {
 			if part == "" || part == "." || part == ".." {
 				return Source{}, fmt.Errorf("catalog: source %q: invalid catalog path", s)
 			}
@@ -206,7 +208,9 @@ func (f Fetcher) request(ctx context.Context, endpoint string) (*http.Response, 
 			}
 		}
 		req.Header.Del("Authorization")
-		if f.Token != "" && allowed(req.URL) {
+		sameHost := len(via) > 0 && req.URL.Host == via[0].URL.Host && req.URL.Scheme == via[0].URL.Scheme
+		if sameHost && f.Token != "" && allowed(req.URL) {
+			//nolint:gosec // G119: token is only forwarded on redirect to the exact same host and scheme on allowed origins
 			req.Header.Set("Authorization", "Bearer "+f.Token)
 		}
 		return nil
@@ -231,7 +235,11 @@ func (f Fetcher) Latest(ctx context.Context, src Source) (string, error) {
 	if ref == "" {
 		ref = "HEAD"
 	}
-	resp, err := f.request(ctx, f.apiURL()+"/repos/"+src.Owner+"/"+src.Repo+"/commits/"+url.PathEscape(ref))
+	segments := strings.Split(ref, "/")
+	for i := range segments {
+		segments[i] = url.PathEscape(segments[i])
+	}
+	resp, err := f.request(ctx, f.apiURL()+"/repos/"+src.Owner+"/"+src.Repo+"/commits/"+strings.Join(segments, "/"))
 	if err != nil {
 		return "", err
 	}
@@ -280,19 +288,27 @@ func (f Fetcher) download(ctx context.Context, src Source, rev, dst string) erro
 // extract writes the tarball's single top-level directory into dst, keeping
 // only files below sub. It rejects entries that leave dst or the subdirectory.
 func extract(r io.Reader, dst, sub string) error {
-	tr := tar.NewReader(r)
+	limited := &io.LimitedReader{R: r, N: maxExpanded + 1}
+	tr := tar.NewReader(limited)
 	var (
 		total   int64
-		files   int
+		entries int
 		matched bool
 	)
 	for {
 		hdr, err := tr.Next()
+		if limited.N == 0 {
+			return fmt.Errorf("expanded tarball exceeds %d bytes", maxExpanded)
+		}
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
 			return err
+		}
+		entries++
+		if entries > maxFiles {
+			return fmt.Errorf("tarball has more than %d entries", maxFiles)
 		}
 		rel, ok, err := catalogPath(hdr.Name, sub)
 		if err != nil {
@@ -311,12 +327,11 @@ func extract(r io.Reader, dst, sub string) error {
 			if err := os.MkdirAll(target, 0o755); err != nil {
 				return err
 			}
-		case tar.TypeReg, tar.TypeRegA:
-			files++
-			if files > maxFiles {
-				return fmt.Errorf("tarball has more than %d files", maxFiles)
+		case tar.TypeReg:
+			if hdr.Size < 0 || hdr.Size > maxFile {
+				return fmt.Errorf("file %q exceeds %d bytes", hdr.Name, maxFile)
 			}
-			if hdr.Size < 0 || total+hdr.Size > maxTree {
+			if total+hdr.Size > maxTree {
 				return fmt.Errorf("tarball exceeds %d bytes", maxTree)
 			}
 			perm := hdr.FileInfo().Mode().Perm()
@@ -330,7 +345,8 @@ func extract(r io.Reader, dst, sub string) error {
 			if err != nil {
 				return err
 			}
-			n, copyErr := io.Copy(out, tr)
+			// The size checks above bound hdr.Size; LimitReader enforces it on the stream too.
+			n, copyErr := io.Copy(out, io.LimitReader(tr, hdr.Size))
 			closeErr := out.Close()
 			if copyErr != nil {
 				return copyErr
@@ -350,10 +366,16 @@ func extract(r io.Reader, dst, sub string) error {
 			return fmt.Errorf("unsupported tar entry %q (type %d)", hdr.Name, hdr.Typeflag)
 		}
 	}
+	if _, err := io.Copy(io.Discard, limited); err != nil {
+		return err
+	}
+	if limited.N == 0 {
+		return fmt.Errorf("expanded tarball exceeds %d bytes", maxExpanded)
+	}
 	if sub != "" && !matched {
 		return fmt.Errorf("catalog path %q not found in tarball", sub)
 	}
-	if files == 0 {
+	if !matched {
 		return errors.New("tarball contains no files")
 	}
 	return nil
@@ -422,19 +444,19 @@ func HashDir(dir string) (string, error) {
 	sort.Strings(paths)
 
 	h := sha256.New()
-	io.WriteString(h, hashDomain)
+	_, _ = io.WriteString(h, hashDomain)
 	for _, rel := range paths {
 		full := filepath.Join(dir, rel)
 		info, err := os.Stat(full)
 		if err != nil {
 			return "", err
 		}
-		io.WriteString(h, filepath.ToSlash(rel))
-		h.Write([]byte{0})
-		io.WriteString(h, strconv.FormatUint(uint64(info.Mode().Perm()), 8))
-		h.Write([]byte{0})
-		io.WriteString(h, strconv.FormatInt(info.Size(), 10))
-		h.Write([]byte{0})
+		_, _ = io.WriteString(h, filepath.ToSlash(rel))
+		_, _ = h.Write([]byte{0})
+		_, _ = io.WriteString(h, strconv.FormatUint(uint64(info.Mode().Perm()), 8))
+		_, _ = h.Write([]byte{0})
+		_, _ = io.WriteString(h, strconv.FormatInt(info.Size(), 10))
+		_, _ = h.Write([]byte{0})
 		f, err := os.Open(full)
 		if err != nil {
 			return "", err

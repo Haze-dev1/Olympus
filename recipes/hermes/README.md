@@ -1,18 +1,20 @@
 # Hermes Agent recipe
 
-Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
+Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`; image release confirmed 2026-11-05, channel environment chain re-read at tag `v0.22.7` on 2026-11-22:
 
 - Image, tags, ports, state layout, config keys, MCP shape, skills directory and
   Telegram variables: Hermes Agent documentation and source at
-  <https://github.com/NousResearch/hermes-agent> (read-only clone in
-  `references/hermes-agent`), plus Docker Hub `nousresearch/hermes-agent`.
+  <https://github.com/NousResearch/hermes-agent> (official repo and releases at
+  <https://github.com/NousResearch/hermes-agent/releases/tag/v0.22.7>), plus
+  Docker Hub `nousresearch/hermes-agent` tags.
 
 ## Checked facts
 
-- Image: `nousresearch/hermes-agent`, mutable tags `latest`, `stable`, `main`
-  and `X.Y.Z` releases. The recipe uses `latest`; the lock resolves and pins the
-  digest (A7). **UNVERIFIED:** no concrete version tag was confirmed, so the
-  recipe should move to a version tag when one is checked.
+- Image: `nousresearch/hermes-agent:v0.22.7`, release published 2026-11-03 and
+  verified 2026-11-05 on Docker Hub (digest
+  `sha256:e6d81ae52ebf6a43efa529701405509f20054ba818f179ddd748bed4f8af584c`).
+  The recipe pins `v0.22.7`; the lock resolves and pins the digest (A7). The
+  `gateway run` command and `/opt/data` state/config layout match upstream `v0.22.7`.
 - State: `/opt/data` is the `HERMES_HOME` volume; code lives in `/opt/hermes`.
 - Config: `/opt/data/config.yaml` (YAML), key `mcp_servers` for MCP servers.
   `hermes` rewrites this file, so it is listed under `writable`.
@@ -21,17 +23,36 @@ Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
 - Skills: one folder per skill with `SKILL.md` under `$HERMES_HOME/skills`.
   Hermes can write its primary skills directory, so the recipe copies skills
   into the volume instead of bind-mounting them (`mode: copy`).
-- Telegram: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USERS` (comma-separated).
-  The gateway denies users outside the allow-list by default, so an empty
-  allow-list is rejected during the build.
+- Telegram: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USERS` (comma-separated
+  numeric Telegram user IDs). Upstream matches the inbound numeric `user_id`
+  against this list and resolves no usernames for Telegram, so an `@handle`
+  entry matches nobody and that user is denied. The gateway denies users
+  outside the allow-list by default, so an empty allow-list is rejected during
+  the build (Rule A10).
+- Discord: `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS` (comma-separated), and
+  optional `DISCORD_ALLOWED_ROLES` (comma-separated role IDs). The gateway fails
+  closed and denies users outside the allow-list by default, so an empty
+  allow-list is rejected during validation (Rule A10).
 - Resources: 2-4 GB recommended; 4 GB is the conservative figure used here.
+- **Channel token flow (static check, 2026-11-22).** At tag `v0.22.7` the chain
+  is: Compose `env_file` → process environment → `get_env_value` in
+  `hermes_cli/config.py` reads `os.environ` before `~/.hermes/.env` →
+  `plugins/platforms/telegram/gateway_env.py` and
+  `plugins/platforms/discord/gateway_env.py` read the bot tokens →
+  `gateway/authz_mixin.py` denies users outside the allow-list by default.
+  Paths were confirmed from the tag's Git tree; an earlier note placed the
+  platform files under `hermes_cli/`, which was wrong.
+  Source: <https://github.com/NousResearch/hermes-agent/tree/v0.22.7>.
 - Health: the API server on 8642 is off unless `API_SERVER_ENABLED=true`, so the
   health check uses `hermes --version` instead of HTTP. No port is published.
 
 ## UNVERIFIED
 
-- Gateway operation with a real chat channel, including platform authentication,
-  remains unverified. The lab intentionally configures no channel.
+- Gateway operation with real chat channels (Telegram, Discord), including platform
+  authentication, remains unverified. The lab intentionally configures no channel
+  and no real bot token was available. The token/allow-list chain was re-read from
+  source at tag `v0.22.7` on 2026-11-22 (see Checked facts), but no message was
+  delivered to a live platform.
 
 ## Lab observations, 2026-10-20
 

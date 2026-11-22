@@ -15,12 +15,14 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/Haze-dev1/Olympus/internal/activate"
 	"github.com/Haze-dev1/Olympus/internal/encode"
+	"github.com/Haze-dev1/Olympus/internal/eval"
 	"github.com/Haze-dev1/Olympus/internal/generation"
 	"github.com/Haze-dev1/Olympus/internal/remote"
 	"github.com/Haze-dev1/Olympus/internal/schema"
@@ -41,16 +43,21 @@ type Connection interface {
 // Client owns one deployment connection. Reconnect must open a fresh SSH
 // connection using the same verified host-key policy.
 type Client struct {
-	Conn            Connection
-	Reconnect       func() (Connection, error)
-	Version         string
-	PollInterval    time.Duration
-	sudo            bool
-	binary          string
-	checksum        string
-	payload         string
-	ExpectedCurrent *string
-	ConfirmTimeout  string
+	Conn             Connection
+	Reconnect        func() (Connection, error)
+	Version          string
+	PollInterval     time.Duration
+	sudo             bool
+	binary           string
+	checksum         string
+	payload          string
+	ExpectedCurrent  *string
+	ConfirmTimeout   string
+	ReleaseChecksums map[string]string
+	// UnsafeDevActivator is the explicit -unsafe-dev-activator opt-in. A
+	// development build without an embedded release checksum refuses to upload
+	// or run an activator unless this is set (security finding F3).
+	UnsafeDevActivator bool
 }
 
 // Dial uses remote's host-key verification for both initial and confirm SSH.
@@ -211,6 +218,13 @@ func (c *Client) uploadEntry(ctx context.Context, entry string, files map[string
 	if _, err = c.run(ctx, []string{"tar", "-x", "-f", "-", "--no-same-owner", "-C", stage}, &archive); err != nil {
 		return err
 	}
+	// Tool entries contain only rendered files. The store itself is root-only,
+	// while files bind-mounted from it must be readable by the container user.
+	if !strings.HasPrefix(entry, "gen-") {
+		if _, err = c.run(ctx, []string{"chmod", "-R", "u=rwX,go=rX", "--", stage}, nil); err != nil {
+			return err
+		}
+	}
 	if err = c.verifyFiles(ctx, stage, files); err != nil {
 		return err
 	}
@@ -232,15 +246,94 @@ func (c *Client) verifyFiles(ctx context.Context, dir string, files map[string][
 	return nil
 }
 
+// Release checksums for the Linux activator (amd64 and arm64), embedded at build time via -ldflags.
+// Package-level mutable state is permitted here as an exception for linker injection.
+var (
+	// ReleaseChecksumLinuxAmd64 is the expected SHA-256 digest of the linux/amd64 activator.
+	ReleaseChecksumLinuxAmd64 = ""
+	// ReleaseChecksumLinuxArm64 is the expected SHA-256 digest of the linux/arm64 activator.
+	ReleaseChecksumLinuxArm64 = ""
+)
+
+// ExpectedChecksum returns the package-level expected release checksum for an architecture.
+func ExpectedChecksum(arch string) string {
+	switch arch {
+	case "x86_64", "amd64":
+		return ReleaseChecksumLinuxAmd64
+	case "aarch64", "arm64":
+		return ReleaseChecksumLinuxArm64
+	default:
+		return ""
+	}
+}
+
+// ExpectedReleaseChecksum returns the release checksum for the given server architecture.
+func (c *Client) ExpectedReleaseChecksum(arch string) string {
+	if c.ReleaseChecksums != nil {
+		if sum, ok := c.ReleaseChecksums[arch]; ok {
+			return sum
+		}
+	}
+	return ExpectedChecksum(arch)
+}
+
+// CheckReleaseBuild rejects release clients without their embedded checksums.
+func CheckReleaseBuild(version string) error {
+	if version != eval.DevelopmentVersion && (ExpectedChecksum("amd64") == "" || ExpectedChecksum("arm64") == "") {
+		return errors.New("deploy: release build missing activator checksums")
+	}
+	return nil
+}
+
+// checkReleaseChecksum enforces rule A12 before an activator is uploaded or run.
+// A release build must embed the checksum for the server architecture. A
+// development build has no release checksum to compare against, so it refuses by
+// default and requires the explicit -unsafe-dev-activator opt-in (F3).
+func (c *Client) checkReleaseChecksum(arch string) error {
+	if c.ExpectedReleaseChecksum(arch) != "" {
+		return nil
+	}
+	if c.Version != eval.DevelopmentVersion {
+		return errors.New("deploy: release build missing activator checksum for server architecture")
+	}
+	if !c.UnsafeDevActivator {
+		return errors.New("deploy: development build has no release checksum for the server architecture; pass -unsafe-dev-activator to upload and run it anyway")
+	}
+	return nil
+}
+
+func bundledActivator(arch string) (string, error) {
+	switch arch {
+	case "x86_64":
+		arch = "amd64"
+	case "aarch64":
+		arch = "arm64"
+	default:
+		return "", errors.New("deploy: unsupported server architecture")
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(exe), "olym-activator_linux_"+arch), nil
+}
+
 // UploadActivator accepts a local Linux binary, including an explicit development
-// build. Release-checksum embedding and downloading are deliberately deferred.
+// build, and verifies it against the release checksum if available (rule A12).
 func (c *Client) UploadActivator(ctx context.Context, localPath string) (result error) {
 	if !versionRE.MatchString(c.Version) {
 		return errors.New("deploy: invalid activator version")
 	}
+	machine, err := c.run(ctx, []string{"uname", "-m"}, nil)
+	if err != nil {
+		return err
+	}
+	arch := strings.TrimSpace(string(machine))
+	if err := c.checkReleaseChecksum(arch); err != nil {
+		return err
+	}
 	if localPath == "" {
-		var err error
-		localPath, err = os.Executable()
+		localPath, err = bundledActivator(arch)
 		if err != nil {
 			return err
 		}
@@ -254,13 +347,13 @@ func (c *Client) UploadActivator(ctx context.Context, localPath string) (result 
 		return errors.New("deploy: activator must be a Linux ELF binary")
 	}
 	defer file.Close()
-	machine, err := c.run(ctx, []string{"uname", "-m"}, nil)
-	if err != nil {
-		return err
-	}
-	arch := strings.TrimSpace(string(machine))
-	if !(arch == "x86_64" && file.Machine == elf.EM_X86_64 || arch == "aarch64" && file.Machine == elf.EM_AARCH64) {
+	if (arch != "x86_64" || file.Machine != elf.EM_X86_64) && (arch != "aarch64" || file.Machine != elf.EM_AARCH64) {
 		return errors.New("deploy: activator architecture mismatch")
+	}
+	actualChecksum := fmt.Sprintf("%x", sha256.Sum256(data))
+	expected := c.ExpectedReleaseChecksum(arch)
+	if expected != "" && actualChecksum != expected {
+		return errors.New("deploy: activator checksum does not match release build")
 	}
 	suffix, err := randomName()
 	if err != nil {
@@ -294,7 +387,7 @@ func (c *Client) UploadActivator(ctx context.Context, localPath string) (result 
 		return err
 	}
 	c.binary = dest
-	c.checksum = fmt.Sprintf("%x", sha256.Sum256(data))
+	c.checksum = actualChecksum
 	return nil
 }
 
@@ -348,6 +441,7 @@ func (c *Client) Activate(ctx context.Context, id string) (int, error) {
 	return c.transition(ctx, "activate", id)
 }
 
+// Rollback switches the server back to the previous generation via the detached activator.
 func (c *Client) Rollback(ctx context.Context) (int, error) { return c.transition(ctx, "rollback", "") }
 
 func (c *Client) transition(ctx context.Context, command, id string) (int, error) {
@@ -398,7 +492,7 @@ func (c *Client) transition(ctx context.Context, command, id string) (int, error
 			return 1, err
 		}
 		props := map[string]string{}
-		for _, line := range strings.Split(string(out), "\n") {
+		for line := range strings.SplitSeq(string(out), "\n") {
 			k, v, ok := strings.Cut(line, "=")
 			if ok {
 				props[k] = v
@@ -469,7 +563,10 @@ type CommandError struct {
 	Code      int
 }
 
+// Error returns the formatted failure description for the failed deploy command.
 func (e *CommandError) Error() string { return "deploy: " + e.Operation + " failed" }
+
+// ExitCode extracts the exit code from an error returned by deploy commands, defaulting to 1.
 func ExitCode(err error) int {
 	var e *CommandError
 	if errors.As(err, &e) && (e.Code == 3 || e.Code == 4 || e.Code == 5) {

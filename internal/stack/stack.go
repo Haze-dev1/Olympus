@@ -4,6 +4,7 @@ package stack
 import (
 	"bufio"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -21,15 +22,17 @@ type Server struct {
 	ConfirmTimeout string `json:"confirm_timeout"`
 }
 type MCP struct {
-	Command string            `json:"command,omitempty"`
-	Args    []string          `json:"args,omitempty"`
-	URL     string            `json:"url,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
-	Headers map[string]string `json:"headers,omitempty"`
+	Command   string            `json:"command,omitempty"`
+	Args      []string          `json:"args,omitempty"`
+	URL       string            `json:"url,omitempty"`
+	Transport string            `json:"transport,omitempty"`
+	Env       map[string]string `json:"env,omitempty"`
+	Headers   map[string]string `json:"headers,omitempty"`
 }
 type Channel struct {
 	Token string
 	Allow []string
+	Roles []string `json:"roles,omitempty"`
 }
 type Tool struct {
 	Recipe   string
@@ -50,12 +53,8 @@ type Stack struct {
 
 func (s Stack) Tools() map[string]Tool {
 	out := map[string]Tool{}
-	for k, v := range s.Agents {
-		out[k] = v
-	}
-	for k, v := range s.Apps {
-		out[k] = v
-	}
+	maps.Copy(out, s.Agents)
+	maps.Copy(out, s.Apps)
 	return out
 }
 
@@ -144,9 +143,15 @@ func Parse(file string, b []byte) (*Stack, *schema.Document) {
 			if len(m.Args) > 0 || len(m.Env) > 0 {
 				d.Add(p, "HTTP MCP cannot have args or env")
 			}
+			if m.Transport != "" && m.Transport != "http" && m.Transport != "sse" {
+				d.Add(p+"/transport", `must be "http" or "sse"`)
+			}
 		}
 		if m.Command != "" && len(m.Headers) > 0 {
 			d.Add(p, "stdio MCP cannot have headers")
+		}
+		if m.Command != "" && m.Transport != "" {
+			d.Add(p, "stdio MCP cannot have transport")
 		}
 	}
 	if s.Server.ConfirmTimeout != "" {

@@ -1,0 +1,16 @@
+inputs:
+  recipes: github:Haze-dev1/Olympus/recipes
+
+server:
+  host: offline.example.test
+
+skills:
+  - ./skills/deploy-checklist
+
+agents:
+  openclaw:
+    recipe: openclaw
+    skills: all
+    secrets:
+      model-key: ${ANTHROPIC_API_KEY}
+      gateway-token: ${OPENCLAW_GATEWAY_TOKEN}

@@ -23,7 +23,7 @@ func Run(args []string, out, stderr io.Writer) int {
 }
 
 func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver lock.Resolver) int {
-	if len(args) > 1 && (args[0] == "rollback" || args[0] == "gc" || args[0] == "destroy" || args[0] == "status") && args[1] == "--server" {
+	if len(args) > 1 && (args[0] == "rollback" || args[0] == "gc" || args[0] == "destroy" || args[0] == "status" || args[0] == "read-config") && args[1] == "--server" {
 		return server(args, out, stderr)
 	}
 	if len(args) > 0 && (args[0] == "activate" || args[0] == "confirm" || args[0] == "version") {
@@ -46,6 +46,7 @@ func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver l
 	deleteData := flags.Bool("delete-data", false, "delete project volumes and data")
 	jsonOutput := flags.Bool("json", false, "JSON status")
 	detailed := flags.Bool("detailed-exitcode", false, "exit 2 when plan finds changes")
+	unsafeDevActivator := flags.Bool("unsafe-dev-activator", false, "allow an unsigned development activator")
 	parseArgs := interspersedArgs(flags, args[1:])
 	if flags.Parse(parseArgs) != nil || (flags.NArg() != 0 && (args[0] != "apply" || flags.NArg() != 1)) || *keep < 0 {
 		fmt.Fprintln(stderr, "invalid flags; use -f, -recipes, -o, -known-hosts and --detailed-exitcode")
@@ -62,7 +63,7 @@ func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver l
 		return 1
 	}
 	if args[0] == "status" || args[0] == "rollback" || args[0] == "gc" || args[0] == "destroy" {
-		return serverCommand(args[0], s, *known, *activator, *keep, *deleteData, *jsonOutput, out, stderr)
+		return serverCommand(args[0], s, *known, *activator, *keep, *deleteData, *jsonOutput, *unsafeDevActivator, out, stderr)
 	}
 	inputs, err := prepare(context.Background(), s, *file, *recipes, args[0], out, fetch, resolver)
 	if err != nil {
@@ -91,7 +92,7 @@ func run(args []string, out, stderr io.Writer, fetch catalog.Fetcher, resolver l
 		fmt.Fprintln(stderr, "warning:", warning)
 	}
 	if args[0] == "plan" || args[0] == "apply" {
-		return manageGeneration(args[0], inputs, g, *file, *known, *activator, flags.Arg(0), *planOut, *yes, *detailed, out, stderr)
+		return manageGeneration(args[0], inputs, g, *file, *known, *activator, flags.Arg(0), *planOut, *yes, *detailed, *unsafeDevActivator, out, stderr)
 	}
 	if err = g.Write(*output); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -169,11 +170,12 @@ func prepare(ctx context.Context, s *stack.Stack, file, local, command string, o
 
 	inputs, diagnostics := eval.Load(s, root, filepath.Dir(file))
 	if len(diagnostics) > 0 {
-		var messages string
+		var sb strings.Builder
 		for _, d := range diagnostics {
-			messages += d.Error() + "\n"
+			sb.WriteString(d.Error())
+			sb.WriteByte('\n')
 		}
-		return empty, errors.New(messages)
+		return empty, errors.New(sb.String())
 	}
 	inputs.Revision = revision
 	if refresh {
@@ -184,11 +186,11 @@ func prepare(ctx context.Context, s *stack.Stack, file, local, command string, o
 			if err != nil {
 				return empty, fmt.Errorf("%s: %w", name, err)
 			}
-			image, err = resolver.Resolve(ctx, image)
+			image, platforms, err := resolver.Resolve(ctx, image)
 			if err != nil {
 				return empty, err
 			}
-			pinned.Tools[name] = lock.Tool{Image: image, ImageTag: tool.ImageTag}
+			pinned.Tools[name] = lock.Tool{Image: image, ImageTag: tool.ImageTag, Platforms: platforms}
 		}
 		if command == "check" {
 			inputs.Images = map[string]string{}
@@ -205,8 +207,10 @@ func prepare(ctx context.Context, s *stack.Stack, file, local, command string, o
 	}
 	if pinned != nil {
 		inputs.Images = map[string]string{}
+		inputs.Platforms = map[string][]string{}
 		for name, tool := range pinned.Tools {
 			inputs.Images[name] = tool.Image
+			inputs.Platforms[name] = tool.Platforms
 		}
 	}
 	return inputs, nil

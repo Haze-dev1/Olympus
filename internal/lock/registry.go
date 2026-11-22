@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -41,23 +42,39 @@ type Resolver struct {
 	Scheme string
 }
 
-// Resolve turns "repo/name:tag" into "repo/name@sha256:<index digest>". A
-// reference that already carries a sha256 digest is returned unchanged. Only
-// multi-architecture indexes and manifest lists are accepted, because the lock
-// must work on both amd64 and arm64.
-func (r Resolver) Resolve(ctx context.Context, ref string) (string, error) {
+// Resolve turns "repo/name:tag" into "repo/name@sha256:<index digest>" and
+// reports the "os/architecture" pairs the index covers. A reference already
+// pinned by sha256 digest keeps that digest but still fetches its index, so
+// update can record platforms. Only multi-architecture indexes and manifest
+// lists are accepted, because the lock must work on both amd64 and arm64.
+func (r Resolver) Resolve(ctx context.Context, ref string) (string, []string, error) {
 	ref = strings.TrimSpace(ref)
 	if name, digest, ok := strings.Cut(ref, "@"); ok {
 		if _, _, err := splitTag(name); err != nil || !digestRE.MatchString(digest) {
-			return "", fmt.Errorf("lock: invalid image reference %q", ref)
+			return "", nil, fmt.Errorf("lock: invalid image reference %q", ref)
 		}
-		return name + "@" + digest, nil
+		_, platforms, err := r.index(ctx, ref, name, digest)
+		if err != nil {
+			return "", nil, err
+		}
+		return name + "@" + digest, platforms, nil
 	}
 
 	name, tag, err := splitTag(ref)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
+	digest, platforms, err := r.index(ctx, ref, name, tag)
+	if err != nil {
+		return "", nil, err
+	}
+	return name + "@" + digest, platforms, nil
+}
+
+// index fetches the manifest named by version (a tag or a pinned digest) and
+// returns its digest and platforms. A pinned digest must match the bytes the
+// registry serves.
+func (r Resolver) index(ctx context.Context, ref, name, version string) (string, []string, error) {
 	registry, repo := splitRegistry(name)
 	scheme := r.Scheme
 	if scheme == "" {
@@ -66,25 +83,46 @@ func (r Resolver) Resolve(ctx context.Context, ref string) (string, error) {
 	endpoint := (&url.URL{
 		Scheme: scheme,
 		Host:   registry,
-		Path:   "/v2/" + repo + "/manifests/" + tag,
+		Path:   "/v2/" + repo + "/manifests/" + version,
 	}).String()
 
 	body, mediaType, err := r.manifest(ctx, endpoint, repo)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if mediaType != ociIndex && mediaType != dockerList {
-		return "", fmt.Errorf("lock: %s is not a multi-arch index (media type %q)", ref, mediaType)
+		return "", nil, fmt.Errorf("lock: %s is not a multi-arch index (media type %q)", ref, mediaType)
+	}
+	sum := sha256.Sum256(body)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	if strings.HasPrefix(version, "sha256:") && digest != version {
+		return "", nil, fmt.Errorf("lock: %s: registry manifest does not match pinned digest %s", ref, version)
 	}
 	var index struct {
-		Manifests []json.RawMessage `json:"manifests"`
+		Manifests []struct {
+			Platform *struct {
+				OS           string `json:"os"`
+				Architecture string `json:"architecture"`
+			} `json:"platform"`
+		} `json:"manifests"`
 	}
 	if err := json.Unmarshal(body, &index); err != nil || len(index.Manifests) == 0 {
-		return "", fmt.Errorf("lock: %s: response is not a valid image index", ref)
+		return "", nil, fmt.Errorf("lock: %s: response is not a valid image index", ref)
 	}
-
-	sum := sha256.Sum256(body)
-	return name + "@sha256:" + hex.EncodeToString(sum[:]), nil
+	seen := map[string]bool{}
+	var platforms []string
+	for _, m := range index.Manifests {
+		if m.Platform == nil || m.Platform.OS == "" || m.Platform.OS == "unknown" || m.Platform.Architecture == "" || m.Platform.Architecture == "unknown" {
+			continue
+		}
+		p := m.Platform.OS + "/" + m.Platform.Architecture
+		if validPlatform(p) && !seen[p] {
+			seen[p] = true
+			platforms = append(platforms, p)
+		}
+	}
+	sort.Strings(platforms)
+	return digest, platforms, nil
 }
 
 func splitTag(ref string) (name, tag string, err error) {
@@ -102,7 +140,7 @@ func validRepoName(name string) bool {
 	if !repoNameRE.MatchString(name) {
 		return false
 	}
-	for _, part := range strings.Split(name, "/") {
+	for part := range strings.SplitSeq(name, "/") {
 		if part == "" || part == "." || part == ".." {
 			return false
 		}
@@ -221,7 +259,7 @@ func (r Resolver) token(ctx context.Context, challenge, repo string) (string, er
 
 func parseChallenge(s string) map[string]string {
 	params := map[string]string{}
-	for _, part := range strings.Split(s, ",") {
+	for part := range strings.SplitSeq(s, ",") {
 		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
 		if !ok {
 			continue

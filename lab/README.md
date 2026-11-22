@@ -1,6 +1,6 @@
 # Test lab
 
-A disposable Ubuntu 24.04 server for testing `olym plan`, `apply`, `rollback` and `destroy`, running as a local QEMU VM. It stands in for a user's VPS: the same Ubuntu cloud image that providers boot, set up by cloud-init, reachable over SSH.
+A disposable local QEMU VM for testing `olym plan`, `apply`, `rollback` and `destroy`. It boots an official cloud image, uses cloud-init for setup, and is reachable over SSH.
 
 ## What it touches
 
@@ -8,22 +8,31 @@ Everything lives in `.lab/` at the repository root (git-ignored): the downloaded
 
 ## Requirements
 
-- QEMU: `sudo pacman -S qemu-base` (Arch). The only host install.
+- `qemu-system-x86_64` and `qemu-img` for amd64. Arm64 uses `qemu-system-aarch64`, TCG software emulation and AArch64 UEFI firmware. The script checks `/usr/share/edk2/aarch64/QEMU_EFI.fd` and `/usr/share/qemu-efi-aarch64/QEMU_EFI.fd`. Set `OLYMPUS_LAB_UEFI` to the firmware image if it is elsewhere.
 - `/dev/kvm` readable and writable by you, for full speed. Without it the lab falls back to software emulation, which is much slower.
-- `python3`, `curl`, `ssh`, `ssh-keygen`, `sha256sum`.
+- `python3`, `curl`, `ssh`, `ssh-keygen`, and `sha256sum` for Ubuntu or `sha512sum` for Debian.
 - About 4 GB of free RAM and a few GB of disk.
 
 ## Use
 
 ```bash
-lab/lab.sh up       # first run downloads the image (about 600 MB) and boots; later runs boot in seconds
+lab/lab.sh up       # first run downloads and verifies the image before boot
 lab/lab.sh status
 lab/lab.sh ssh      # a shell on the VM as the sudo user "olympus"
 lab/lab.sh reset    # throw the VM away and boot a fresh one
 lab/lab.sh down     # clean shutdown through the VM's power button; the disk is kept
 ```
 
-The VM's disk is a copy-on-write layer over the downloaded image, so `reset` discards every change in about 15 seconds without downloading again. `down` then `up` keeps the disk, and with it the VM's SSH host key, so restarts take under 10 seconds.
+Set and export `OLYMPUS_LAB_OS` to `ubuntu-24.04` (default), `ubuntu-22.04` or
+`debian-12`, and `OLYMPUS_LAB_ARCH` to `amd64` (default) or `arm64`. Use the same
+selection for all commands in a run. Shut down the previous guest before changing
+the selection when reusing the same ports.
+
+The VM uses a copy-on-write disk over the verified download. `reset` discards
+the overlay, and `down` followed by `up` keeps the overlay and SSH host key.
+The default guest uses `.lab/`. Other guests use `.lab/<os>-<arch>/` for their
+image, overlay, SSH settings and cache. The first boot and deployment can take
+substantially longer under software emulation.
 
 ## Pointing Olympus at it
 
@@ -39,6 +48,18 @@ XDG_CACHE_HOME=<repo>/.lab/cache
 ```
 
 Tests that use the lab must pass the key and `known_hosts` path to Olympus explicitly and set `XDG_CACHE_HOME`, so no run touches the developer's own SSH files or cache. The VM's user has passwordless sudo and root login is disabled, so tests exercise the non-root `sudo -n` path.
+
+For an arm64 deployment test, export `OLYMPUS_LAB_ARCH=arm64`, reset the VM,
+load its settings and use a longer outer timeout.
+
+```bash
+lab/lab.sh reset
+set -a
+source <(lab/lab.sh env)
+set +a
+OLYMPUS_LAB=1 go test -tags=lab ./internal/deploy -run '^TestLabDeploy$' -v -count=1 -timeout=120m
+lab/lab.sh down
+```
 
 ## Limits
 
@@ -66,3 +87,8 @@ one skill and no channel. It checks all tools' health and config formats, copies
 and mounts, no-op and selective container IDs, rollback and delete-data teardown.
 It never attempts provider inference or chat login. If it fails before teardown,
 inspect the sanitized activation log and reset the VM before a clean rerun.
+
+Both lab tests build a development CLI and activator, so every server command
+they run passes `-unsafe-dev-activator`. Do the same for manual runs against the
+lab; a development build refuses an unsigned activator without it (rule A12).
+`lab/lab.sh` itself never calls `olym`, so it needs no change.

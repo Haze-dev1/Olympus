@@ -43,9 +43,9 @@ Not in this slice: CLI commands (`activate`, `confirm`, `rollback`, `gc` wiring)
 
 ## Limits
 
-- Only a tool whose secrets were replaced during the failed activation gets its old values back: a first activation that fails has nothing to restore, and nothing yet detects secret changes for `--force-recreate`.
-- No run against a real Docker daemon or the QEMU lab: the Compose runner and the checker are covered by argument-level and fake tests only.
-- `HealthSource` has no production implementation until the manifest carries health, so `Activate` and `Rollback` cannot run end to end on a server yet.
+- Only a tool whose secrets were replaced during the failed activation gets its old values back: a first activation that fails has nothing to restore. Secret change detection and selective recreation are implemented (ADR 0032, ADR 0043).
+- The Compose runner and the checker were covered by argument-level and fake tests before the M1 lab cycle; the full CLI cycle now also runs them against a real Docker daemon.
+- `HealthSource` has a production implementation: `internal/cli` reads the generation manifest (ADR 0028).
 - The failure path reports the failing tool and the check's error, not the tool's container logs (TRD 11 asks for the last 50 lines).
 - `gc` does not collect old activator binaries from `bin/`, and activation does not write them.
 - `--no-confirm` is a CLI decision: the activator always waits, so the CLI must confirm immediately or skip calling it.
@@ -66,3 +66,55 @@ GC also retains tool hashes referenced by kept manifests (ADR 0030), independent
 Server activate, confirm, rollback, status, GC and destroy now use the manifest HealthSource and real scoped Compose runner. Per-request state prevents foreign confirmation. Secret fingerprints select recreation; partial-install restoration includes fingerprints and reports failed restoration as exit 5. GC retains manifest tool entries and needed activator versions. Full CLI lab cycles prove health failure, secret-only rotation, autonomous rollback after real CLI termination, GC and scoped destroy. See core-plan-apply.md for exact results and limits; ADRs 0030–0032 record these contracts.
 
 Final integration evidence: the source-complete `TestLabM1` passed on a reset Ubuntu VM in 77.902 s on 2026-10-20. Build, vet, full unit suite and gofmt passed. The M1 integration section supersedes earlier slice deferrals; retained release limits are in [core-plan-apply.md](core-plan-apply.md). No external vulnerability or secret scanner was run.
+
+## OLY-30 selective recreation and failed-first-activation cleanup, 2026-11-05
+
+Branch `fix/oly-30-secret-recreate`, cut from `development` at `5b2e052`. The forward rotation path already reached Compose (`installSecrets` → `bk.changed` → `Activate` → `startWithSecrets`), but four gaps remained:
+
+- `Recreate` was an optional method asserted from `Runner` in `startWithSecrets`; a runner without it silently skipped rotation. It is now part of the `Runner` interface, and `fakeRunner` implements it.
+- `Compose.Recreate` ran `up -d --no-deps --force-recreate` without `--no-build --pull never`. It now matches `Up`, so recreation cannot build or pull a moving tag (A7).
+- The automatic revert called `start`, which never recreated anything, so containers of the previous generation kept the values the failed activation had installed. `revertOrDown` now calls `startWithSecrets` with `restoredTools(bk, prev)`: the tools whose secret files were restored, filtered to those the previous generation's manifest declares, so a newly added tool cannot break the revert command.
+- A failed `restoreSecrets` returned early and never took the project down. It now runs `docker compose down` for the failed generation as well, records `rollback_failed` and returns `RollbackFailedError` (exit 5); `rolled-back` (exit 3) still means the server came back.
+
+Decisions recorded in [ADR 0043](../../ADR.md#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert), which amends 0027 and 0032. TRD 8.3, 8.4 and the section 11 failure table, and the apply edge-case rows for a first-apply failure, a secret-only change and a failed restoration, were updated to match.
+
+### Verification
+
+- `gofmt -l .` — no output.
+- `go build -o /tmp/olym ./cmd/olym/` — no output.
+- `go vet ./...` — no output.
+- `go test ./internal/activate/... -count=1` — `ok` (34 tests, 5 new).
+- New tests: `TestSecretRotationRecreatesOnlyTheChangedTool`, `TestRevertRecreatesTheRestoredTools`, `TestRevertSkipsToolsThePreviousGenerationDoesNotDeclare`, `TestFirstActivationTakesTheProjectDownWhenSecretRestoreFails`, `TestFailedFirstActivationLeavesARetryableState`, and the `Recreate` argv assertion in `TestComposeCommandsAreScopedAndListed`.
+- Red-before check with only `internal/activate/activate.go` and `compose.go` stashed: `TestRevertRecreatesTheRestoredTools` failed (`recreate calls are [[observatory] [observatory]]`, no revert recreation), `TestRevertSkipsToolsThePreviousGenerationDoesNotDeclare` failed (only the forward `recreate [added one]`), `TestFirstActivationTakesTheProjectDownWhenSecretRestoreFails` failed (`taken down 0 times`), and `TestComposeCommandsAreScopedAndListed` failed on the missing `--no-build --pull never`. Green after the change. The two documentation tests (`TestSecretRotationRecreatesOnlyTheChangedTool`, `TestFailedFirstActivationLeavesARetryableState`) pass on both revisions: they lock in behaviour that already worked rather than a fix.
+- `go test ./... -count=1` — `internal/activate` and the other touched-sensitive packages pass, but the suite is not green on this host. Pre-existing failures, reproduced identically at `5b2e052` with this branch's changes stashed: `internal/cli` (`TestBuildReplacesDefaultOutputAfterStackChange` "unsafe build directory ancestor", `TestCatalogCommands`, `TestOfflineCommands`), `internal/deploy` (`TestUploadGeneration/false`, `TestUploadActivatorVersionAndPublication/test` "activator must be a Linux ELF binary", `TestToolEntryReuseAndVerification`, all "mv failed"), `internal/eval` (`TestCopiedSkillsPruned`), `internal/generation` (`TestReplacementIsCompleteAndFailedStagingPreservesOutput`, `TestReplacementDoesNotFollowOldOutputSymlinks`, "unsafe build directory ancestor"). They are environment-dependent and unrelated to this diff; no attempt was made to fix them here.
+- **Lab verification was not run.** `lab/lab.sh up` fails with `lab: qemu-system-x86_64 not found`; this is an arm64 macOS host with no QEMU, `qemu-img` or `sha256sum`, and the lab image is amd64-only under software emulation. The user chose to skip the host install, so there is no live evidence for this branch. The existing `TestLabM1` secret-rotation assertions and the new offline tests remain the only coverage until someone runs it on a Linux host.
+
+### Limits
+
+- The revert recreation is unit-verified only, against the fake runner. It has not run against Docker or Compose.
+- `restoredTools` uses `bk.changed`, which only covers tools present in the payload. A tool dropped from the stack keeps its old secret files; this pre-dates the change and is not addressed here.
+- The teardown-on-restoration-failure path is exercised by a deliberately broken secrets directory in the unit test, not by a real I/O failure on a server.
+- No external vulnerability or secret scanner was run. Security review of this diff: secret values still never enter argv, logs, state or errors; recreation adds only tool names from a validated manifest; the project scope stays `-p olympus` (A11).
+
+## OLY-63 · Post-install hooks · 2026-11-22
+
+- Each version 1 manifest tool can carry the recipe's literal `post_install` argv. Under the activation lock, the activator runs pending hooks via Compose after readiness and before confirmation. Hook errors reuse the revert path. Hook output is discarded.
+- [ADR 0052](../../ADR.md#0052-record-post-install-completion-by-stack-tool-name) amends ADR 0027. Completion lives at `/var/lib/olympus/post-install/<tool>` and survives rollback, GC, and removal and re-addition under the same stack name. Full data destruction clears it. A crash between hook success and recording completion can cause a retry.
+- Red before implementation: `go test ./internal/eval ./internal/activate -run TestPostInstall -count=1` failed for missing manifest argv, first execution, repeat suppression, and hook failure rollback. The package suites passed after the fix. Full Go and race suites passed with loopback sockets enabled, after the sandbox denied local HTTP and SSH listeners. Build, vet, formatting and diff lint passed. The lint check initially flagged the direct Compose subprocess and then passed with a documented G204 exception for the scoped argv call.
+- Extended `TestLabM1` passed on a reset Ubuntu 24.04 VM (125.79 s initially, 107.80 s on the final run). It observed the marker inside the first container, unchanged after a no-op re-apply, no rerun after container replacement and explicit rollback, and exit 3 with the prior current generation after a failing hook. The existing M1 lifecycle and sentinel checks also passed.
+
+### Orchestrator review of OLY-63 (2026-11-22)
+
+Reviewed the diff against A1, A2, A8 and A11: the hook argv runs through `docker compose exec -T --interactive=false -- <tool>` inside the tool's service, output is discarded, and the completion marker is a 0600 file under the server root, written under the activation lock. Merged `development` (OLY-64's `clearConfirm` handling) without conflict in code. On the merged branch the full offline set passes (build, vet, test, race, gofmt, lint 0 issues), and `TestLabM1` passes on a fresh Ubuntu 24.04 lab VM in 96.5 s with all four hook checks: marker present after first apply, unchanged on no-op re-apply, kept across replacement and rollback, and a failing hook rolls back.
+
+## OLY-67 · Secret rotation and rollback · 2026-11-22
+
+- Selective Compose recreation follows the selected tools' init dependencies on forward apply and automatic revert. Project teardown removes orphans while retaining volumes. [ADR 0057](../../ADR.md#0057-preserve-init-order-during-secret-rotation) amends ADR 0043.
+- Both confirmation-cleanup tests assert `RolledBackError` and verify that `current` still points to the generation active before the operation.
+- Red before the fix: `TestComposeLifecycleArguments` found `--no-deps` on recreation and no `--remove-orphans` on teardown. On a fresh Ubuntu 24.04 QEMU VM, `TestLabSecretRotationInit` found nginx serving the rejected config after rollback (CLI exit 3) and serving the previous config after a successful forward apply (exit 0). The writable file on disk already matched in both cases.
+- Green after the fix: `TestLabSecretRotationInit` passed in 108.18 s on a reset VM, checking both on-disk and loaded config, current link preservation and credential delivery. Package tests, build, vet, full test and race suites, formatting, and both whole-tree lint modes passed. The full Go suites required loopback socket access outside the sandbox.
+- `TestLabM1` passed in 163.47 s on another reset VM. It verified selective recreation, explicit and automatic rollback, orphan cleanup, preservation of volumes and unrelated Docker resources, 0600 secret files, and no sentinel leaks. Restore failure itself uses unit-level fault injection. The lab was shut down.
+
+### Orchestrator review of OLY-67 (2026-11-22)
+
+Checked that dropping `--no-deps` from `Recreate` only pulls in the tool's own `-init` service: the evaluator emits no other `depends_on`. After merging `development`, the full offline set and whole-tree lint pass. On fresh Ubuntu 24.04 VMs `TestLabSecretRotationInit` passes in 127.2 s (it failed before the fix: the rolled-back nginx served the rejected config) and `TestLabM1` in 148.8 s.

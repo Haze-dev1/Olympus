@@ -1,6 +1,7 @@
 # Codex recipe
 
-Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
+Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`;
+the API-key claim was re-checked against the pinned source on **2026-11-22**:
 
 - Install methods, `CODEX_HOME`, `config.toml`, MCP tables, skill directories,
   auth and resources: OpenAI Codex documentation and
@@ -24,19 +25,32 @@ Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
   Mounted read-only (`mode: mount`).
 - Resources: 4 GB minimum, 8 GB recommended; the recipe uses 4 GB.
 - Health: `codex --version`; there is no supported HTTP endpoint.
+- **Headless API key.** `CODEX_API_KEY` is read from the process environment at
+  this pin (`codex-rs/core/src/auth.rs`) and accepted by `codex exec`
+  (`codex-rs/exec/src/lib.rs:441`), so the `model-key` secret works headlessly
+  without a login
+  (<https://github.com/openai/codex/blob/rust-v0.116.0/codex-rs/core/src/auth.rs>,
+  <https://github.com/openai/codex/blob/rust-v0.116.0/codex-rs/exec/src/lib.rs#L441>,
+  checked 2026-11-22). The older suggestion of `CODEX_ACCESS_TOKEN` with
+  `codex login --with-access-token` does not apply at this pin: the pinned
+  `codex-rs/cli/src/main.rs` `LoginCommand` has only `--with-api-key`,
+  deprecated `--api-key`, `--device-auth`, issuer/client options and `status`
+  (<https://github.com/openai/codex/blob/rust-v0.116.0/codex-rs/cli/src/main.rs>).
 - No chat channels for the local CLI (Slack/Teams are ChatGPT Cloud).
 
 ## UNVERIFIED
 
-- `CODEX_API_KEY` from the process environment for headless use (alternative:
-  `CODEX_ACCESS_TOKEN` and `codex login --with-access-token`).
+- **Live model request with `CODEX_API_KEY`.** The environment variable is read
+  by the pinned source, but no inference was attempted with a real key; the lab
+  observation below used sentinel credentials only.
 
 ## Version pin
 
 `@openai/codex@0.116.0` exists in the
 [npm registry](https://registry.npmjs.org/@openai/codex/0.116.0), checked
 2026-10-20. The recipe installs this exact release, including its exact-version
-platform package. Builds are reproducible in their inputs (base digest, package version,
+platform package. No package in the lock has a lifecycle script, so the Dockerfile
+installs with `npm ci --ignore-scripts` (R5). Builds are reproducible in their inputs (base digest, package version,
 Dockerfile content), not byte-identical: a clean rebuild in the lab produced a
 different image ID even with `SOURCE_DATE_EPOCH=0` and normalized install
 timestamps. On a server, the content-addressed tag means the same generation

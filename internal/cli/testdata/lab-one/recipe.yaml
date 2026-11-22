@@ -10,5 +10,9 @@ health:
 secrets:
   credential: {env: LAB_CREDENTIAL}
 templates:
+  - src: settings.yaml.tmpl
+    dst: /etc/nginx/conf.d/settings.yaml
   - src: default.conf.tmpl
     dst: /etc/nginx/conf.d/default.conf
+hooks:
+  post_install: [sh, -c, 'printf "installed\n" >> /tmp/olympus-post-install']

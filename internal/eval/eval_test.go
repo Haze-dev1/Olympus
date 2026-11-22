@@ -2,6 +2,7 @@ package eval
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"io/fs"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/Haze-dev1/Olympus/internal/encode"
+	"github.com/Haze-dev1/Olympus/internal/generation"
 	"github.com/Haze-dev1/Olympus/internal/recipe"
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
@@ -128,6 +130,92 @@ func TestGoldenAndPurity(t *testing.T) {
 		t.Fatal("private port or env_file missing")
 	}
 }
+func openbot(t *testing.T) *generation.Generation {
+	t.Helper()
+	file := "../../testdata/openbot/stack.yaml"
+	s, d := stack.Load(file)
+	if len(d.Errors) > 0 {
+		t.Fatal(d.Errors)
+	}
+	in, errors := Load(s, "../../recipes", "../../testdata/openbot")
+	if len(errors) > 0 {
+		t.Fatal(errors)
+	}
+	g, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+func TestOpenBotGolden(t *testing.T) {
+	g := openbot(t)
+	if *updateGolden {
+		for p, b := range g.Files {
+			target := filepath.Join("../../testdata/golden-openbot", p)
+			if e := os.MkdirAll(filepath.Dir(target), 0700); e != nil {
+				t.Fatal(e)
+			}
+			if e := os.WriteFile(target, b, 0600); e != nil {
+				t.Fatal(e)
+			}
+		}
+	}
+	count := 0
+	err := filepath.WalkDir("../../testdata/golden-openbot", func(p string, d fs.DirEntry, e error) error {
+		if e != nil {
+			return e
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, e := filepath.Rel("../../testdata/golden-openbot", p)
+		if e != nil {
+			return e
+		}
+		expected, e := os.ReadFile(p)
+		if e != nil {
+			return e
+		}
+		if !bytes.Equal(expected, g.Files[filepath.ToSlash(rel)]) {
+			t.Errorf("golden differs: %s", rel)
+		}
+		count++
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != len(g.Files) {
+		t.Fatalf("golden has %d files, build has %d", count, len(g.Files))
+	}
+	tool := g.Manifest.Tools["openbot"]
+	if tool.Image != "ghcr.io/nightly-labs/openbot:0.62.0" {
+		t.Fatalf("unexpected image %q", tool.Image)
+	}
+	compose := string(g.Files["compose.yaml"])
+	for _, want := range []string{
+		"shm_size: 1g",
+		"stop_grace_period: 60s",
+		"no-new-privileges:true",
+		"seccomp=/var/lib/olympus/store/" + tool.Hash + "/files/data/.olympus/seccomp.json",
+		"source: openbot_data",
+		"name: olympus_openbot_data",
+		"target: /data",
+	} {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("compose lacks %q:\n%s", want, compose)
+		}
+	}
+	if strings.Contains(compose, "ports:") {
+		t.Fatal("openbot publishes a port")
+	}
+	health := g.Manifest.Tools["openbot"].Health.Command
+	if strings.Join(health, " ") != "openbot status" {
+		t.Fatalf("unexpected health command %v", health)
+	}
+}
+
 func TestManagedFormatsPreserveBase(t *testing.T) {
 	for _, format := range []string{"yaml", "json", "toml"} {
 		t.Run(format, func(t *testing.T) {
@@ -190,6 +278,24 @@ func TestRenderingFailuresAndWarnings(t *testing.T) {
 			v.Channels = map[string]stack.Channel{"telegram": {Token: "${TG}", Allow: []string{"owner"}}}
 			in.Stack.Agents["research"] = v
 		}, "not supported"},
+		{"missing channel allow mapping", func(in Inputs) {
+			in.Recipes["observatory"].Supports.Channels = map[string]recipe.Channel{"telegram": {Env: map[string]string{"token": "TELEGRAM_TOKEN"}}}
+			in.Recipes["observatory"].Secrets["tg"] = recipe.Secret{Env: "TELEGRAM_TOKEN"}
+			v := in.Stack.Agents["research"]
+			v.Secrets["tg"] = "${TG}"
+			v.Channels = map[string]stack.Channel{"telegram": {Token: "${TG}", Allow: []string{"owner"}}}
+			in.Stack.Agents["research"] = v
+		}, "allow environment variable"},
+		{"unsupported channel roles", func(in Inputs) {
+			in.Recipes["observatory"].Supports.Channels = map[string]recipe.Channel{
+				"telegram": {Env: map[string]string{"token": "TELEGRAM_TOKEN", "allow": "TELEGRAM_ALLOW"}},
+			}
+			in.Recipes["observatory"].Secrets["tg"] = recipe.Secret{Env: "TELEGRAM_TOKEN"}
+			v := in.Stack.Agents["research"]
+			v.Secrets["tg"] = "${TG}"
+			v.Channels = map[string]stack.Channel{"telegram": {Token: "${TG}", Allow: []string{"owner"}, Roles: []string{"admin"}}}
+			in.Stack.Agents["research"] = v
+		}, "does not support roles"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -331,5 +437,74 @@ func TestUnchangedToolKeepsMountSource(t *testing.T) {
 	hash := first.Manifest.Tools["research"].Hash
 	if !bytes.Contains(first.Files["compose.yaml"], []byte("/var/lib/olympus/store/"+hash+"/files/")) {
 		t.Fatal("mount is not content addressed")
+	}
+}
+
+func TestRuntimeOptions(t *testing.T) {
+	in := sample(t)
+	r := in.Recipes["observatory"]
+	r.Writable = []string{"/opt/observatory/config.yaml"}
+	r.Runtime = &recipe.Runtime{ShmSize: "1g", StopGracePeriod: "60s", NoNewPrivileges: true, Seccomp: "profile.json"}
+	in.Templates["observatory"][r.Runtime.Seccomp] = []byte(`{"defaultAction":"SCMP_ACT_ERRNO"}`)
+	g, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := g.Manifest.Tools["research"]
+	target := "/opt/observatory/.olympus/seccomp.json"
+	if tool.Files[target] != generation.Hash(in.Templates["observatory"][r.Runtime.Seccomp]) {
+		t.Fatal("seccomp profile is not a hashed tool file")
+	}
+	store := "store/" + tool.Hash + "/files" + target
+	if !bytes.Equal(g.Files[store], in.Templates["observatory"][r.Runtime.Seccomp]) {
+		t.Fatal("seccomp profile is not in the content-addressed store")
+	}
+	compose := string(g.Files["compose.yaml"])
+	for _, want := range []string{"shm_size: 1g", "stop_grace_period: 60s", "no-new-privileges:true", "seccomp=/var/lib/olympus/" + store} {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("compose lacks %q:\n%s", want, compose)
+		}
+	}
+
+	doc, err := encode.Unmarshal("yaml", g.Files["compose.yaml"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	services := object(t, object(t, doc, "compose")["services"], "services")
+	main := object(t, services["research"], "research")
+	init := object(t, services["research-init"], "research-init")
+	if got, want := init["security_opt"], main["security_opt"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("init security_opt = %v, want %v", got, want)
+	}
+	if script := init["entrypoint"].([]any)[2].(string); strings.Contains(script, "cp -a ") {
+		t.Error("init copy preserves the store owner's metadata")
+	}
+
+	in.Templates["observatory"][r.Runtime.Seccomp] = []byte(`{"defaultAction":"SCMP_ACT_ALLOW"}`)
+	changed, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed.Manifest.Tools["research"].Hash == tool.Hash {
+		t.Fatal("changed seccomp profile did not change the tool hash")
+	}
+}
+
+func TestPostInstallManifest(t *testing.T) {
+	g, err := Build(sample(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Tools map[string]struct {
+			PostInstall []string `json:"post_install"`
+		}
+	}
+	if err := json.Unmarshal(g.Files["manifest.json"], &manifest); err != nil {
+		t.Fatal(err)
+	}
+	got := manifest.Tools["research"].PostInstall
+	if want := []string{"observatory", "initialize"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("post-install args got %q, want %q", got, want)
 	}
 }

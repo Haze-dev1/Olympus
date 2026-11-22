@@ -4,7 +4,7 @@ services:
     build:
       args:
         BASE_IMAGE: node:22-bookworm-slim@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-      context: /var/lib/olympus/store/sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db/files/root/.olympus-build
+      context: /var/lib/olympus/store/sha256-75a7d0ba5c8827b698af8f2a7e1e30fb423d1ab708eab01b33419fd1fd1cfc83/files/root/.olympus-build
       dockerfile: Dockerfile
     command:
     - sleep
@@ -16,7 +16,7 @@ services:
     - /var/lib/olympus/secrets/codex/environment
     environment:
       CODEX_HOME: /root/.codex
-    image: olympus/codex:sha256-3d123fc04a15
+    image: olympus/codex:sha256-3c8bea06f27b
     labels:
       org.olympus.tool: codex
     restart: unless-stopped
@@ -25,21 +25,29 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db/files/root/.olympus-build/Dockerfile
+      source: /var/lib/olympus/store/sha256-75a7d0ba5c8827b698af8f2a7e1e30fb423d1ab708eab01b33419fd1fd1cfc83/files/root/.olympus-build/Dockerfile
       target: /root/.olympus-build/Dockerfile
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-75a7d0ba5c8827b698af8f2a7e1e30fb423d1ab708eab01b33419fd1fd1cfc83/files/root/.olympus-build/package-lock.json
+      target: /root/.olympus-build/package-lock.json
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-75a7d0ba5c8827b698af8f2a7e1e30fb423d1ab708eab01b33419fd1fd1cfc83/files/root/.olympus-build/package.json
+      target: /root/.olympus-build/package.json
       type: bind
   codex-init:
     build:
       args:
         BASE_IMAGE: node:22-bookworm-slim@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-      context: /var/lib/olympus/store/sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db/files/root/.olympus-build
+      context: /var/lib/olympus/store/sha256-75a7d0ba5c8827b698af8f2a7e1e30fb423d1ab708eab01b33419fd1fd1cfc83/files/root/.olympus-build
       dockerfile: Dockerfile
     entrypoint:
     - /bin/sh
     - -c
     - |
-      mkdir -p '/root/.codex' && cp -a '/olympus-init/0' '/root/.codex/config.toml'
-    image: olympus/codex:sha256-3d123fc04a15
+      mkdir -p '/root/.codex' && cp '/olympus-init/0' '/root/.codex/config.toml' || exit 1
+    image: olympus/codex:sha256-3c8bea06f27b
     labels:
       org.olympus.role: init
       org.olympus.tool: codex
@@ -49,7 +57,7 @@ services:
       target: /root
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-af7e34c305e9f709d64e5ed569f82fdeede5dcaab807f7c7b5cb1fdfa9bb24db/files/root/.codex/config.toml
+      source: /var/lib/olympus/store/sha256-75a7d0ba5c8827b698af8f2a7e1e30fb423d1ab708eab01b33419fd1fd1cfc83/files/root/.codex/config.toml
       target: /olympus-init/0
       type: bind
   hermes:
@@ -62,8 +70,10 @@ services:
     env_file:
     - /var/lib/olympus/secrets/hermes/environment
     environment:
+      DISCORD_ALLOWED_ROLES: "987654321"
+      DISCORD_ALLOWED_USERS: "123456789"
       HERMES_HOME: /opt/data
-      TELEGRAM_ALLOWED_USERS: "@alice,@bob"
+      TELEGRAM_ALLOWED_USERS: 111111111,222222222
     image: nousresearch/hermes-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     labels:
       org.olympus.tool: hermes
@@ -76,9 +86,7 @@ services:
     entrypoint:
     - /bin/sh
     - -c
-    - |
-      mkdir -p '/opt/data' && cp -a '/olympus-init/0' '/opt/data/config.yaml'
-      mkdir -p '/opt/data/skills/deploy-checklist' && cp -a '/olympus-init/1' '/opt/data/skills/deploy-checklist/SKILL.md'
+    - "set -eu\nroot='/opt/data/skills'\nledger=\"$$root/.olympus-managed-files\"\ncheck_path() {\n current=''\n rest=\"$$1\"\n while [ -n \"$$rest\" ]; do\n  part=$${rest%%/*}\n  if [ \"$$part\" = \"$$rest\" ]; then rest=''; else rest=$${rest#*/}; fi\n  [ -n \"$$part\" ] || continue\n  case \"$$part\" in .|..) exit 1;; esac\n  current=\"$$current/$$part\"\n  [ ! -L \"$$current\" ] || exit 1\n done\n}\ncheck_path \"$$ledger\"\nif [ -f \"$$ledger\" ]; then\n while IFS= read -r rel || [ -n \"$$rel\" ]; do\n  case \"$$rel\" in ''|/*|*[!A-Za-z0-9._@+/-]*|'.olympus-managed-files') exit 1;; esac\n  check_path \"$$root/$$rel\"\n done < \"$$ledger\"\n while IFS= read -r rel || [ -n \"$$rel\" ]; do\n  rm -f -- \"$$root/$$rel\"\n done < \"$$ledger\"\nfi\ncheck_path '/opt/data/config.yaml'\nmkdir -p '/opt/data' && cp '/olympus-init/0' '/opt/data/config.yaml' || exit 1\ncheck_path '/opt/data/skills/deploy-checklist/SKILL.md'\nmkdir -p '/opt/data/skills/deploy-checklist' && cp '/olympus-init/1' '/opt/data/skills/deploy-checklist/SKILL.md' || exit 1\ncheck_path '/opt/data/skills/.olympus-managed-files'\ncheck_path '/opt/data/skills/.olympus-managed-files.next'\nmkdir -p '/opt/data/skills' && cp '/olympus-init/2' '/opt/data/skills/.olympus-managed-files.next' && mv -f '/opt/data/skills/.olympus-managed-files.next' '/opt/data/skills/.olympus-managed-files' || exit 1\n"
     image: nousresearch/hermes-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     labels:
       org.olympus.role: init
@@ -89,12 +97,16 @@ services:
       target: /opt/data
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-2bd8c9fb544a0176653e4998434b0b644a6a2b74f43024e85de3fb9b1032d3ac/files/opt/data/config.yaml
+      source: /var/lib/olympus/store/sha256-464360da8765f65f86c7cc88dfe36b39cde2b030811b590218049e08580a0551/files/opt/data/config.yaml
       target: /olympus-init/0
       type: bind
     - read_only: true
-      source: /var/lib/olympus/store/sha256-2bd8c9fb544a0176653e4998434b0b644a6a2b74f43024e85de3fb9b1032d3ac/files/opt/data/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-464360da8765f65f86c7cc88dfe36b39cde2b030811b590218049e08580a0551/files/opt/data/skills/deploy-checklist/SKILL.md
       target: /olympus-init/1
+      type: bind
+    - read_only: true
+      source: /var/lib/olympus/store/sha256-464360da8765f65f86c7cc88dfe36b39cde2b030811b590218049e08580a0551/files/opt/data/skills/.olympus-managed-files
+      target: /olympus-init/2
       type: bind
   opencode:
     command:
@@ -122,15 +134,15 @@ services:
       target: /root/.local/share/opencode
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-9efb9c26f0458870d820b794cafef5de2541bd0c729e1cc2ab39313961bb53d3/files/root/.config/opencode/skills/deploy-checklist/SKILL.md
-      target: /root/.config/opencode/skills/deploy-checklist/SKILL.md
+      source: /var/lib/olympus/store/sha256-22a7a39d4b146b1099ff1c58b5a9d13a788b4a45b40a43db00c0f1ad8612b61b/files/root/.config/opencode/skill/deploy-checklist/SKILL.md
+      target: /root/.config/opencode/skill/deploy-checklist/SKILL.md
       type: bind
   opencode-init:
     entrypoint:
     - /bin/sh
     - -c
     - |
-      mkdir -p '/root/.config/opencode' && cp -a '/olympus-init/0' '/root/.config/opencode/opencode.json'
+      mkdir -p '/root/.config/opencode' && cp '/olympus-init/0' '/root/.config/opencode/opencode.json' || exit 1
     image: ghcr.io/anomalyco/opencode@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     labels:
       org.olympus.role: init
@@ -144,7 +156,7 @@ services:
       target: /root/.local/share/opencode
       type: volume
     - read_only: true
-      source: /var/lib/olympus/store/sha256-9efb9c26f0458870d820b794cafef5de2541bd0c729e1cc2ab39313961bb53d3/files/root/.config/opencode/opencode.json
+      source: /var/lib/olympus/store/sha256-22a7a39d4b146b1099ff1c58b5a9d13a788b4a45b40a43db00c0f1ad8612b61b/files/root/.config/opencode/opencode.json
       target: /olympus-init/0
       type: bind
 volumes:

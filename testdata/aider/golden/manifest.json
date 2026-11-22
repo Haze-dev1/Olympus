@@ -1,0 +1,27 @@
+{
+  "id": "sha256-b351af587d9685ff7226d4f71d2b9787d1b99c2ba2bc1da8e5a3094debef129d",
+  "inputs": {
+    "recipes": "sha256-ece578e1135bc07d72cbf5a1c45d617b47cfb12aa654de2f1f71aa5bcb04c332"
+  },
+  "olym": "0.1.0-dev",
+  "tools": {
+    "aider": {
+      "files": {
+        "/app/.olympus-build/Dockerfile": "sha256-086ff74fab29d375b4ced11510407b8a82cd721969d87dbf951f3c2beea52be5"
+      },
+      "hash": "sha256-00c60536a66354988e9a30136550581b1a0f47ce055a0a422a123b040d21a097",
+      "health": {
+        "command": [
+          "aider",
+          "--version"
+        ],
+        "timeout": "60s"
+      },
+      "image": "olympus/aider:sha256-47d911366e3e",
+      "secrets": [
+        "model-key"
+      ]
+    }
+  },
+  "version": 1
+}

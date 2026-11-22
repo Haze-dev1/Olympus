@@ -13,7 +13,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0005](#0005-describe-each-tool-with-a-declarative-yaml-recipe) | Describe each tool with a declarative YAML recipe | Accepted, amended by 0016, 0018 |
 | [0006](#0006-keep-official-recipes-in-one-folder-in-this-repo) | Keep official recipes in one folder in this repo | Accepted, source restriction superseded by 0026 |
 | [0007](#0007-run-each-tool-in-its-own-docker-container) | Run each tool in its own Docker container | Accepted |
-| [0008](#0008-pin-exact-versions-in-stacklock) | Pin exact versions in stack.lock | Accepted, amended by 0016 |
+| [0008](#0008-pin-exact-versions-in-stacklock) | Pin exact versions in stack.lock | Accepted, amended by 0016, 0044 |
 | [0009](#0009-keep-secrets-in-a-git-ignored-env-referenced-by-name) | Keep secrets in a git-ignored .env, referenced by name | Accepted |
 | [0010](#0010-expose-nothing-publicly-by-default) | Expose nothing publicly by default | Accepted |
 | [0011](#0011-make-apply-converge-to-the-desired-state-tracked-by-container-labels) | Make apply converge to the desired state, tracked by container labels | Superseded by 0014 |
@@ -30,23 +30,43 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0022](#0022-atomically-replace-owned-local-build-directories) | Atomically replace owned local build directories | Accepted |
 | [0023](#0023-hash-the-extracted-catalog-tree-in-a-canonical-form) | Hash the extracted catalog tree in a canonical form | Accepted |
 | [0024](#0024-resolve-image-digests-with-the-standard-library) | Resolve image digests with the standard library | Accepted |
-| [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted |
+| [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted, amended by 0053 |
 | [0026](#0026-wire-github-catalogs-and-preserve-local-development-overrides) | Wire GitHub catalogs and preserve local development overrides | Accepted |
-| [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted, amended by 0028 |
+| [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted, amended by 0028, 0032, 0043 and 0052 |
 | [0028](#0028-store-health-checks-in-the-generation-manifest) | Store health checks in the generation manifest | Accepted |
 | [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result) | Verify deployment uploads and retain the activation result | Accepted |
-| [0030](#0030-address-rendered-files-by-tool-hash-across-generations) | Address rendered files by tool hash across generations | Accepted |
+| [0030](#0030-address-rendered-files-by-tool-hash-across-generations) | Address rendered files by tool hash across generations | Accepted, amended by 0058 |
 | [0031](#0031-bind-activation-confirmation-and-saved-plans-to-one-request) | Bind activation confirmation and saved plans to one request | Accepted |
 | [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs) | Fingerprint secrets with a server key and restore partial installs | Accepted |
 | [0033](#0033-record-image-tag-overrides-in-the-image-lock) | Record image tag overrides in the image lock | Accepted |
 | [0035](#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile) | Build tools without an official image from a recipe-supplied Dockerfile | Accepted |
-| [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service) | Deliver writable managed config with a Compose init service | Accepted |
-| [0037](#0037-encode-mcp-secrets-as-tool-native-environment-references) | Encode MCP secrets as tool-native environment references | Accepted |
+| [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service) | Deliver writable managed config with a Compose init service | Accepted, amended by 0055 |
+| [0037](#0037-encode-mcp-secrets-as-tool-native-environment-references) | Encode MCP secrets as tool-native environment references | Accepted, amended by 0047 |
 | [0038](#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes) | Mount shared skills read-only where supported, and copy them where the tool writes | Accepted |
 | [0039](#0039-configure-hermes-channels-as-environment-variables) | Configure Hermes channels as environment variables | Accepted |
 
 | [0040](#0040-resolve-optional-catalog-refs-to-locked-commits) | Resolve optional catalog refs to locked commits | Accepted |
-| [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted |
+| [0041](#0041-prepare-content-addressed-built-images-before-starting-services) | Prepare content-addressed built images before starting services | Accepted, amended by 0051 |
+| [0042](#0042-track-and-prune-only-previously-copied-skill-files) | Track and prune only previously copied skill files | Accepted |
+| [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) | Recreate only the containers whose secrets changed, including on revert | Accepted, amends 0027 and 0032, amended by 0057 |
+| [0044](#0044-preflight-the-server-before-plan-and-apply) | Preflight the server before `plan` and `apply` | Accepted, amended by 0061 |
+| [0045](#0045-render-recipe-runtime-limits-as-fixed-compose-keys) | Render recipe runtime limits as fixed Compose keys | Accepted |
+| [0046](#0046-vendor-openbots-seccomp-profile-and-pin-an-exact-release) | Vendor OpenBot's seccomp profile and pin an exact release | Accepted |
+| [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) | Carry an explicit remote transport for MCP servers | Accepted, amends 0037, amended by 0050 |
+| [0048](#0048-cross-compile-release-binaries-and-verify-activator-checksum-against-release-build) | Cross-compile release binaries and verify activator checksum against release build | Accepted, amends 0029, amended by 0049 |
+| [0049](#0049-require-an-explicit-opt-in-for-unsigned-development-activators) | Require an explicit opt-in for unsigned development activators | Accepted, amends 0048 |
+| [0050](#0050-honour-or-reject-sse-for-hermes-codex-and-opencode) | Honour or reject SSE for Hermes, Codex and OpenCode | Accepted, amends 0047 |
+| [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage) | Pin built-image inputs with committed lockfiles and a fetch stage | Accepted, amends 0041, amended by 0056 |
+| [0052](#0052-record-post-install-completion-by-stack-tool-name) | Record post-install completion by stack tool name | Accepted, amends 0027 |
+| [0053](#0053-select-the-test-lab-guest-os-and-architecture) | Select the test lab guest OS and architecture | Accepted, amends 0025 |
+| [0054](#0054-bound-and-verify-semantic-plan-reads) | Bound and verify semantic plan reads | Accepted |
+| [0055](#0055-bind-managed-init-policy-to-tool-identity) | Bind managed init policy to tool identity | Accepted, amends 0036, amended by 0058 |
+| [0056](#0056-keep-npm-lifecycle-scripts-out-of-built-images) | Keep npm lifecycle scripts out of built images | Accepted, amends 0051 |
+| [0057](#0057-preserve-init-order-during-secret-rotation) | Preserve init order during secret rotation | Accepted, amends 0043 |
+| [0058](#0058-make-tool-store-files-readable-to-the-container-user) | Make tool store files readable to the container user | Accepted, amends 0030 and 0055 |
+| [0059](#0059-let-recipes-reject-mcp-transports-they-cannot-use) | Let recipes reject MCP transports they cannot use | Accepted, amends 0047 and 0050 |
+| [0060](#0060-allow-repeated-argv-entries) | Allow repeated argv entries | Accepted, amends the recipe and stack schemas |
+| [0061](#0061-resolve-platforms-for-digest-pinned-images-on-update) | Resolve platforms for digest-pinned images on update | Accepted, amends 0044 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -231,7 +251,7 @@ We will run each tool as its own container on the server, with its own volumes a
 
 ## 0008. Pin exact versions in stack.lock
 
-- **Status:** Accepted, amended by [0016](#0016-pin-the-recipe-set-as-a-flake-style-input) (the lock pins the recipe input revision, not per-recipe versions)
+- **Status:** Accepted, amended by [0016](#0016-pin-the-recipe-set-as-a-flake-style-input) (the lock pins the recipe input revision, not per-recipe versions) and [0044](#0044-preflight-the-server-before-plan-and-apply) (the lock also records the resolved image platforms)
 - **Date:** 2026-10-19
 
 ### Context
@@ -729,6 +749,7 @@ v1 supports public registries with anonymous bearer auth only. Docker credential
 
 - **Status:** Accepted
 - **Date:** 2026-10-19
+- **Amended by:** [0053](#0053-select-the-test-lab-guest-os-and-architecture)
 
 ### Context
 
@@ -786,7 +807,7 @@ Read optional `GITHUB_TOKEN` only at the CLI boundary and use it only on GitHub 
 
 ## 0027. Activate a generation from the store by manifest id
 
-- **Status:** Accepted, amended by [0028](#0028-store-health-checks-in-the-generation-manifest) and [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs)
+- **Status:** Accepted, amended by [0028](#0028-store-health-checks-in-the-generation-manifest), [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs), [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) and [0052](#0052-record-post-install-completion-by-stack-tool-name)
 - **Date:** 2026-10-20
 
 ### Context
@@ -890,6 +911,7 @@ Server commands use the real Compose runner and health checker. Until the separa
 ## 0030. Address rendered files by tool hash across generations
 
 - **Status:** Accepted
+- **Amended by:** [0058](#0058-make-tool-store-files-readable-to-the-container-user)
 - **Date:** 2026-10-20
 - **Amends:** [0021](#0021-keep-the-first-generation-contract-offline), [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result)
 
@@ -940,7 +962,7 @@ Concurrent losers cannot overwrite the winning run's payload or confirm it. An i
 
 ## 0032. Fingerprint secrets with a server key and restore partial installs
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert)
 - **Date:** 2026-10-20
 
 ### Context
@@ -1020,7 +1042,7 @@ The ingredient is pinned by content, not by a registry digest: the Dockerfile is
 
 ## 0036. Deliver writable managed config with a Compose init service
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0055](#0055-bind-managed-init-policy-to-tool-identity)
 - **Date:** 2026-10-20
 
 ### Context
@@ -1050,7 +1072,7 @@ Init paths pass `ShellSafe` before they reach the script; the source is generate
 
 ## 0037. Encode MCP secrets as tool-native environment references
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by 0047
 - **Date:** 2026-10-20
 
 ### Context
@@ -1096,7 +1118,7 @@ Skills are defined once and shared by every tool that accepts them. Codex and Op
 ### Consequences
 
 - Mounted skills cannot drift or be edited by the tool; copied skills can be edited by the agent but are restored from the stack on apply.
-- Copied skills add files to the init script, and deleted skills are not removed from the volume.
+- Copied skills add files to the init script. [ADR 0042](#0042-track-and-prune-only-previously-copied-skill-files) amends deletion behavior with an ownership ledger.
 - Each recipe states which mode it needs; a new tool does not require core changes.
 
 ### Alternatives considered
@@ -1166,7 +1188,7 @@ No local git executable or new dependency is needed.
 
 ## 0041. Prepare content-addressed built images before starting services
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by 0051
 - **Date:** 2026-10-20
 - **Amends:** [0035](#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile), [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service)
 
@@ -1211,6 +1233,656 @@ timestamp rewriting and an npm lockfile with integrity hashes) are a follow-up.
 - Rebuild on every activation: unnecessary work and risks image churn on rollback.
 - Publish to a new registry: adds credentials and infrastructure.
 
+
+## 0042. Track and prune only previously copied skill files
+
+- **Status:** Accepted
+- **Date:** 2026-10-22
+- **Amends:** [0038](#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)
+
+### Context
+
+OLY-29: removing a copied skill or one of its files leaves stale content in the
+project volume. The same directory can contain skills and files created by the
+agent, so clearing it recursively would destroy unrelated data.
+
+### Decision
+
+Copy-mode init services persist `.olympus-managed-files` under the recipe's skills
+directory. The generated ledger lists relative file paths copied by Olympus and
+participates in the tool hash. Every init validates the previous ledger and path
+ancestors, removes its recorded files, copies current files, then atomically replaces the
+ledger last through a checked `.next` sibling. The init service exists even for an empty selection. It fails on
+traversal, unsafe names or symlinks and uses `set -eu`. Shell dollar signs are
+escaped for Compose interpolation. Removal runs only inside the project tool
+volume, never on the server host.
+
+### Consequences
+
+Removed skills and obsolete files disappear on the next changed-generation init.
+Unrecorded files and directories survive, including files an agent added inside
+a managed skill. Rollback to a ledger-aware generation restores its selected
+files. Older generations without this protocol cannot maintain the ledger.
+Pre-upgrade copies without a ledger are left untouched because ownership cannot
+be established safely. An interrupted init can leave partially copied data; the
+old ledger remains until copying succeeds and reapplying retries the operation.
+Changing a recipe's skills directory or switching away from copy mode requires
+separate migration of old copies. Concurrent tool writes are not synchronized;
+the existing init protocol assumes the tool is not mutating these paths during
+initialization. A malicious concurrent writer could race path checks.
+
+### Alternatives considered
+
+- Clear the skills directory: deletes agent-created content.
+- Remove entire previously copied skill directories: deletes unrecorded files
+  inside them.
+- Infer ownership from the current stack: cannot identify removed skills.
+- Add host-side Docker volume inspection: expands privileges and duplicates
+  the existing container init path.
+
+## 0043. Recreate only the containers whose secrets changed, including on revert
+
+- **Status:** Accepted, amended by [0057](#0057-preserve-init-order-during-secret-rotation)
+- **Date:** 2026-11-05
+- **Amends:** [0027](#0027-activate-a-generation-from-the-store-by-manifest-id), [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs)
+
+### Context
+
+OLY-30. A secret rotation must restart the container whose values changed and leave every other container running, and a failed first activation must leave a server the operator can retry. Three gaps remained in the implemented path. `Recreate` was an optional method asserted from the activator's `Runner`, so a runner that did not implement it silently skipped rotation instead of failing. The automatic revert called the plain `start`, which never recreated anything, so containers of the previous generation kept the values the failed activation had replaced. And when restoring the previous secret files failed, the revert returned early without taking the project down, leaving the failed generation running with the new values while `state.json` claimed a failed rollback.
+
+### Decision
+
+`Recreate(ctx, composeFile, tools)` becomes part of the `Runner` interface, so every runner must implement selective recreation and a rotation can never be skipped by omission. `Compose.Recreate` runs `up -d --no-build --pull never --no-deps --force-recreate <tools>`, matching `Up`: activation has already pulled and built the images, and rule A7 forbids pulling a moving tag on a deployment whose images are pinned by digest.
+
+The automatic revert recreates the tools whose secret files it restored, filtered to tools the previous generation's manifest declares, before running `Up` for that generation. A tool the previous generation does not declare is not a service in its Compose file and is skipped.
+
+When restoring the previous secret files fails, the activator runs `docker compose down` for the project anyway, records `rollback_failed`, and returns `RollbackFailedError` (exit 5). It does not claim a rollback it could not perform. `rolled-back` (exit 3) therefore still means the server came back and passed its health checks.
+
+### Consequences
+
+A rotation restarts exactly the tools whose fingerprints changed, on both the forward path and a revert. A server whose first activation failed ends with the project down, no `current`, and no leftover secret files or backups, so re-running apply behaves like any first apply. A runner that cannot recreate tools is a compile error rather than a silent no-op.
+
+Taking the project down on a restoration failure is deliberately conservative: data volumes are untouched, but a server that was serving the previous generation becomes unavailable until the operator fixes the secret directory and re-applies. The alternative, leaving the failed generation running with new credentials while reporting a failed rollback, was rejected because it hides which values the containers actually hold.
+
+### Alternatives considered
+
+- **Keep `Recreate` optional:** compatible with the old interface, but a runner that forgot it would silently keep stale credentials, which is the bug this ADR closes.
+- **Re-run secret installation during a revert instead of restoring the backup:** reads the payload again, which is deleted by design, and could lose values the CLI no longer has.
+- **Recreate every tool of the previous generation on revert:** restarts healthy containers whose values did not change, and makes the automatic path noisier than the forward one.
+- **Leave the failed generation running when restoration fails:** keeps a server up on values the operator cannot see and contradicts `rollback_failed`.
+
+## 0044. Preflight the server before plan and apply
+
+- **Status:** Accepted
+- **Date:** 2026-11-05
+- **Amends:** [0008](#0008-pin-exact-versions-in-stacklock)
+
+### Context
+
+OLY-31: `plan` and `apply` verified SSH and root/passwordless sudo, then read
+metadata. Everything else surfaced late or not at all. An image with no build for
+the server's architecture failed during the pull, after uploads; a port another
+service already held failed inside Compose; low memory and disk failed mid-pull
+with a Docker error. The edge-case table requires the first two to fail in
+`plan`, naming the tool, image or port, and low memory to warn with confirmation.
+`resources.min_ram` was parsed into a struct and never used.
+
+The architecture check needs image platform data. `stack.lock` stores only the
+index digest, and ADR 0024 chose not to store platform information or fetch a
+platform manifest.
+
+### Decision
+
+The client runs a read-only preflight over SSH before any mutation, from
+`plan` and `apply` alike, after SSH and privilege checks and before reading the
+current generation:
+
+1. Read `/etc/os-release` and refuse an unsupported OS before anything else.
+2. Read `uname -m`; only `x86_64`/`amd64` and `aarch64`/`arm64` are supported.
+3. Compare each tool's locked image platforms with `linux/<server arch>`. A
+   missing match is a failure naming the tool, image and architecture; a lock
+   with no platform record warns and points at `olym update`.
+4. Read `MemTotal` from `/proc/meminfo`; warn per tool when the recipe's
+   `resources.min_ram` is larger. `apply` continues only after its normal
+   confirmation prompt, which shows the warning; `--yes` is that confirmation.
+5. Read free space with `df -kP /var/lib`; warn below 5 GiB and fail below 1 GiB.
+6. Read listeners with `ss -ltnp` and compare each recipe port with them. Host
+   ports published by containers carrying the
+   `com.docker.compose.project=olympus` label are ignored, so the current
+   generation never conflicts with itself; without a Docker daemon there can be
+   no olympus containers to ignore. A conflict fails naming the tool, port and
+   process.
+
+Failures exit 1. Every command is an argument list (A2), and remote text parsed
+from `ss` is stripped of control characters before it reaches a message (A1).
+
+To make step 3 possible offline, `update` and a lock-creating `check` record the
+index's `os/architecture` pairs in a new optional `platforms` array on each lock
+tool. The field is canonical (sorted, de-duplicated) and validated as
+`os/architecture`. Digest-pinned references originally recorded nothing and
+warned; [0061](#0061-resolve-platforms-for-digest-pinned-images-on-update) now
+has `update` fetch and verify their index so new locks record platforms.
+
+### Consequences
+
+- Wrong architecture, an occupied port and an unusable disk fail before any
+  upload or file write, with the tool named.
+- `plan` needs no registry access for the architecture check; a lock remains
+  sufficient to explain what will run.
+- The lock grows by a few bytes per tool and old locks keep working with a
+  warning. Older Olympus binaries reject a lock carrying the new field, which is
+  acceptable before a release.
+- Every `plan`/`apply` costs five extra read-only SSH commands (`cat`, `uname`,
+  `cat`, `df`, `ss`) plus one `docker ps` when ports are declared.
+- Missing `ss` or Docker degrades the port check to a warning rather than
+  blocking every deployment on a minimal system. The OS, architecture and disk
+  checks stay hard failures, and memory stays a warning.
+- `min_ram` is compared per tool, not summed across tools, matching the recipe
+  field's meaning. The check reads total memory, not currently available memory.
+- Public ports are checked, but public-port builds are still rejected by the
+  evaluator until that slice lands. A private port conflicts only with loopback
+  or wildcard listeners on the same number; a public port conflicts with any
+  listener. This avoids failing because another service holds that number on an
+  unrelated address, but a loopback bind can still be blocked by a wildcard
+  listener, which is what Docker publishes by default.
+- The preflight does not verify that an image can be pulled, only that its index
+  claims the platform. Pull, digest and registry failures remain activation
+  failures.
+- A hand-edited lock can claim platforms the index does not have; the platform
+  claim is trusted because the digest is the real check at pull time.
+
+### Alternatives considered
+
+- **Query the registry from the client at apply time:** needs network and token
+  handling in the apply path, fails when the registry is unreachable although a
+  cached image would run, and repeats work `update` already did.
+- **Run `docker manifest inspect` on the server:** Docker may not be installed
+  yet on a first apply, and it adds a registry dependency to the server.
+- **Refuse any index missing amd64 or arm64 at `update`:** hides the per-server
+  reason, blocks a valid amd64-only deployment, and still cannot explain an
+  older lock.
+- **Record ports in the manifest to detect our own:** changes generation hashes
+  for data the server already exposes through Docker labels.
+- **Hard-fail on low memory:** the edge-case table asks for a warning and
+  confirmation; servers are also shared, so the user decides.
+- **Inspect `/proc/net/tcp` instead of `ss`:** gives no process name, and the
+  edge case requires naming the process.
+
+## 0045. Render recipe runtime limits as fixed Compose keys
+
+- **Status:** Accepted
+- **Date:** 2026-11-06
+
+### Context
+
+OLY-55. Some tools need limits Compose can already express: a larger `/dev/shm` than Docker's 64 MiB default (browser automation and in-process models), a longer grace period before SIGKILL, blocking setuid escalation, or a seccomp profile narrower than Docker's default. Recipes had no way to declare any of them, so a tool with those requirements could not be described without hand-editing Compose, which no command does. A generic passthrough of arbitrary Compose keys would make the recipe format unlimited and untestable, and could override the keys the evaluator already owns (image, ports, volumes, environment).
+
+### Decision
+
+Add one optional `runtime` block to the recipe:
+
+| Key | Validation | Compose output |
+| --- | --- | --- |
+| `shm_size` | `recipe.ParseSize`, greater than zero | `shm_size` |
+| `stop_grace_period` | `time.ParseDuration`, greater than zero | `stop_grace_period` |
+| `no_new_privileges` | boolean, default `false` | `security_opt: ["no-new-privileges:true"]` |
+| `seccomp` | relative regular file inside the recipe folder; no scheme, absolute path or `..` | `security_opt: ["seccomp=/var/lib/olympus/store/<tool hash>/files/<path>"]` |
+
+Only these four keys exist; there is no passthrough. `no_new_privileges` stays opt-in instead of becoming the default for every tool. The seccomp profile is read with `recipe.ReadFile`, becomes a generated tool file at `<first volume>/.olympus/seccomp.json`, and follows the existing rule that every generated file is a read-only store bind. Its bytes are part of the tool hash and its manifest file hash, so a changed profile changes the generation and `plan` prints the path as a config change. Its host copy is `store/<tool hash>/files/…` under `/var/lib/olympus` (A11), and the bind's source gives Compose the host path the Docker daemon needs, with no second path layout.
+
+### Consequences
+
+- A recipe needs one volume for `seccomp`; the destination is fixed and cannot collide with a template, managed file or writable path.
+- The profile also appears read-only inside the container at that path. It is policy, not secret, and the alternative (a host-only path outside the tool entry) would need a new upload and verification path in `deploy`.
+- Olympus does not validate the profile's JSON or syscall list; Docker rejects a malformed profile when the container starts. The generation records exactly the file the recipe shipped.
+- `no_new_privileges` remains off by default because Olympus cannot verify that every shipped image starts without setuid or file capabilities, and enabling it globally would change every tool's service and require a lab run per tool. New recipes should set it to `true` when their image does not need setuid; whether to flip the default is reconsidered after the lab verifies each image.
+- Fixed names mean a future Compose key needs a new field and ADR, not a recipe free-for-all.
+
+### Alternatives considered
+
+- **Generic Compose passthrough:** unbounded format, untestable, can override evaluator-owned keys, and bypasses size and duration validation.
+- **Wrap the tool in a shell entrypoint that applies limits:** cannot set cgroup or seccomp settings from inside a container.
+- **Put the seccomp profile in the image:** a custom image is not available for every tool, and the profile would no longer be visible to `plan`.
+- **Store the profile outside the tool's store entry:** would need a new content-addressed upload path, verification and garbage-collection rules in `deploy`.
+- **Make `no_new_privileges` the default:** a silent behaviour change for three unverified images and every future recipe, with no evidence the images still start.
+
+## 0046. Vendor OpenBot's seccomp profile and pin an exact release
+
+- **Status:** Accepted
+- **Date:** 2026-11-06
+
+### Context
+
+OLY-56 adds the OpenBot recipe. Upstream publishes a container image and three files that must agree: `docker/compose.yaml`, `docker/seccomp.json` and the `docs/docker.md` example. The seccomp profile is not optional: it is Docker's default profile plus one rule that lets `clone` and `unshare` create user, PID and network namespaces, which the Electron sandbox needs. Without it the container stops. Upstream warns that the files can change between releases and asks an operator to diff them before an upgrade.
+
+OpenBot also refuses to open a database that a newer release migrated, so an image-tag rollback of a live volume does not start. A moving tag would therefore turn an ordinary `apply` into a one-way upgrade.
+
+### Decision
+
+We will vendor the profile at `recipes/openbot/seccomp.json`, copied verbatim from `docker/seccomp.json` at release `v0.62.0`, and record its SHA-256 and source in the recipe README. The recipe names the exact image `ghcr.io/nightly-labs/openbot:0.62.0`, never `latest`; the lock file pins the digest (A7). The profile reaches the daemon through the OLY-55 `runtime.seccomp` path: a hashed tool file under the `/data` volume's `.olympus` folder, uploaded under `/var/lib/olympus` and bind-mounted read-only.
+
+The recipe declares no `supports` block. The pinned docs define OpenBot's own local skills library and channel chats inside the app, but no file or folder where Olympus could install shared MCP servers or skills and no channel environment variables.
+
+### Consequences
+
+- The profile is part of the recipe set and therefore part of the recipes hash; a changed profile changes the generation and shows up in `plan`.
+- Upgrading OpenBot is a manual recipe update: copy the new `docker/seccomp.json`, update the image tag, the README dates and the SHA-256, and diff `docker/compose.yaml`. There is no automation, matching upstream's own upgrade guidance.
+- The vendored file is a derivative of Docker's Apache-2.0 default profile; upstream's notice and the PolyForm Noncommercial 1.0.0 licence of OpenBot itself are recorded in the recipe README, and the README states that commercial use needs a vendor licence.
+- The recipe is not lab-verified, because the QEMU lab is unavailable here; the golden test covers rendering only.
+
+### Alternatives considered
+
+- **Fetch the profile from GitHub at `plan` or `apply`:** adds a network dependency and a mutable remote input to an otherwise offline generation, is invisible in `plan`, and enlarges the supply-chain surface (A1, A12).
+- **Use `latest` or a floating `<minor>` tag:** OpenBot publishes no floating minor tag, evades review of runtime option changes, and makes an unintended one-way database migration likely.
+- **Use Docker's default profile instead of upstream's:** the container stops, because the Electron sandbox cannot create user namespaces.
+- **Set `seccomp=unconfined`, `--privileged` or `--no-sandbox`:** upstream explicitly rules these out; each one removes either the sandbox or the syscall filter.
+- **Declare `supports` for OpenBot's own skills folder:** the pinned docs document no stable on-disk MCP config or shared-skills folder that Olympus could write, so a guess would break on upgrade.
+
+## 0047. Carry an explicit remote transport for MCP servers
+
+- **Status:** Accepted, amends 0037, amended by 0050
+- **Date:** 2026-11-06
+
+### Context
+
+ADR 0037 introduced tool-native MCP styles (`hermes`, `codex`, `opencode`), where remote servers were rendered as `url` + `headers`. However, tool remote MCP formats diverge:
+- Claude Code skips any remote server entry that has `url` but lacks `"type": "http"|"sse"|"ws"`.
+- Gemini CLI interprets `url` as an SSE endpoint and requires `httpUrl` for streaming HTTP.
+- Hermes Agent supports streaming HTTP via `url`.
+
+Stacks previously had no way to declare whether a remote server uses streaming HTTP or SSE.
+
+### Decision
+
+We will:
+1. Add an optional `transport: http | sse` field to remote MCP definitions in the stack file (`docs/specs/stack-file.md`), defaulting to `http`. Reject unknown values and reject `transport` on stdio (`command`) servers during schema and parser validation.
+2. Add tool-specific MCP styles `claude-code` and `gemini-cli` to `translateMCP` in `internal/eval`:
+   - `claude-code`: writes `"type": "http"` (or `"sse"`) alongside `url` and `headers`.
+   - `gemini-cli`: writes `httpUrl` + `headers` for `http` transport (omitting `url`), and `url` + `headers` for `sse`.
+   - `hermes`, `codex`, and `opencode` remain byte-identical: `hermes` emits `url` + `headers` unchanged, ignoring `transport`.
+3. Switch `recipes/claude-code` to `style: claude-code` and `recipes/gemini-cli` to `style: gemini-cli`.
+
+### Consequences
+
+- Stacks can cleanly configure remote MCP servers across both Claude Code and Gemini CLI without custom wrapper scripts.
+- Existing hermes, codex, and opencode golden tests remain byte-identical.
+- Stacks default to `http` transport without requiring explicit configuration on every server.
+- WebSocket remotes (`ws`) remain unsupported in stacks until a recipe or use case requires them (ponytail / YAGNI).
+
+### Alternatives considered
+
+- **Heuristically infer transport from URL path:** Fragile; endpoints do not reliably contain `/sse` or `/http`.
+- **Modify `hermes` style to emit `type` or `httpUrl`:** Changes Hermes Agent format and breaks byte-identity for existing configurations.
+- **Support `ws` transport now:** No existing tool recipe or test stack requires WebSocket MCP transport; deferred until needed.
+
+## 0048. Cross-compile release binaries and verify activator checksum against release build
+
+- **Status:** Accepted, amends 0029, amended by 0049
+- **Date:** 2026-11-06
+
+### Context
+
+ADR 0029 established deployment verification of the activator binary on the server, but deferred release-checksum embedding: in the M1 offline slice, `UploadActivator` and `VerifyActivator` computed the SHA-256 of whatever local binary was selected and verified the server matched that binary, without asserting trust against an official release build.
+
+Rule A12 requires: "Run the activator on the server only after checking its checksum matches the CLI's release build, and never a different version from the CLI." TRD section 13 specifies cross-compiling the CLI and Linux activator for darwin/linux on amd64/arm64 and publishing a `SHA256SUMS` file.
+
+### Decision
+
+We will:
+1. Cross-compile Olympus CLI (`darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64`) and Linux activator (`linux/amd64`, `linux/arm64`) binaries using standard Go toolchain (`CGO_ENABLED=0`) in a tag-triggered GitHub Actions workflow (`.github/workflows/release.yml`) and `scripts/build-release.sh`.
+2. Sequence release builds so Linux activator binaries are compiled first, their SHA-256 digests computed, and then embedded into the CLI binaries via linker flags (`-ldflags "-X ..."`).
+3. In `internal/deploy`, check the activator's SHA-256 against the embedded release checksum (`ExpectedReleaseChecksum(arch)`) before uploading to or activating on the remote server. Mismatches fail closed with `deploy: activator checksum does not match release build`.
+4. Reject server commands in release builds missing either embedded checksum; development builds retain a visible warning. A development build without a release checksum requires the explicit `-unsafe-dev-activator` opt-in (amended by 0049). Select the matching Linux activator alongside the CLI for uploads, including on macOS.
+5. Bundle both Linux activator architectures alongside each CLI in its archive. Package tarball archives (`olym_<version>_<os>_<arch>.tar.gz` and `olym-activator_<version>_linux_<arch>.tar.gz`), emit a `SHA256SUMS` manifest, and publish releases using `gh release create`.
+6. Attest each release archive and `SHA256SUMS` using the official GitHub build provenance action pinned to a full commit; users verify artifacts with `gh attestation verify`.
+
+### Consequences
+
+- Rule A12 is enforced cryptographically: release CLI builds will only execute verified release activators on target servers.
+- The build pipeline requires zero third-party GitHub Actions or release dependencies, relying exclusively on official `actions/*` and standard Go tooling.
+- Developers can continue testing custom Linux activator builds in local dev environments using `--activator` plus the explicit `--unsafe-dev-activator` opt-in (ADR 0049).
+- Activator and CLI binaries are decoupled in build order to avoid circular hash embedding.
+- GitHub provenance binds artifact digests to the workflow identity; verification depends on GitHub attestation services and does not independently prove that build inputs are safe.
+
+### Alternatives considered
+
+- **GoReleaser or third-party release Action:** Adds external dependencies and non-official actions, which violates the repo guideline to prefer native tools and requires approval.
+- **Download and verify activator at runtime over HTTPS:** Introduces runtime network dependencies and external failure modes during deployment. Embedding release digests directly at build time is offline-first, deterministic, and self-contained.
+- **Checksums only:** An attacker able to replace both an archive and its checksum could make a substituted artifact pass verification.
+- **Single binary without separate activator artifact:** Activator on Linux is the `olym` binary running server commands; building activator artifacts first allows deterministic checksum calculation prior to CLI linking.
+
+## 0049. Require an explicit opt-in for unsigned development activators
+
+- **Status:** Accepted, amends 0048
+- **Date:** 2026-11-08
+
+### Context
+
+ADR 0048 embedded release checksums into release CLI builds and failed closed when they were missing. Development builds (`0.1.0-dev`) deliberately skipped the check so contributors could test local activator binaries, and `UploadActivator`/`VerifyActivator` accepted any well-formed Linux ELF whose self-reported version matched. The 2026-11-06 security review recorded this as finding F3 (Medium): a development client and a substituted local activator could execute as root on the server without any release-build digest, and only a warning told the operator.
+
+### Decision
+
+We will:
+1. Keep the development-build fallback but make it explicit. When `eval.Version == eval.DevelopmentVersion` and no release checksum is available for the server architecture, `UploadActivator` and `VerifyActivator` refuse unless `deploy.Client.UnsafeDevActivator` is set.
+2. Expose that field as the `-unsafe-dev-activator` CLI flag, registered for all commands and passed to the deploy client in `manageGeneration` and `serverCommand`.
+3. Keep release builds unchanged: a missing embedded checksum still fails closed, and a checksum mismatch still rejects the activator. The flag has no effect on a release build.
+4. Keep development builds that do embed release checksums on the normal verification path, with no opt-in required.
+5. Pass the flag in the tagged lab tests (`internal/cli/lab_test.go`, `internal/cli/real_lab_test.go`, `internal/deploy/lab_test.go`) and document it in `README.md`, `docs/usage/commands.md`, `docs/install.md` and `lab/README.md`.
+
+### Consequences
+
+- A development client can no longer upload or run an unsigned activator by accident; the operator must name the flag and the error message points at it.
+- The development path is still possible for the lab and for contributors who build their own activator, at the cost of one extra flag on every lab and manual server command.
+- The flag is deliberately named unsafe and is documented in `docs/usage/commands.md`, so it cannot be mistaken for normal operation. The static `olym` usage line and per-command help do not list individual flags, so that document remains the flag reference.
+- The trust boundary is unchanged for release builds; a compromised root server can still replace the verified binary after the check.
+
+### Alternatives considered
+
+- **Remove the development path entirely:** Blocks the lab and local contributor testing against real servers; the lab would need a separate release-signed activator for every change.
+- **Trust any activator whose version string matches:** That is the behaviour F3 reports; a version string is attacker-controlled.
+- **Prompt interactively instead of a flag:** Server commands already run unattended in tests and CI; an interactive prompt would need a second bypass for automation and break the non-interactive `--yes` contract.
+- **Require a trusted expected digest supplied by the user for development:** Useful for advanced users but does not remove the need for a short local override; left as a future option rather than adding a second input format now.
+
+## 0050. Honour or reject SSE for Hermes, Codex and OpenCode
+
+- **Status:** Accepted, amends 0047
+- **Date:** 2026-11-19
+
+### Context
+
+ADR 0047 rendered `transport` only for the `claude-code` and `gemini-cli` styles and left `hermes`, `codex` and `opencode` ignoring it, on the assumption that those tools accept a single remote form. A stack that set `transport: sse` on a server shared with Codex therefore rendered a Streamable HTTP entry that fails at runtime, and `check` said nothing (OLY-58). Checking the pinned upstream source showed the assumption was wrong for two of the three tools:
+
+- Codex `rust-v0.116.0`, `codex-rs/core/src/config/types.rs`: `McpServerTransportConfig` has only `Stdio` and `StreamableHttp`. There is no SSE client.
+- Hermes Agent `v0.22.7`, `tools/mcp_tool_transport.py`: a server entry with `transport: sse` selects the SSE client; otherwise it uses Streamable HTTP and may fall back to SSE.
+- OpenCode `v1.0.196`, `packages/opencode/src/mcp/index.ts`: every `type: remote` entry tries `StreamableHTTPClientTransport` and then `SSEClientTransport`, with no config key choosing between them.
+
+### Decision
+
+We will:
+1. `hermes`: write `transport: sse` next to `url` and `headers` when the stack sets `sse`. Write nothing for `http` or an absent field, so existing output stays byte-identical.
+2. `codex`: fail evaluation for a remote server with `transport: sse`. The error names the tool and the server (`<tool>: MCP <server>: transport sse is not supported by Codex …`).
+3. `opencode`: render unchanged, because OpenCode's own fallback reaches an SSE server.
+
+### Consequences
+
+- No style drops `transport` silently: each one renders it, reaches SSE through its own fallback, or refuses at `check`/`build`.
+- A stack that shares an SSE-only server with Codex must drop that server from Codex or use a Streamable HTTP endpoint.
+- `testdata/golden-real` is unchanged, since it sets no `transport`.
+- Upstream changes to these transports need a recheck when a recipe's pinned version moves.
+
+### Alternatives considered
+
+- **Warn instead of failing for Codex:** The entry cannot work, so a warning would still deploy a broken connection. Failing closed matches how Codex secret rendering already treats what it cannot express.
+- **Write `transport` for OpenCode too:** OpenCode has no such key; an unknown key would be at best ignored and at worst rejected by its config schema.
+- **Always write `transport` for Hermes:** Changes every existing Hermes config for no behaviour change.
+
+## 0051. Pin built-image inputs with committed lockfiles and a fetch stage
+
+- **Status:** Accepted, amends 0041, amended by 0056
+- **Date:** 2026-11-19
+
+### Context
+
+Security review finding F2 (OLY-62, rule A7): the recipes that build on the server pinned the base image by digest and the top-level package version, but `npm install -g pkg@X` resolved transitive npm dependencies at build time, and Goose's build installed unpinned apt packages into the shipped image. A later rebuild of the same generation could therefore produce different bytes under the same content-addressed tag. The build context was only the Dockerfile, so a recipe had no way to ship a lockfile.
+
+### Decision
+
+We will:
+1. Add an optional `build.files` list to the recipe format: recipe-folder files copied as generation files next to `build.dst`, under their base names, so they sit in the Compose build context. Names must be confined relative paths and must not repeat each other or the Dockerfile's name.
+2. Feed each build file's name and bytes into the built image tag together with the Dockerfile and base reference, so a changed lockfile changes the tag and is not served by an image reused under ADR 0041. A recipe without `build.files` keeps its previous tag.
+3. Give `codex`, `claude-code` and `gemini-cli` a committed `package.json` (exact top-level version) and `package-lock.json` (every package with an integrity hash, including all platform optional packages), and install with `npm ci --omit=dev`, which refuses a lockfile that does not match.
+4. Make Goose multi-stage: apt and curl run in a `fetch` stage that verifies the release checksum, and only the verified binary is copied into a fresh base stage.
+
+### Consequences
+
+- Every byte that reaches an npm-built image is named by the lock, the committed lockfile or the Dockerfile; npm verifies integrity hashes on install.
+- Moving a pin means editing `package.json` and running `npm install --package-lock-only --ignore-scripts`, then reviewing the lockfile diff.
+- Native install scripts (Claude Code's postinstall, Gemini CLI's optional `node-pty` and `keytar`) originally ran at build time with pinned inputs but unverified outputs. [0056](#0056-keep-npm-lifecycle-scripts-out-of-built-images) supersedes that behaviour: lifecycle scripts now stay off.
+- The base image still carries whatever packages its digest contains; that remains the lock's job.
+- Built-image tags and generation hashes for these four recipes changed once.
+
+### Alternatives considered
+
+- **Record the first built image's digest and refuse a different rebuild:** Docker builds are not byte-reproducible across BuildKit versions and hosts even with fixed inputs, so this would reject legitimate rebuilds; it also detects drift instead of preventing it.
+- **Inline the lockfile into the Dockerfile with a heredoc:** No format change, but a several-hundred-line Dockerfile is hard to review and to regenerate.
+- **Publish prebuilt images:** Out of scope for OLY-62.
+- **Pin apt package versions for Goose:** Debian removes superseded versions from the mirror, so pins break; a fetch stage avoids shipping them at all.
+
+## 0052. Record post-install completion by stack tool name
+
+- **Status:** Accepted, amends [0027](#0027-activate-a-generation-from-the-store-by-manifest-id)
+- **Date:** 2026-11-22
+
+### Context
+
+Recipes could declare a one-time container command, but the evaluator dropped it before deployment. Container and generation replacements are routine, so their lifetimes are too short for tracking one-time setup.
+
+### Decision
+
+Carry optional `post_install` arguments in each version 1 manifest tool. On forward activation under the server lock, run pending hooks after readiness checks and before requesting confirmation. Use Compose exec scoped to the named service and discard process output. A successful hook atomically publishes an empty `post-install/<tool>` marker under the server root. An unsuccessful hook fails activation and follows the existing revert path. Both explicit rollback and automatic revert skip hooks.
+
+### Consequences
+
+The marker survives rollback, generation garbage collection, and removal and re-addition under the same name. Full data destruction clears it along with the retained volumes. Old manifests omit the field and behave as before. The first successful hook for a name wins, including if confirmation or another tool later fails. Setup changes in persistent volumes may survive rollback. An interrupted command can leave partial effects, and a crash before recording completion can cause a retry. Recipe authors should make the command idempotent.
+
+### Alternatives considered
+
+- Key completion by generation or hook contents. A routine configuration edit or recipe upgrade could repeat one-time setup on retained data.
+- Record completion only when activation is confirmed. A rejected generation could leave durable setup effects that the next apply would repeat.
+- Put completion inside each container. Recreating a container would lose it unless every recipe allocated a persistent path for the activator.
+
+## 0053. Select the test lab guest OS and architecture
+
+- **Status:** Accepted
+- **Date:** 2026-11-22
+- **Amends:** [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)
+
+### Context
+
+OLY-32 needs to exercise the supported server distributions and arm64 before release. The lab previously booted only Ubuntu 24.04 amd64.
+
+### Decision
+
+Select Ubuntu 24.04, Ubuntu 22.04 or Debian 12 and amd64 or arm64 through environment variables. Keep Ubuntu 24.04 amd64 as the default and preserve its existing state directory. Store each additional guest's image and VM state in its own directory under `.lab/`. Verify new official cloud images against the publisher's SHA-256 (Ubuntu) or SHA-512 (Debian) manifest before caching them. Boot arm64 with QEMU TCG and local UEFI firmware.
+
+### Consequences
+
+- Each guest retains its own overlay, SSH identity and known hosts across restarts. The same loopback port pair can be reused after shutdown.
+- Arm64 needs a separate QEMU binary and firmware. Emulation takes longer and the deployment test cross-compiles the activator for that guest.
+- The real VPS release checks remain required.
+
+### Alternatives considered
+
+- **Reuse one overlay and SSH state for all guests:** switching images could reopen a different guest's disk or collide with a saved host key.
+- **Use a VPS for each lab configuration:** suitable for release validation, with additional provisioning and cost for local iteration.
+
+## 0054. Bound and verify semantic plan reads
+
+- **Status:** Accepted
+- **Date:** 2026-11-22
+
+### Context
+
+Semantic key diffs consume config bodies over SSH and display keys from those bodies in an operator's terminal. The store paths and manifest hashes already identify the files that can contribute to the diff.
+
+### Decision
+
+Read at most 32 supported YAML, TOML or JSON files and 16 MiB of current config per plan, with a 4 MiB per-file limit. Verify the installed activator checksum and version before invoking its read-only `read-config --server` command. On Linux it resolves store paths with `openat2` beneath the filesystem root and disallows symlinks, reads only regular files, and verifies the manifest digest before returning the bytes. Escape controls in key paths and cap display at 256 bytes per path and 4 KiB per file. Always report the changed file path when a read or display check fails.
+
+### Consequences
+
+Plan and apply still report file changes when the installed activator is missing, cannot be verified, or cannot use the required Linux facilities. Plan uses the installed binary and performs no upload. Only use semantic key diffs for formats whose keys are safe metadata.
+
+### Alternatives considered
+
+- **Check a path then read it by name:** path components can change between the check and the read.
+- **Use an inline interpreter for the read:** adds a host runtime dependency and a separate privileged execution path.
+
+## 0055. Bind managed init policy to tool identity
+
+- **Status:** Accepted, amends [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service)
+- **Amended by:** [0058](#0058-make-tool-store-files-readable-to-the-container-user)
+- **Date:** 2026-11-22
+
+### Context
+
+Tools with the same rendered files and main service formerly shared a store identity even when the managed-copy command changed. Apply could skip the update or find different Compose bytes at an existing generation address.
+
+### Decision
+
+Include the ordered managed-copy destinations and failure policy in tool identity when the tool has an init service. Each failed copy sequence exits init immediately.
+
+### Consequences
+
+The first apply with the new policy replaces affected tools. Prior generations keep their original Compose files for rollback.
+
+### Alternatives considered
+
+- **Change the shell command alone:** existing stacks would not reliably receive the corrected init service.
+
+## 0056. Keep npm lifecycle scripts out of built images
+
+- **Status:** Accepted, amends [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage)
+- **Date:** 2026-11-22
+
+### Context
+
+Security review R5 (2026-11-22) noted that ADR 0051 pinned npm tarballs by integrity hash but left their install scripts enabled in the `claude-code`, `codex` and `gemini-cli` builds. A pinned package can still run arbitrary code at build time, and a script that fetches mutable artifacts would make two builds from the same lock differ. Auditing the lockfiles at their pinned versions found: `codex` has no lifecycle scripts; `gemini-cli` has two optional helpers (a keytar prebuild copy and node-pty's local cleanup) that the CLI does not need; `claude-code` has one postinstall that links the platform binary shipped inside an integrity-pinned optional-dependency tarball over a 500-byte error stub. None of the audited scripts downloads anything.
+
+### Decision
+
+All npm-built recipe Dockerfiles install with `npm ci --omit=dev --ignore-scripts`. `codex` and `gemini-cli` need no further steps. `claude-code` invokes its one audited `install.cjs` explicitly by path after the install; it reads only the pinned optional package already in `node_modules` and writes `bin/claude.exe`, with no network access. A future lockfile revision that adds an install script will not run it without a recipe change and review.
+
+### Consequences
+
+- No package lifecycle script runs implicitly during a build; only the explicitly named, audited Claude Code script executes.
+- The Claude Code Dockerfile names one upstream script path, so a release that renames it must be reviewed together with the pin move.
+- The Gemini CLI image no longer copies keytar's bundled prebuild or compiles node-pty; both are optional and the helpers are not needed for CLI startup.
+- The built-image tags and generation hashes for the three recipes changed once; goldens were regenerated.
+
+### Alternatives considered
+
+- **Leave scripts enabled and document them:** keeps the unpinned execution path in the build and relies on future lockfile reviews to catch new scripts.
+- **Add a checksum-verified fetch stage for each native binary:** duplicates npm's integrity-pinned tarballs and adds architecture-specific URLs and hashes for binaries already shipped inside the lock.
+- **Replace the Claude Code bin stub in the recipe:** reimplements upstream platform detection and link logic instead of running the audited script.
+
+## 0057. Preserve init order during secret rotation
+
+- **Status:** Accepted, amends [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert)
+- **Date:** 2026-11-22
+
+### Context
+
+OLY-67. Secret rotation force-recreated selected tools with dependency startup disabled. The later project-wide start could copy writable config after a tool had already read it. Automatic revert used the same sequence. A teardown after a secret restoration failure could also leave containers declared only in the previous generation running.
+
+### Decision
+
+Let Compose follow each selected tool's declared dependencies during forced recreation. The existing completion condition makes Compose wait for its init service before starting the tool. Include orphans whenever the activator takes the Compose project down and preserve its volumes on ordinary teardown.
+
+### Consequences
+
+Forward activation and automatic revert start the selected tools with their generation's writable config. Selective recreation includes their managed init services. A failed restoration shuts down all containers in the Olympus project, including removed tools.
+
+### Alternatives considered
+
+- **Start init services separately:** would duplicate the dependency graph and completion handling already declared in Compose.
+- **Take down the project before recreating tools:** would interrupt unrelated tools during ordinary secret rotation.
+
+## 0058. Make tool store files readable to the container user
+
+- **Status:** Accepted, amends [0030](#0030-address-rendered-files-by-tool-hash-across-generations) and [0055](#0055-bind-managed-init-policy-to-tool-identity)
+- **Date:** 2026-11-22
+
+### Context
+
+Rendered config and skills were extracted as root-owned 0600 files. A non-root container could not read the resulting bind mounts. The init services that copy managed files also lacked their main service's security options.
+
+### Decision
+
+Stage non-secret tool files as 0644 and their entry directories as 0755 before publishing them. The Olympus root and store directory remain root-owned 0700. Generation metadata and secret files remain 0600, and secret values stay outside the store. Tool identity includes the store policy so the first apply can publish new entries without mutating old ones. Init inherits its tool's security options and copies file contents without preserving store ownership.
+
+### Consequences
+
+The first apply with this policy changes the identity and bind sources of tools with stored files. Rollback to an older generation preserves its original modes and init configuration, including the old non-root readability limitation. A rebuilt stack gets the new behavior. Newly copied files are owned by the effective init user, which matches the tool's user.
+
+### Alternatives considered
+
+- **Chown to the recipe user:** this requires resolving the image's default or named user on the server, and ties the store permissions to an image UID even when a tool can mount the same non-secret data read-only.
+- **Update permissions on reuse:** this mutates published entries and can change the behavior of pre-existing generations.
+
+## 0059. Let recipes reject MCP transports they cannot use
+
+- **Status:** Accepted, amends [0047](#0047-carry-an-explicit-remote-transport-for-mcp-servers) and [0050](#0050-honour-or-reject-sse-for-hermes-codex-and-opencode)
+- **Date:** 2026-11-22
+
+### Context
+
+Release review finding 2: Pi uses the `hermes` MCP config shape, but Pi rejects legacy SSE endpoints. The shared style writes `transport: sse` for an explicit SSE stack entry, so `check` and `build` passed and the server failed silently in the container. Codex's SSE rejection lived in its style branch, which was not reusable by another recipe with the same limitation.
+
+### Decision
+
+A recipe may set `supports.mcps.sse: false`. Evaluation then rejects a remote MCP entry with `transport: sse` before writing any config, naming the tool and MCP server. Omission or `sse: true` preserves the style's existing behavior. Pi declares the new field; Codex keeps its existing style-level rejection.
+
+### Consequences
+
+- The recipe schema has one optional boolean; old recipes need no change and their content hashes stay the same.
+- Pi's recipe content hash and golden manifest changed once, as expected for any recipe edit.
+- A stack that shares an SSE-only server with Pi now fails early with a clear error instead of producing a config Pi cannot use.
+- The tool-level check covers only SSE; other transport limitations remain style-specific until a recipe needs them.
+
+### Alternatives considered
+
+- **Add a Pi-specific MCP style:** duplicates the Hermes config shape and gives future tools with the same limitation no general answer.
+- **Reject SSE in the Hermes style:** breaks Hermes, which selects its SSE client on `transport: sse`.
+- **Document the limitation only:** keeps the silent runtime failure the release review found.
+
+## 0060. Allow repeated argv entries
+
+- **Status:** Accepted, amends the recipe and stack schema formats
+- **Date:** 2026-11-22
+
+### Context
+
+Release review finding 5: `uniqueItems` on `post_install` rejected legitimate commands such as `[cp, -a, /x, /x]`. The same mistake was present on `command` and `health.command` in recipes and on `mcps.args` in stacks. Repeated flags and paths are ordinary argv values, not duplicate declarations.
+
+### Decision
+
+Drop `uniqueItems` from those four argv lists. Keep it on semantic sets where a duplicate has no meaning: volumes, ports, writable paths, templates, build files, skills, MCP names and channel allow-lists.
+
+### Consequences
+
+- Repeated argv items validate in `check`, `build` and direct schema use; no evaluator or command construction changes.
+- Existing stacks and recipes remain valid, and duplicate detection still protects the paths and names that need it.
+- No ADR on uniqueness existed to amend; this decision records the boundary for future schema additions.
+
+### Alternatives considered
+
+- **Keep uniqueness and ask users to avoid repeats:** rejects valid invocations with a misleading diagnostic.
+- **Drop uniqueness everywhere:** would allow duplicate volumes, ports and managed files with ambiguous results.
+
+## 0061. Resolve platforms for digest-pinned images on update
+
+- **Status:** Accepted, amends [0044](#0044-preflight-the-server-before-plan-and-apply)
+- **Date:** 2026-11-22
+
+### Context
+
+Release review finding 7: the apply preflight warns when `stack.lock` has no image platforms and suggests `olym update`, but `update` never fetched an index for an image already pinned by digest, so the warning could not be cleared. ADR 0044 chose to store platforms in the lock precisely so preflight needs no registry access.
+
+### Decision
+
+`update` fetches the OCI index or Docker manifest list for digest-pinned references by digest, verifies the returned bytes hash to that digest, and records the same sorted `os/architecture` list it records for tag references. A pinned digest whose registry bytes differ fails the update. Old locks without platforms still warn; they are not rewritten until update runs.
+
+### Consequences
+
+- `update` makes one registry request per digest-pinned tool; `plan` and `apply` still make none for the platform check.
+- A registry serving a single-platform manifest for a pinned digest fails with the existing multi-arch-only error, consistent with tag resolution.
+- The lock format is unchanged; only locks produced by this and later versions gain platforms for digest-pinned images.
+
+### Alternatives considered
+
+- **Reword the preflight warning:** leaves users without a way to fill platforms for digest-pinned images.
+- **Query the registry during preflight:** needs network and credentials on the apply path, which ADR 0044 rejected.
 
 ## Template
 

@@ -1,0 +1,31 @@
+{
+  "id": "sha256-282d06a636963e70f9fcccb40409dad68b6cec7b0493a814c2191b0c6b6c1b56",
+  "inputs": {
+    "recipes": "sha256-59bdcf9a0a0b0fbef1c9146f3b33a212a45aaaf9e3d68f3f3ca03f58b24749c0"
+  },
+  "olym": "0.1.0-dev",
+  "tools": {
+    "oh-my-pi": {
+      "files": {
+        "/root/.olympus-build/Dockerfile": "sha256-20a815ef1f9dd20fbf9a9f00711aa7884ee8aeda2c3f6e89120a73d003c6aca1",
+        "/root/.omp/agent/config.yml": "sha256-dfdfd3fa56d6d3a100547712554886b0682b8487bc0b624c404bfc51100e15dc",
+        "/root/.omp/agent/mcp.json": "sha256-c4362a0cb05e59311e86eac62c4d1e7995628359412052051c0dce81d18f55ca",
+        "/root/.omp/agent/skills/deploy-checklist/SKILL.md": "sha256-c12cd3442525cb7a773436b6c185a81622b3cdfc1b0aa5da6ab49c5e3ffc11b0"
+      },
+      "hash": "sha256-bef4da12d538cf2c803033f03bfc1b8ffc198672c34a855b19df99663e99c409",
+      "health": {
+        "command": [
+          "omp",
+          "--version"
+        ],
+        "timeout": "60s"
+      },
+      "image": "olympus/oh-my-pi:sha256-cd85b63ddc15",
+      "secrets": [
+        "github-token",
+        "model-key"
+      ]
+    }
+  },
+  "version": 1
+}

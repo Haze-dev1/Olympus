@@ -56,8 +56,12 @@ func Child(path, key string) string {
 var variable = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
 func Variables(s string) []string {
-	var out []string
-	for _, m := range variable.FindAllStringSubmatch(s, -1) {
+	matches := variable.FindAllStringSubmatch(s, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(matches))
+	for _, m := range matches {
 		out = append(out, m[1])
 	}
 	return out
@@ -192,6 +196,8 @@ func (d *Document) validate(v any, r map[string]any, path string) {
 		case float64:
 			valid = math.Trunc(v) == v
 		}
+	case "boolean":
+		_, valid = v.(bool)
 	}
 	if !valid {
 		d.Add(path, "expected "+typ)
