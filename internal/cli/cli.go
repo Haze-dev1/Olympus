@@ -170,11 +170,12 @@ func prepare(ctx context.Context, s *stack.Stack, file, local, command string, o
 
 	inputs, diagnostics := eval.Load(s, root, filepath.Dir(file))
 	if len(diagnostics) > 0 {
-		var messages string
+		var sb strings.Builder
 		for _, d := range diagnostics {
-			messages += d.Error() + "\n"
+			sb.WriteString(d.Error())
+			sb.WriteByte('\n')
 		}
-		return empty, errors.New(messages)
+		return empty, errors.New(sb.String())
 	}
 	inputs.Revision = revision
 	if refresh {

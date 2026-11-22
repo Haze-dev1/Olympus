@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -141,7 +142,7 @@ func Parse(file string, b []byte) (*Recipe, *schema.Document) {
 		if !r.Confined(m.File) {
 			d.Add("/supports/mcps/file", "managed file must be inside a tool volume")
 		}
-		for _, part := range strings.Split(m.Key, ".") {
+		for part := range strings.SplitSeq(m.Key, ".") {
 			if part == "" {
 				d.Add("/supports/mcps/key", "managed key must contain nonempty dot-separated components")
 			}
@@ -265,12 +266,7 @@ var shellSafeRe = regexp.MustCompile(`^/[A-Za-z0-9._@+-]+(/[A-Za-z0-9._@+-]+)*$`
 var schemeRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
 
 func hasDotDot(p string) bool {
-	for _, c := range strings.Split(p, "/") {
-		if c == ".." {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(strings.Split(p, "/"), "..")
 }
 func inside(p, root string) bool { return p == root || strings.HasPrefix(p, root+"/") }
 func (r *Recipe) Confined(p string) bool {
@@ -296,7 +292,7 @@ func ReadFile(root, rel string) ([]byte, error) {
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, fmt.Errorf("unsafe root")
 	}
-	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+	for part := range strings.SplitSeq(rel, string(filepath.Separator)) {
 		if strings.HasPrefix(part, ".env") || part == "id_rsa" || part == "id_ed25519" || strings.HasSuffix(part, ".pem") || strings.HasSuffix(part, ".key") {
 			return nil, fmt.Errorf("sensitive source file is forbidden")
 		}

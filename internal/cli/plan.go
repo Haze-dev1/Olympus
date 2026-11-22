@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
 	"net"
@@ -12,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Haze-dev1/Olympus/internal/generation"
-	"github.com/Haze-dev1/Olympus/internal/plan"
 	"github.com/Haze-dev1/Olympus/internal/remote"
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
@@ -26,25 +23,6 @@ func selectKnownHosts(flag, env, home string) string {
 		return env
 	}
 	return filepath.Join(home, ".ssh", "known_hosts")
-}
-
-func readPlan(ctx context.Context, r plan.Reader, root bool, want generation.Manifest, file, server string, detailed bool, out, stderr io.Writer) int {
-	current, actual, err := plan.ReadCurrent(ctx, r, root)
-	if err != nil {
-		fmt.Fprintln(stderr, "plan:", err)
-		return 1
-	}
-	id := current.ID
-	if id == "" {
-		id = "empty"
-	}
-	fmt.Fprintf(out, "Plan: stack %q → %s (generation %s → new)\n\n", file, server, id)
-	diff := plan.Compare(want, current, actual)
-	diff.Print(out)
-	if detailed && len(diff.Changes) > 0 {
-		return 2
-	}
-	return 0
 }
 
 func connectionConfig(s *stack.Stack, known string, stderr io.Writer) (remote.Config, error) {

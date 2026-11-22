@@ -123,7 +123,7 @@ func validRepoName(name string) bool {
 	if !repoNameRE.MatchString(name) {
 		return false
 	}
-	for _, part := range strings.Split(name, "/") {
+	for part := range strings.SplitSeq(name, "/") {
 		if part == "" || part == "." || part == ".." {
 			return false
 		}
@@ -242,7 +242,7 @@ func (r Resolver) token(ctx context.Context, challenge, repo string) (string, er
 
 func parseChallenge(s string) map[string]string {
 	params := map[string]string{}
-	for _, part := range strings.Split(s, ",") {
+	for part := range strings.SplitSeq(s, ",") {
 		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
 		if !ok {
 			continue

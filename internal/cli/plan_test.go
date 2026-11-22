@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Haze-dev1/Olympus/internal/generation"
+	"github.com/Haze-dev1/Olympus/internal/plan"
 )
 
 func TestKnownHostsOrder(t *testing.T) {
@@ -38,6 +39,25 @@ func (r planReader) Run(_ context.Context, args []string, _ io.Reader) ([]byte, 
 		return []byte("generations/1\n"), nil, nil
 	}
 	return []byte("/var/lib/olympus/store/gen-" + r.id + "\n"), nil, nil
+}
+
+func readPlan(ctx context.Context, r plan.Reader, root bool, want generation.Manifest, file, server string, detailed bool, out, stderr io.Writer) int {
+	current, actual, err := plan.ReadCurrent(ctx, r, root)
+	if err != nil {
+		fmt.Fprintln(stderr, "plan:", err)
+		return 1
+	}
+	id := current.ID
+	if id == "" {
+		id = "empty"
+	}
+	fmt.Fprintf(out, "Plan: stack %q → %s (generation %s → new)\n\n", file, server, id)
+	diff := plan.Compare(want, current, actual)
+	diff.Print(out)
+	if detailed && len(diff.Changes) > 0 {
+		return 2
+	}
+	return 0
 }
 func TestPlanFakeReader(t *testing.T) {
 	g := generation.Generation{Manifest: generation.Manifest{Version: 1, Olym: "test", Tools: map[string]generation.Tool{}}, Files: map[string][]byte{}}
