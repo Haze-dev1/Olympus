@@ -1,6 +1,8 @@
 # OpenCode recipe
 
-Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
+Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`;
+the version-specific claims below were re-checked against the pinned source on
+**2026-11-22**:
 
 - Image, tags, server port, health endpoint, config file and MCP shape:
   OpenCode documentation at <https://opencode.ai/docs/> and the image
@@ -27,20 +29,31 @@ Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
   read-only (`mode: mount`).
 - Channels: none for the local server.
 - Licence: MIT.
+- **Resource sizing.** Upstream documents no minimum memory; `min_ram: 2GB` is
+  an Olympus estimate from the single-binary (Bun) footprint, not an upstream
+  requirement.
+- **Docs drift.** The public site describes v2 while the recipe pins v1. The
+  `serve` flags and config shape below were re-checked at
+  <https://github.com/anomalyco/opencode/tree/v1.0.196> (2026-11-22); re-check
+  them again before moving the pin to v2.
+- **Headless auth provisioning.** The v1 docs write
+  `{"anthropic":{"type":"api","key":"$ANTHROPIC_API_KEY"}}` into `auth.json`
+  for a GitLab CI run
+  (`packages/web/src/content/docs/gitlab.mdx` at tag `v1.0.196`,
+  <https://github.com/anomalyco/opencode/blob/v1.0.196/packages/web/src/content/docs/gitlab.mdx>,
+  checked 2026-11-22). The recipe still takes `ANTHROPIC_API_KEY` from the
+  environment; writing `auth.json` would duplicate the secret on disk.
+- **Server password.** `OPENCODE_SERVER_PASSWORD` is not required for the
+  loopback-only port; the lab run below reached `/global/health` without it.
+  Add it if the port is ever made public (A4).
 - Secrets are delivered as environment variables and referenced as `{env:VAR}`;
   no secret value is written into the config file (A1).
 
 ## UNVERIFIED
 
-- `resources.min_ram: 2GB`: upstream documents no minimum; 2 GB is a
-  conservative estimate from the single-binary (Bun) footprint.
-- The docs describe v1 while the site advertises a v2 CLI. The pinned tag is v1;
-  re-check the `serve` flags and config shape when moving to v2.
-- Headless auth provisioning (writing `auth.json` without `/connect`) is
-  documented only for GitLab, and the exact per-credential JSON is unverified.
-  The recipe therefore expects `ANTHROPIC_API_KEY` in the environment.
-- Whether `OPENCODE_SERVER_PASSWORD` is needed for a localhost-only port. It is
-  not set here; add it if the port is made public.
+- **Live model session.** No request was made to a real provider with an active
+  key. The auth shape and server behaviour above come from pinned source and a
+  no-inference lab run only.
 
 ## Lab observations, 2026-10-20
 
@@ -53,6 +66,6 @@ MCP config kept `{env:GITHUB_TOKEN}` rather than the sentinel value. The shared
 skill was readable. A no-op preserved every container ID. Removing only this
 tool's MCP list recreated only OpenCode and its init service; rollback succeeded.
 
-The 2 GB resource estimate, future v2 compatibility, headless provider auth JSON
+The 2 GB sizing estimate, future v2 compatibility, headless provider auth JSON
 and public-port authentication policy are not settled by this no-inference,
 localhost-only run. Real provider requests were not attempted.

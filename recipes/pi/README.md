@@ -15,7 +15,9 @@ the registry and the tagged upstream docs on **2026-11-21**.
 - **Package.** Published on npm as `@earendil-works/pi-coding-agent`
   (<https://registry.npmjs.org/@earendil-works/pi-coding-agent>).
 - **Version pin.** `package.json` pins the exact version `1.5.0` (`latest` on
-  2026-11-06), re-checked against the npm registry on 2026-11-21. The committed
+  2026-11-06), re-checked against the npm registry on 2026-11-21. npm `latest`
+  has since moved to `1.6.0` (2026-11-20), but `1.5.0` remains the correct pin
+  for v1 and its tagged docs and lockfile have been checked together. The committed
   `package-lock.json` (lockfile v3) pins every transitive package by integrity
   hash and `npm ci` installs only those packages (OLY-62, ADR 0051). To move the
   pin, edit `package.json` and run
@@ -84,15 +86,14 @@ the registry and the tagged upstream docs on **2026-11-21**.
 
 ## Gaps and lab verification
 
-- **No live lab run for this change.** No QEMU or Docker daemon was available
-  here, so the image build, `pi --version` health check and volume persistence
-  were not exercised; the offline golden covers rendering only.
-- **Lab run to add** on a reset `lab/lab.sh` VM with `source <(lab/lab.sh env)`:
-  apply a single-tool stack using only the `pi` recipe and sentinel secrets, then
-  check `docker compose exec -T pi pi --version` prints `1.5.0`, that
-  `/root/.pi/agent/mcp.json` keeps `${GITHUB_TOKEN}` rather than its value, that
-  the shared skill is readable, that no host port is published, and that
-  `olym destroy` removes the tool while keeping `olympus_pi_home` unless
-  delete-data is requested. Use `-unsafe-dev-activator` with a development CLI.
-- **UNVERIFIED:** live interactive sessions, token consumption against active model
-  provider APIs, and WebSocket MCP servers (unsupported by stack format).
+- **Lab run completed 2026-11-21.** A single-tool apply on a reset QEMU VM with
+  `source <(lab/lab.sh env)` and a development CLI (`-unsafe-dev-activator`)
+  printed `pi --version` → `1.5.0`, kept `${GITHUB_TOKEN}` in
+  `/root/.pi/agent/mcp.json`, mounted the shared skill read-only, delivered
+  secrets as `0600` files, published no host port and ended with zero container
+  restarts in 92.6 s; `olym destroy` kept `olympus_pi_home`. The evidence is
+  recorded in `docs/tracker/features/recipe-catalog.md`. The image build and
+  health check are therefore verified on a live daemon, not just by golden
+  rendering.
+- **UNVERIFIED:** live interactive sessions, token consumption against active
+  model provider APIs, and WebSocket MCP servers (unsupported by stack format).

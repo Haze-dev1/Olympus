@@ -1,7 +1,8 @@
 # Claude Code recipe
 
 Sources checked **2026-11-06** against Anthropic's Claude Code documentation and
-the npm registry.
+the npm registry; the pinned release's prompt strings, update flags and `.mcp.json`
+discovery were re-checked on **2026-11-22**.
 
 ## Checked facts
 
@@ -43,18 +44,20 @@ the npm registry.
   secret; the recipe never writes the value.
 - **Updates.** `DISABLE_AUTOUPDATER=1` disables background updates and keeps
   the pinned release; `claude update` still works. `DISABLE_UPDATES=1` blocks
-  manual updates too (<https://code.claude.com/docs/en/env-vars>). The recipe
-  sets `DISABLE_AUTOUPDATER` because that is what the pinning guidance above
-  recommends.
+  manual updates too (<https://code.claude.com/docs/en/env-vars>, re-checked
+  against the pinned 2.1.318 package on 2026-11-22). The recipe sets
+  `DISABLE_AUTOUPDATER` because that is what the pinning guidance above
+  recommends. The keys' effect on the exact container was not observed; see
+  UNVERIFIED.
 - **MCP config file and scope.** Claude Code reads project-scope servers from
   `.mcp.json` at the project root under the `mcpServers` key; local and user
   scope live in `~/.claude.json`. The container's working directory is `/root`
-  (`WORKDIR`), so the managed file is `/root/.mcp.json`. The docs place
-  `.mcp.json` at the project root and do not say Claude Code reads a parent
-  folder's file, so start `claude` in `/root` to get the shared servers. A
-  session started inside a cloned repository may not see them (UNVERIFIED).
-  Source: <https://code.claude.com/docs/en/mcp> ("MCP installation scopes",
-  "Project scope").
+  (`WORKDIR`), so the managed file is `/root/.mcp.json`. A check against the
+  pinned 2.1.318 binary loaded both a parent and a child `.mcp.json`, so a
+  session in a clone under `/root` does see the managed servers; the real limit
+  is workspace trust/approval for that directory, not file discovery
+  (<https://code.claude.com/docs/en/mcp>, "MCP installation scopes" and
+  "Project server approvals and workspace trust", checked 2026-11-22).
 - **MCP entry shape (stdio).** `command`, `args`, `env`
   (<https://code.claude.com/docs/en/mcp>, "Add a server from an `mcpServers`
   JSON block"). This is the shape the `hermes` translation style emits, so
@@ -100,44 +103,49 @@ a WebSocket MCP server cannot be configured from an Olympus stack yet.
 `testdata/claude-code/stack.yaml` now carries one remote server and its golden
 contains `"type": "http"`, so the rendered shape is covered by evidence. What
 is not covered is a live connection: no running Claude Code session has loaded
-that file (see UNVERIFIED).
+that file (see the gaps below).
 
 ### Config file location
 
-The managed file is still `/root/.mcp.json`. An open question from the issue was
-whether a project-scope `.mcp.json` loads from a cloned repository. The docs say:
+The managed file is still `/root/.mcp.json`. The earlier claim that a session
+started in a cloned repository cannot see it was wrong: a check with the pinned
+2.1.318 binary loaded `.mcp.json` from both the working directory and its
+parent, so a clone under `/root` inherits the managed servers.
 
-- Project scope is `.mcp.json` at the project root and nothing in the docs says
-  Claude Code walks up to a parent folder. A session started elsewhere therefore
-  does not see `/root/.mcp.json` unless you start it in `/root`.
-- The other documented locations are root-owned `~/.claude.json` (local and user
-  scope), whose format and content the CLI rewrites for its own state, and on
-  Linux the managed file `/etc/claude-code/managed-mcp.json`, same `mcpServers`
-  format (<https://code.claude.com/docs/en/managed-mcp>).
-- `managed-mcp.json` is the wrong choice here: when it exists it takes
-  exclusive control of MCP, the user cannot add or use other servers, and
-  `--mcp-config` refuses to run. That would make a normal Olympus image
-  surprising and block every other way of adding a server, so the recipe keeps
-  the project-scope file and documents the limit instead.
+The other documented locations are root-owned `~/.claude.json` (local and user
+scope), whose format and content the CLI rewrites for its own state, and on
+Linux the managed file `/etc/claude-code/managed-mcp.json`, same `mcpServers`
+format (<https://code.claude.com/docs/en/managed-mcp>).
 
-Nothing offline can prove approval behaviour, so this remains a documented
-limitation rather than a verified fix: in an interactive session, servers from a
-cloned repository can stay at "Pending approval" until the workspace is trusted.
-`claude -p` runs and Agent SDK sessions load project-scope servers without
-asking (<https://code.claude.com/docs/en/mcp>, "Project server approvals and
-workspace trust").
+`managed-mcp.json` is the wrong choice here: when it exists it takes
+exclusive control of MCP, the user cannot add or use other servers, and
+`--mcp-config` refuses to run. That would make a normal Olympus image
+surprising and block every other way of adding a server, so the recipe keeps
+the project-scope file.
 
-## UNVERIFIED
+Approval, not discovery, is the remaining limit: in an interactive session,
+servers from a cloned repository can stay at "Pending approval" until the
+workspace is trusted. `claude -p` runs and Agent SDK sessions load project-scope
+servers without asking (<https://code.claude.com/docs/en/mcp>, "Project server
+approvals and workspace trust"). No live approval prompt was driven; see
+UNVERIFIED.
 
-- **Interactive key approval.** The docs say an interactive session asks once
-  before `ANTHROPIC_API_KEY` overrides a subscription. That prompt was not
-  exercised: no model request was made, and no interactive session was driven.
-- **Image build and health check on a real server.** No QEMU lab VM was
-  available for this change, so `docker build`, `claude --version` and the
-  `.mcp.json` approval flow were not run against the built image. Only offline
-  rendering was verified.
-- **`DISABLE_AUTOUPDATER` inside the image.** The variable is documented; its
-  effect on this exact pinned release inside a container was not observed.
+## Verification and remaining gaps
+
+- **Interactive key approval.** The prompt strings exist in the pinned 2.1.318
+  binary, but no model request was made and no interactive session was driven.
+- **Image build and health check on a real server — verified 2026-11-22.** A
+  three-tool apply on a reset QEMU VM built the image, started the container and
+  passed the CLI health check. `olym status` reported `running healthy`,
+  `docker exec olympus-claude-code-1 claude --version` printed
+  `2.1.318 (Claude Code)`, and the container had zero restarts. The `.mcp.json`
+  approval flow was not exercised there.
+- **`DISABLE_AUTOUPDATER` inside the image.** The variable and its scope
+  (background updates only) are documented and present in the pinned release;
+  no live update attempt was observed in the container.
+- **Live MCP connection and workspace trust.** Parent-directory `.mcp.json`
+  discovery is verified from the pinned binary; no running Claude Code session
+  connected to a server or drove an approval prompt.
 
 ## Reproducibility
 
