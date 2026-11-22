@@ -62,6 +62,13 @@ linters:
       - linters:
           - errcheck
         path: _test\.go
+      # schema.Diagnostic represents a positioned validation diagnostic rather than
+      # a conventional error type; renaming to DiagnosticError would churn callers across
+      # concurrent branches.
+      - linters:
+          - errname
+        path: internal/schema/
+        text: "Diagnostic"
 formatters:
   enable:
     - gofmt

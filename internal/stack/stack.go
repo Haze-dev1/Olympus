@@ -4,6 +4,7 @@ package stack
 import (
 	"bufio"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -52,12 +53,8 @@ type Stack struct {
 
 func (s Stack) Tools() map[string]Tool {
 	out := map[string]Tool{}
-	for k, v := range s.Agents {
-		out[k] = v
-	}
-	for k, v := range s.Apps {
-		out[k] = v
-	}
+	maps.Copy(out, s.Agents)
+	maps.Copy(out, s.Apps)
 	return out
 }
 

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-21",
+  "updated": "2026-11-22",
   "phase": "implementation",
   "milestones": [
     {
@@ -57,7 +57,7 @@
     "core-plan-apply": {
       "status": "done",
       "file": "features/core-plan-apply.md",
-      "updated": "2026-11-21",
+      "updated": "2026-11-22",
       "summary": "M1 full CLI cycle verified on reset Ubuntu lab (TestLabM1 119.9 s on 2026-11-21). OLY-30 closed selective recreation; OLY-54 adds config-key diffs in plan (YAML/TOML/JSON, dotted paths, no values printed), verified live on the lab VM."
     },
     "lock-file": {
@@ -107,13 +107,13 @@
     "recipe-catalog": {
       "status": "in_progress",
       "file": "features/recipe-catalog.md",
-      "updated": "2026-11-21",
+      "updated": "2026-11-22",
       "summary": "Recipes added offline with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. OLY-22 follow-up: Pi installs from a committed package-lock.json with npm ci (ADR 0051); Oh My Pi ships its checksum-verified binary from a fetch stage; TestRecipeBuildInputPins asserts both and goldens are regenerated. Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). No lab run for any of them (no QEMU)."
     },
     "test-lab": {
       "status": "done",
       "file": "features/test-lab.md",
-      "updated": "2026-11-21",
+      "updated": "2026-11-22",
       "summary": "All three lab tests pass on merged development (2026-11-21): TestLabDeploy, TestLabM1 and TestLabRealStack with real Hermes, Codex and OpenCode."
     },
     "deploy": {
@@ -148,8 +148,8 @@
     "lint-baseline": {
       "status": "in_progress",
       "file": "features/lint-baseline.md",
-      "updated": "2026-11-21",
-      "summary": "OLY-64: resolved all security-relevant findings (G110 decompression bomb caps, G119 redirect token confinement, clearConfirm error checking in activate/rollback) and A2 command reviews with //nolint:gosec and errcheck fixes; baseline findings down from 55 to 36."
+      "updated": "2026-11-22",
+      "summary": "Resolved lint baseline findings outside concurrent packages (activate, deploy, eval, remote); fixed errcheck in cli, unused readPlan, prealloc in schema, goimports, documented errname Diagnostic exclusion in .golangci.yml, and 12 modernize suggestions across cli, catalog, lock, recipe, stack. Baseline down from 36 to 17."
     }
   },
   "decisions": [

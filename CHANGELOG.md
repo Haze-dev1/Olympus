@@ -2,6 +2,13 @@
 
 ## Development
 
+- Cleaned remaining lint baseline outside packages edited by concurrent branches (`internal/activate`, `internal/deploy`, `internal/eval`, `internal/remote`).
+  - `internal/cli`: handled return values from `json.Encoder.Encode` and `out.Write` in `commands.go` (errcheck); moved test-only `readPlan` helper from `plan.go` to `plan_test.go` (unused); used `strings.Builder` in diagnostic error loop (modernize); simplified error unwrapping in `server.go` using `errors.AsType` (modernize); formatted imports in `terminal_linux.go` (goimports).
+  - `cmd/olym`: formatted imports in `main.go` (goimports).
+  - `internal/schema`: preallocated slice capacity in `Variables` from regex submatch count (prealloc); documented `errname` exclusion for `Diagnostic` in `.golangci.yml` to preserve the positioned diagnostic domain term and prevent cross-package caller churn.
+  - `internal/catalog`, `internal/lock`, `internal/recipe`, `internal/stack`: modernized loops using `strings.SplitSeq`, `slices.Contains`, and `maps.Copy`.
+  - Baseline findings dropped from 36 to 17 (all 17 remaining findings are strictly within the four concurrent packages). Verified with full offline suite (`go build`, `go vet`, `go test ./...`, `go test -race -short ./...`, `gofmt -l .`, `golangci-lint run --new-from-merge-base=origin/development ./...` reporting 0 issues) and live `TestLabM1` run on QEMU lab VM (ports 2272/8149, passed in 93.7 s). No ADR: mechanical lint baseline cleanup preserving existing architecture and behavior.
+
 - OLY-64: fix security-relevant lint findings and clean touched packages.
   - `internal/catalog`: capped per-file (`64 MiB`) and total extracted tree bytes (`256 MiB`) in `extract` using `io.LimitReader` and early header size validation to prevent decompression bombs (gosec G110); removed deprecated `tar.TypeRegA` (staticcheck SA1019); restricted redirect policy so `Authorization` bearer tokens are never forwarded to a different host or scheme on redirect (gosec G119); checked sha256 `io.WriteString` return values (errcheck).
   - `internal/activate`: handled errors from `clearConfirm` during activation and rollback before publishing or pointing current, safely reverting and aborting if stale confirmation cannot be cleared; added `removeConfirm` test hook; checked `io.Copy` in compose health checks (errcheck); handled `filepath.WalkDir` in `dirSize` (errcheck).
