@@ -59,6 +59,8 @@ Cases the core must handle in v1, and the intended behaviour. Each becomes a tes
 | Case | Intended behaviour |
 | --- | --- |
 | One tool fails to start, or its health check never passes | Re-activate the previous generation; report the failed tool and its last log lines; exit non-zero |
+| A post-install hook fails or times out | Re-activate the previous generation or take the project down on first apply. A later forward apply can retry the failed hook |
+| A tool with a completed hook is removed, re-added, or rolled back to | Keep the completion marker by tool name. The hook stays complete until `destroy --delete-data` clears it |
 | Connection drops during upload | Nothing activated; `current` unchanged; re-running `apply` re-uploads only missing store entries |
 | Connection drops after activation starts | The activator keeps running; with no confirmation by `confirm_timeout` it re-activates the previous generation and releases the lock ([ADR 0017](../ADR.md#0017-activate-on-the-server-and-roll-back-unless-the-cli-confirms)) |
 | The new generation breaks SSH access (for example a port or firewall change) | The CLI cannot reconnect to confirm, so the server rolls back by itself |
