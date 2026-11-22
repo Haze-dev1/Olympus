@@ -34,6 +34,7 @@ func (a *Activator) Status(ctx context.Context) ([]ToolStatus, error) {
 	if !ok {
 		return []ToolStatus{}, nil
 	}
+	//nolint:gosec // G204: arguments are fixed strings and sanitized paths, no shell interpolation (A2)
 	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", Project, "-f", t.composeFile(), "ps", "--all", "--format", "json")
 	b, err := cmd.Output()
 	if err != nil {
@@ -115,6 +116,7 @@ func (a *Activator) Destroy(ctx context.Context, data bool) error {
 	}
 	if ok {
 		if data {
+			//nolint:gosec // G204: arguments are fixed strings and sanitized paths, no shell interpolation (A2)
 			cmd := exec.CommandContext(ctx, "docker", "compose", "-p", Project, "-f", t.composeFile(), "down", "--volumes", "--remove-orphans")
 			if cmd.Run() != nil {
 				return errors.New("destroy: Compose down failed")

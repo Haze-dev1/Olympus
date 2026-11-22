@@ -26,7 +26,7 @@ The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-cu
 | `writable` | no | Managed files the tool rewrites at runtime; delivered by the init service (below) |
 | `build` | no | `src` Dockerfile in the recipe folder and `dst` path inside a volume; optional `files`, recipe-folder files copied next to the Dockerfile (such as an npm lockfile). The core builds the image with Compose (below) |
 | `templates` | no | `source -> destination` pairs for files with no structured form. Never used for YAML, TOML or JSON keys the core manages through `supports` ([ADR 0018](../ADR.md#0018-build-structured-config-as-data-and-publish-json-schemas)). |
-| `hooks.post_install` | no | Command run once inside the container after first start. Escape hatch; prefer declarative fields. |
+| `hooks.post_install` | no | Argument list for one-time setup inside the container after readiness checks. See [Post-install hooks](#post-install-hooks). |
 | `runtime` | no | Container runtime limits rendered as fixed Compose keys: `shm_size`, `stop_grace_period`, `no_new_privileges` and `seccomp` (below) ([ADR 0045](../ADR.md#0045-render-recipe-runtime-limits-as-fixed-compose-keys)). |
 
 ## `supports`
@@ -44,6 +44,14 @@ The implemented offline subset is described in [TRD section 6.5](../TRD.md#65-cu
 If a stack file gives a tool MCP servers, skills or channels its recipe does not support, `plan` warns and names the tool.
 
 Every `file`, `dir`, `dst` and `writable` path must resolve strictly inside one of the recipe's volume paths. Paths that the init service puts into a shell script must also be shell-safe.
+
+## Post-install hooks
+
+Use `hooks.post_install` for setup that needs a running container. Prefer declarative fields when they cover the setup. The first argument is the executable and the remaining elements are passed to it as written. The activator runs the hook through Compose inside the tool container after the generation passes all declared health checks. It waits up to 120 seconds per hook and discards hook output. Keep credentials out of arguments.
+
+A successful hook is recorded per stack tool name on the server. Re-applying, rolling back, changing the hook, or removing and re-adding the same name keeps that completion. A different name can run its own hook. `destroy --delete-data` clears completion with the rest of the server state.
+
+A nonzero exit or timeout fails activation and triggers rollback. A timed-out process can continue if its container stays running. A later forward apply can retry failed hooks. Successful hooks remain recorded even if a later hook fails or the generation is rolled back. Store setup data that must survive container replacement in a declared volume. Make hooks idempotent so retrying is safe if the activator stops between hook success and writing the completion marker. [ADR 0052](../ADR.md#0052-record-post-install-completion-by-stack-tool-name)
 
 ## Runtime options
 

@@ -77,8 +77,8 @@
     "activator": {
       "status": "done",
       "file": "features/activator.md",
-      "updated": "2026-11-05",
-      "summary": "OLY-30: Recreate is a required Runner method with --no-build --pull never, a revert recreates the previous generation's restored tools, and a failed secret restoration takes the project down and reports exit 5. Offline tests green; lab not run (no QEMU on this host)."
+      "updated": "2026-11-22",
+      "summary": "OLY-63: run post-install hooks in the tool container after readiness. Persist success by stack tool name and roll back on failure (ADR 0052). Red/green unit tests and the extended TestLabM1 verified first apply, no-op re-apply, completion across container replacement and rollback, and hook failure rollback."
     },
     "recipe-format": {
       "status": "done",
@@ -108,7 +108,7 @@
       "status": "in_progress",
       "file": "features/recipe-catalog.md",
       "updated": "2026-11-21",
-      "summary": "Recipes added offline with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. OLY-22 follow-up: Pi installs from a committed package-lock.json with npm ci (ADR 0051); Oh My Pi ships its checksum-verified binary from a fetch stage; TestRecipeBuildInputPins asserts both and goldens are regenerated. Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). No lab run for any of them (no QEMU)."
+      "summary": "Recipes added offline with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. OLY-22 follow-up: Pi installs from a committed package-lock.json with npm ci (ADR 0051); Oh My Pi ships its checksum-verified binary from a fetch stage; TestRecipeBuildInputPins asserts both and goldens are regenerated. Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). No lab run for any of them (no QEMU). OLY-25: no Grok bot recipe — research hit the STOP rule because the catalog name has no clear referent (closed official product; official repo is a coding agent; open-source projects are alternatives); see Sources/landscape.md."
     },
     "test-lab": {
       "status": "done",
@@ -149,7 +149,7 @@
       "status": "in_progress",
       "file": "features/lint-baseline.md",
       "updated": "2026-11-21",
-      "summary": "golangci-lint config adapted from Caddy; 55 existing findings listed, 3 security-relevant; lint gates only changed lines until cleared."
+      "summary": "OLY-64: resolved all security-relevant findings (G110 decompression bomb caps, G119 redirect token confinement, clearConfirm error checking in activate/rollback) and A2 command reviews with //nolint:gosec and errcheck fixes; baseline findings down from 55 to 36."
     }
   },
   "decisions": [
@@ -187,6 +187,7 @@
     "ADR 0048 cross-compile release binaries and verify activator checksum against release build",
     "ADR 0050 honour or reject SSE per MCP style",
     "ADR 0051 pin built-image inputs with committed lockfiles",
+    "ADR 0052 record post-install completion by stack tool name",
     "ADR 0053 selectable test lab guest OS and architecture"
   ]
 }

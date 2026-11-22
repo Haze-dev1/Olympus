@@ -493,7 +493,7 @@ func Build(in Inputs) (*generation.Generation, error) {
 				return nil, fmt.Errorf("%s: cannot encode structured config", name)
 			}
 		}
-		tool := generation.Tool{Image: service.Image, Files: map[string]string{}, Secrets: secretNames}
+		tool := generation.Tool{Image: service.Image, Files: map[string]string{}, Secrets: secretNames, PostInstall: r.Hooks.PostInstall}
 		if r.Health.HTTP != nil || len(r.Health.Command) > 0 {
 			tool.Health = &generation.Health{Command: r.Health.Command, Timeout: r.Health.Timeout}
 			if r.Health.HTTP != nil {
