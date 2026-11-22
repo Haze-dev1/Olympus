@@ -26,7 +26,8 @@ $ npm view @google/gemini-cli dist-tags
 ## Facts and sources
 
 All facts below were checked on 2026-11-06 against the Gemini CLI repository at
-tag `v0.67.0`, the same release the recipe installs. Paths are relative to
+tag `v0.67.0`, the same release the recipe installs; the source-derived claims
+were re-checked on 2026-11-22. Paths are relative to
 `https://github.com/google-gemini/gemini-cli/blob/v0.67.0/`.
 
 | Fact | Value | Source |
@@ -46,6 +47,9 @@ tag `v0.67.0`, the same release the recipe installs. Paths are relative to
 | User skills directory | `~/.gemini/skills/` (an `~/.agents/skills/` alias also exists) | `docs/cli/skills.md` |
 | Auto-update default | `general.enableAutoUpdate` defaults to `true` and updates the installed package | `docs/reference/configuration.md` |
 | `/settings` persistence | `/settings` edits are written back to `settings.json` | `docs/cli/settings.md` |
+| npm install egress | npm registry only; no install script reaches another host | root package has no install scripts; `@github/keytar@7.10.6` copies a bundled prebuild and `node-pty@1.0.0` deletes local files (checked 2026-11-22) |
+| First-run settings write | no unconditional rewrite: `load()` returns `{}` when the file is missing and a migration writes only when it modified the document; `/settings` persists | `packages/cli/src/config/settings.ts` at `v0.67.0` (checked 2026-11-22) |
+| MCP trust prompt | no user-level MCP server-trust prompt; a first-run folder-trust dialog (`security.folderTrust.enabled=true`) gates stdio servers and asks confirmation per tool call | `docs/tools/mcp-server.md` and `docs/reference/configuration.md` at `v0.67.0` (checked 2026-11-22) |
 
 ## Image
 
@@ -125,19 +129,19 @@ rendered JSON.
 - No ports are published and nothing listens, so A4 is not triggered.
 - `resources.min_ram: 4GB`, matching the docs' casual-use memory guidance.
 
-## Not verified in this change
+## Verification and remaining gaps
 
-- **UNVERIFIED — image build and CLI run.** No QEMU/lab VM was available, so
-  `docker build`, `gemini --version` inside the image, first-run auth with
-  `GEMINI_API_KEY`, and `/settings` persistence into the volume were not
-  executed.
-- **UNVERIFIED — npm install egress.** Only the npm registry was checked; any
-  additional host the install may need was not observed.
-- **UNVERIFIED — first-run settings write.** Whether the CLI rewrites
-  `settings.json` before `/settings` is used could not be observed. The
-  `writable` delivery makes it safe either way.
+- **Image build and CLI run — verified 2026-11-22.** A three-tool apply on a
+  reset QEMU VM built the image, started the container and passed the CLI health
+  check. `olym status` reported `running healthy`,
+  `docker exec olympus-gemini-cli-1 gemini --version` printed `0.67.0`, and the
+  container had zero restarts. First-run auth with `GEMINI_API_KEY` and
+  `/settings` persistence into the volume are still unverified without a
+  provider key.
 - **UNVERIFIED — MCP connection inside the container.** The rendered entry
   matches the documented shape, but no live `npx` server was connected to a
   running Gemini CLI.
-- **UNVERIFIED — interactive approval.** Whether the CLI prompts before
-  trusting a user-level MCP server on first run was not observed.
+- **UNVERIFIED — interactive approval UX.** There is no user-level MCP
+  server-trust prompt at `v0.67.0`; a first-run folder-trust dialog
+  (`security.folderTrust.enabled=true`) gates stdio servers and asks per-tool
+  confirmation. The exact headless behaviour of that dialog was not observed.

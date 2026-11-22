@@ -1,6 +1,7 @@
 # Codex recipe
 
-Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
+Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`;
+the API-key claim was re-checked against the pinned source on **2026-11-22**:
 
 - Install methods, `CODEX_HOME`, `config.toml`, MCP tables, skill directories,
   auth and resources: OpenAI Codex documentation and
@@ -24,12 +25,24 @@ Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`:
   Mounted read-only (`mode: mount`).
 - Resources: 4 GB minimum, 8 GB recommended; the recipe uses 4 GB.
 - Health: `codex --version`; there is no supported HTTP endpoint.
+- **Headless API key.** `CODEX_API_KEY` is read from the process environment at
+  this pin (`codex-rs/core/src/auth.rs`) and accepted by `codex exec`
+  (`codex-rs/exec/src/lib.rs:441`), so the `model-key` secret works headlessly
+  without a login
+  (<https://github.com/openai/codex/blob/rust-v0.116.0/codex-rs/core/src/auth.rs>,
+  <https://github.com/openai/codex/blob/rust-v0.116.0/codex-rs/exec/src/lib.rs#L441>,
+  checked 2026-11-22). The older suggestion of `CODEX_ACCESS_TOKEN` with
+  `codex login --with-access-token` does not apply at this pin: the pinned
+  `codex-rs/cli/src/main.rs` `LoginCommand` has only `--with-api-key`,
+  deprecated `--api-key`, `--device-auth`, issuer/client options and `status`
+  (<https://github.com/openai/codex/blob/rust-v0.116.0/codex-rs/cli/src/main.rs>).
 - No chat channels for the local CLI (Slack/Teams are ChatGPT Cloud).
 
 ## UNVERIFIED
 
-- `CODEX_API_KEY` from the process environment for headless use (alternative:
-  `CODEX_ACCESS_TOKEN` and `codex login --with-access-token`).
+- **Live model request with `CODEX_API_KEY`.** The environment variable is read
+  by the pinned source, but no inference was attempted with a real key; the lab
+  observation below used sentinel credentials only.
 
 ## Version pin
 

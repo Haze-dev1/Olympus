@@ -1,6 +1,6 @@
 # Hermes Agent recipe
 
-Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`; image release confirmed 2026-11-05:
+Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`; image release confirmed 2026-11-05, channel environment chain re-read at tag `v0.22.7` on 2026-11-22:
 
 - Image, tags, ports, state layout, config keys, MCP shape, skills directory and
   Telegram variables: Hermes Agent documentation and source at
@@ -34,17 +34,25 @@ Sources checked 2026-10-19 and recorded in `docs/Sources/recipe-research.md`; im
   closed and denies users outside the allow-list by default, so an empty
   allow-list is rejected during validation (Rule A10).
 - Resources: 2-4 GB recommended; 4 GB is the conservative figure used here.
+- **Channel token flow (static check, 2026-11-22).** At tag `v0.22.7` the chain
+  is: Compose `env_file` → process environment → `get_env_value` in
+  `hermes_cli/config.py` reads `os.environ` before `~/.hermes/.env` →
+  `plugins/platforms/telegram/gateway_env.py` and
+  `plugins/platforms/discord/gateway_env.py` read the bot tokens →
+  `gateway/authz_mixin.py` denies users outside the allow-list by default.
+  Paths were confirmed from the tag's Git tree; an earlier note placed the
+  platform files under `hermes_cli/`, which was wrong.
+  Source: <https://github.com/NousResearch/hermes-agent/tree/v0.22.7>.
 - Health: the API server on 8642 is off unless `API_SERVER_ENABLED=true`, so the
   health check uses `hermes --version` instead of HTTP. No port is published.
 
 ## UNVERIFIED
 
 - Gateway operation with real chat channels (Telegram, Discord), including platform
-  authentication, remains unverified. The lab intentionally configures no channel.
-  Source review on 2026-11-07 confirmed the delivery path: Compose supplies the
-  token as a process environment variable through the secret `env_file`, and
-  `hermes_cli.config.get_env_value` reads `os.environ` before `~/.hermes/.env`,
-  so the container sees it. That is a code reading, not a live bot session.
+  authentication, remains unverified. The lab intentionally configures no channel
+  and no real bot token was available. The token/allow-list chain was re-read from
+  source at tag `v0.22.7` on 2026-11-22 (see Checked facts), but no message was
+  delivered to a live platform.
 
 ## Lab observations, 2026-10-20
 
