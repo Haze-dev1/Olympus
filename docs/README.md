@@ -19,7 +19,7 @@ Start with [PRD.md](PRD.md) for what Olympus is for, then [TRD.md](TRD.md) for h
 | [install.md](install.md) | Installation guide: binary download, verification, building from source |
 | [usage/](usage/) | User documentation: [commands.md](usage/commands.md) and [stack-reference.md](usage/stack-reference.md) |
 | [release.md](release.md) | Release workflow: cross-compilation, checksum embedding (A12) and tagging |
-| [security/](security/) | Security documentation: [data-flow.md](security/data-flow.md) and [review-2026-11-06.md](security/review-2026-11-06.md) |
+| [security/](security/) | Security documentation: [data-flow.md](security/data-flow.md) and [review-2026-11-06.md](security/review-2026-11-06.md), plus the 2026-11-22 [security review](security/review-2026-11-22.md) and [release review](security/release-review-2026-11-22.md) |
 | [Sources/](Sources/) | External research: [landscape.md](Sources/landscape.md) on existing tools and what was checked |
 
 The design doc also has a live version at https://claude.ai/code/artifact/ceba9b3f-01ae-4774-bcf0-740b16516722. The copy in this repo is current and the one to edit; the live version predates ADRs 0013–0016.

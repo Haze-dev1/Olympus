@@ -57,3 +57,7 @@ Review evidence and limits:
 Reviewed `fd8743d..187f33f`. The [findings report](../../security/review-2026-11-22.md) records four confirmed findings and two plausible ones. Outstanding work includes the remediation, dependency and secret scans, and the earlier upstream chat and release artifact checks.
 
 Build, vet, full and race-short Go tests, formatting and branch-scoped lint passed. The first attempts hit read-only caches and blocked mock listener sockets. Retries used writable caches and loopback access. Govulncheck and gitleaks were unavailable. No lab run. Reviewed ADRs 0048–0052. The review changes documentation only, so no ADR was added.
+
+## Release review of development against main (2026-11-22)
+
+A code-only review of everything `development` carries ahead of `main` (#19 to #60) is in [release-review-2026-11-22.md](../../security/release-review-2026-11-22.md). It has four serious findings (OpenClaw can't read its root-owned 0600 skill files; Pi accepts SSE; a secret change restarts a tool before its `-init` step, including on rollback; the port preflight reports `[::1]` and other 127.x listeners as blocking 127.0.0.1) and nine minor ones. Fixes are tracked per finding in that file. No ADR: a findings-only review.
