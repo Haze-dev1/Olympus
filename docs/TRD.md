@@ -201,7 +201,7 @@ Rules:
 
 - `image` has a default tag; the lock pins its digest. With `build`, `image` is the registry-resolvable base and the lock pins the base digest.
 - Every `supports.*.file`, template `dst`, `writable` path, `build.dst` and generated seccomp path must be inside one of the recipe's `volumes` paths (rule A3, section 9.2). A `runtime.seccomp` source is a relative path inside the recipe folder, never a URL.
-- `hooks.post_install` is an argument list, never a shell string, and runs inside the tool's container (rule A8).
+- `hooks.post_install` is an argument list that runs inside the tool container after readiness checks (rule A8). See section 8.5.
 - `command` replaces the image command as an argument list; it is never a shell string.
 - `supports.mcps.style` selects the tool's secret syntax; `supports.skills.mode` selects a read-only mount or a copy into the volume ([ADR 0037](ADR.md#0037-encode-mcp-secrets-as-tool-native-environment-references), [0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
 - `writable` files are copied into the tool volume by a one-shot init service ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
@@ -312,7 +312,7 @@ Published stack and recipe schemas are embedded. The core evaluates the schema v
 
 The local generation contains `compose.yaml`, `manifest.json` and `store/<tool hash>/files/<container path>` ([ADR 0030](ADR.md#0030-address-rendered-files-by-tool-hash-across-generations)). Compose binds those files read-only from their `/var/lib/olympus/store/...` server path and uses named data volumes. Catalog builds record the full locked catalog revision in manifest inputs and the locked image digests in Compose and manifest tools. Explicit local recipe overrides retain the hash of canonical recipe data and template source bytes. There is no tool-hash label because including a tool hash in the service being hashed would be circular. This is an offline artifact contract; server store assembly and hash labels belong to activation.
 
-All ports remain bound to localhost. Public port requests still fail explicitly in this slice. Channels are rendered for recipes that declare them as environment variables; every channel requires a non-empty allow-list. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity. Health checks are also persisted in each manifest tool for the activator; builds execute neither hooks nor checks. Skills, when requested and supported, are rendered from confined local folders and either bind-mounted or copied by the init service.
+All ports remain bound to localhost. Public port requests still fail explicitly in this slice. Channels are rendered for recipes that declare them as environment variables; every channel requires a non-empty allow-list. Unsupported MCPs or skills produce warnings and are omitted. Recipe hooks and health settings are validated and included in recipe input identity. Each manifest tool also carries its optional health check and post-install argument list for the activator. Builds execute neither. Skills, when requested and supported, are rendered from confined local folders and either bind-mounted or copied by the init service.
 
 Every MCP variable must map to an explicitly supplied recipe secret with an `env` target. The evaluator rewrites it to that environment variable and encodes the server in the tool's declared syntax; no secret value is built. Compose points to `/var/lib/olympus/secrets/<tool>/environment`. The shipped Hermes, Codex and OpenCode recipes exercise the YAML, TOML and JSON shapes, and the three formats are checked by the golden build. The activator pulls non-buildable services with `--ignore-buildable`, builds missing content-addressed images once and starts with `--no-build --pull never`. Built init services share the build declaration so their local tags are never pulled. Existing built images are reused on rollback ([ADR 0041](ADR.md#0041-prepare-content-addressed-built-images-before-starting-services)).
 
@@ -339,6 +339,7 @@ The build directory is tool-owned only when it contains a valid version-1 Olympu
   current -> generations/2
   secrets/<tool>/<name>                   0600, owned by the tool's container user
   secrets/<tool>/fingerprints.json        HMACs of current secret values
+  post-install/<tool>                     0600, successful hook completion
   state.json                              activation in progress: id, status, nonce, deadline
   log/<timestamp>-<command>.log           activator logs
 ```
@@ -441,6 +442,8 @@ Fingerprints include both named secret and environment delivery targets, domain-
 ### 8.5 Health checks
 
 Run by the activator from the host, so images do not need `curl` or `wget`: an HTTP GET to `127.0.0.1:<port><path>` expecting a 2xx, or `docker exec <container> <command>` expecting exit 0. Each tool is polled every 2 seconds until it passes or its `timeout` (default 120 s) expires. All tools are checked in parallel; one failure fails the generation.
+
+After the health checks pass and before awaiting confirmation, a forward activation runs outstanding manifest `post_install` commands in tool-name order under the activation lock. Each command runs via `docker compose exec` in its own service. The activator waits up to 120 seconds per hook and discards output. Exit zero creates an empty marker under `post-install/`. Failure rolls back or takes the project down on first apply. Rollback paths skip hooks. Completion is preserved across generation changes, garbage collection, and removal and re-addition under the same name. `destroy --delete-data` clears it. See [ADR 0052](ADR.md#0052-record-post-install-completion-by-stack-tool-name).
 
 ### 8.6 Garbage collection
 
@@ -563,7 +566,7 @@ Plan: stack "stack.yaml" → root@203.0.113.10 (generation 2 → new)
 | Golden | `build` output for sample stacks | Committed expected generations under `testdata/`; byte comparison |
 | Purity | Same inputs → identical output; different secret values → identical output; shuffled map order → identical output | Build twice in one test and compare hashes |
 | Recipe | Every catalog recipe validates and builds; image digests resolve | CI job over `recipes/` |
-| Integration | The full cycle on a real server: apply, re-apply, upgrade, rollback, kill-the-CLI, destroy | The disposable lab VM from `lab/lab.sh` ([ADR 0025](ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)); one real VPS run before release |
+| Integration | The full cycle on a real server: apply, re-apply, upgrade, rollback, kill-the-CLI, destroy | The disposable QEMU lab from `lab/lab.sh` supports selecting Ubuntu 24.04, Ubuntu 22.04 or Debian 12 on amd64 or arm64 ([ADR 0053](ADR.md#0053-select-the-test-lab-guest-os-and-architecture)). A real VPS run is required before release. |
 | Security | Rules A1–A12; leak search using sentinel secret values (`OLYM_SENTINEL_…`) in all output, logs, lock and server files | Integration suite plus the project's security review skill |
 
 Every case in [edgecases/apply.md](edgecases/apply.md) becomes a test at one of these levels, or is listed as a gap.
@@ -632,6 +635,7 @@ Release archives and `SHA256SUMS` carry GitHub build provenance attestations; co
 - [x] Skills: a shared read-only mount for Codex and OpenCode, a copy into the volume for Hermes, selected by `supports.skills.mode` ([ADR 0038](ADR.md#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes)).
 - [x] Tools that rewrite their own config files: a Compose one-shot init service copies the rendered file into the volume ([ADR 0036](ADR.md#0036-deliver-writable-managed-config-with-a-compose-init-service)).
 - [x] Activation prepares missing built images before up and reuses them on rollback ([ADR 0041](ADR.md#0041-prepare-content-addressed-built-images-before-starting-services)).
-- [x] Integration test servers: a local QEMU VM from the Ubuntu cloud image ([ADR 0025](ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)), plus one VPS run before release.
+- [x] Disposable local QEMU lab with selectable Ubuntu and Debian cloud images ([ADR 0053](ADR.md#0053-select-the-test-lab-guest-os-and-architecture)).
+- [ ] Integration run on a real VPS before release.
 - [ ] The final URL scheme for the catalog input and whether `git` is ever required locally.
 - [ ] CLI framework: `cobra` or the standard library.

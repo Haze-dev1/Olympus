@@ -190,6 +190,7 @@ func authMethods(cfg Config) ([]ssh.AuthMethod, net.Conn, error) {
 	if sock == "" {
 		return nil, nil, errors.New("remote: no SSH credentials: set KeyFile or start an SSH agent")
 	}
+	//nolint:gosec // G704: connects to local ssh-agent UNIX domain socket from standard SSH_AUTH_SOCK
 	conn, err := net.Dial("unix", sock)
 	if err != nil {
 		return nil, nil, fmt.Errorf("remote: connect to SSH agent: %w", err)

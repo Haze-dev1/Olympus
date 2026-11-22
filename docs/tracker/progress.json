@@ -57,7 +57,7 @@
     "core-plan-apply": {
       "status": "done",
       "file": "features/core-plan-apply.md",
-      "updated": "2026-11-21",
+      "updated": "2026-11-22",
       "summary": "M1 full CLI cycle verified on reset Ubuntu lab (TestLabM1 119.9 s on 2026-11-21). OLY-30 closed selective recreation; OLY-54 adds config-key diffs in plan (YAML/TOML/JSON, dotted paths, no values printed), verified live on the lab VM."
     },
     "lock-file": {
@@ -77,8 +77,8 @@
     "activator": {
       "status": "done",
       "file": "features/activator.md",
-      "updated": "2026-11-05",
-      "summary": "OLY-30: Recreate is a required Runner method with --no-build --pull never, a revert recreates the previous generation's restored tools, and a failed secret restoration takes the project down and reports exit 5. Offline tests green; lab not run (no QEMU on this host)."
+      "updated": "2026-11-22",
+      "summary": "OLY-63: run post-install hooks in the tool container after readiness. Persist success by stack tool name and roll back on failure (ADR 0052). Red/green unit tests and the extended TestLabM1 verified first apply, no-op re-apply, completion across container replacement and rollback, and hook failure rollback."
     },
     "recipe-format": {
       "status": "done",
@@ -108,13 +108,13 @@
       "status": "in_progress",
       "file": "features/recipe-catalog.md",
       "updated": "2026-11-22",
-      "summary": "Recipes added with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. Pi installs from a committed package-lock.json and Oh My Pi ships a checksum-verified binary from a fetch stage (ADR 0051). Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). Lab evidence: Pi (2026-11-21) and, from OLY-52 on 2026-11-22, Aider, Claude Code, Gemini CLI and OpenClaw; Oh My Pi's two attempts were blocked by slow GitHub downloads. OLY-52 re-checked all remaining README claims against pinned sources, corrected false statements and kept only truly unverified live model/bot/browser/MCP connections."
+      "summary": "Recipes added with golden tests (TestRecipeGoldens / TestOpenBotGolden): OpenBot (OLY-56), Claude Code (OLY-19), Gemini CLI (OLY-20), Goose (OLY-23), Aider (OLY-24), OpenClaw (OLY-21), Pi (OLY-22) and Oh My Pi (OLY-22). Remote MCP renders per tool since OLY-57. Pi installs from a committed package-lock.json and Oh My Pi ships a checksum-verified binary from a fetch stage (ADR 0051). Goose, Aider and OpenClaw declare no MCP (format gap / no MCP client). Lab evidence: Pi (2026-11-21) and, from OLY-52 on 2026-11-22, Aider, Claude Code, Gemini CLI and OpenClaw; Oh My Pi's two attempts were blocked by slow GitHub downloads. OLY-52 re-checked all remaining README claims against pinned sources, corrected false statements and kept only truly unverified live model/bot/browser/MCP connections. OLY-25: no Grok bot recipe; the catalog name has no clear referent (see Sources/landscape.md)."
     },
     "test-lab": {
       "status": "done",
       "file": "features/test-lab.md",
-      "updated": "2026-11-21",
-      "summary": "All three lab tests pass on merged development (2026-11-21): TestLabDeploy, TestLabM1 and TestLabRealStack with real Hermes, Codex and OpenCode."
+      "updated": "2026-11-22",
+      "summary": "OLY-32: TestLabDeploy and TestLabM1 passed on fresh amd64 QEMU guests for Ubuntu 22.04 and Debian 12 (and TestLabM1 on Ubuntu 24.04 after the seed-mode change). TestLabTwoServers passed on two fresh Ubuntu 24.04 VMs with matching generation IDs, manifest bytes, running image and platform manifest digests, and config hashes (registry-pulled fixtures). The Linux arm64 build passed; arm64 runtime, real VPS and macOS validation remain open. The 2026-11-21 Ubuntu 24.04 results also covered TestLabRealStack with Hermes, Codex and OpenCode."
     },
     "deploy": {
       "status": "done",
@@ -136,7 +136,7 @@
     "security-review": {
       "status": "in_progress",
       "file": "features/security-review.md",
-      "updated": "2026-11-19",
+      "updated": "2026-11-22",
       "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. Security data-flow note added in docs/security/data-flow.md. OLY-62 fixes F2 offline: npm recipes install from committed lockfiles with npm ci and Goose ships only its verified binary (no image built yet). F1 live checks and F4 remain open."
     },
     "user-docs": {
@@ -148,8 +148,8 @@
     "lint-baseline": {
       "status": "in_progress",
       "file": "features/lint-baseline.md",
-      "updated": "2026-11-21",
-      "summary": "golangci-lint config adapted from Caddy; 55 existing findings listed, 3 security-relevant; lint gates only changed lines until cleared."
+      "updated": "2026-11-22",
+      "summary": "Resolved lint baseline findings outside concurrent packages (activate, deploy, eval, remote); fixed errcheck in cli, unused readPlan, prealloc in schema, goimports, documented errname Diagnostic exclusion in .golangci.yml, and 12 modernize suggestions across cli, catalog, lock, recipe, stack. Baseline down from 36 to 17."
     }
   },
   "decisions": [
@@ -186,6 +186,8 @@
     "ADR 0046 vendor OpenBot's seccomp profile and pin an exact release",
     "ADR 0048 cross-compile release binaries and verify activator checksum against release build",
     "ADR 0050 honour or reject SSE per MCP style",
-    "ADR 0051 pin built-image inputs with committed lockfiles"
+    "ADR 0051 pin built-image inputs with committed lockfiles",
+    "ADR 0052 record post-install completion by stack tool name",
+    "ADR 0053 selectable test lab guest OS and architecture"
   ]
 }

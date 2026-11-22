@@ -221,7 +221,9 @@ func serverCommand(command string, s *stack.Stack, known, activator string, keep
 			return fail(errors.New("invalid server status"))
 		}
 		if jsonOutput {
-			json.NewEncoder(out).Encode(rows)
+			if err := json.NewEncoder(out).Encode(rows); err != nil {
+				return fail(err)
+			}
 		} else {
 			for _, r := range rows {
 				fmt.Fprintf(out, "%s\t%s\t%s\t%s\tgeneration %d\n", r.Name, r.State, r.Health, r.Image, r.Generation)
@@ -253,7 +255,9 @@ func serverCommand(command string, s *stack.Stack, known, activator string, keep
 		if e != nil {
 			return fail(e)
 		}
-		out.Write(b)
+		if _, err = out.Write(b); err != nil {
+			return fail(err)
+		}
 	case "destroy":
 		if err = c.Destroy(ctx, data); err != nil {
 			return fail(err)

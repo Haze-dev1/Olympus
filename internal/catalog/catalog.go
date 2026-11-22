@@ -32,6 +32,7 @@ const (
 	hashDomain = "olympus-catalog-v1\x00"
 
 	maxTarball = 64 << 20
+	maxFile    = 64 << 20
 	maxTree    = 256 << 20
 	maxFiles   = 10000
 )
@@ -82,7 +83,7 @@ func ParseSource(s string) (Source, error) {
 		if strings.HasPrefix(src.Path, "/") || path.Clean(src.Path) != src.Path || strings.HasPrefix(src.Path, "..") {
 			return Source{}, fmt.Errorf("catalog: source %q: invalid catalog path", s)
 		}
-		for _, part := range strings.Split(src.Path, "/") {
+		for part := range strings.SplitSeq(src.Path, "/") {
 			if part == "" || part == "." || part == ".." {
 				return Source{}, fmt.Errorf("catalog: source %q: invalid catalog path", s)
 			}
@@ -206,7 +207,9 @@ func (f Fetcher) request(ctx context.Context, endpoint string) (*http.Response, 
 			}
 		}
 		req.Header.Del("Authorization")
-		if f.Token != "" && allowed(req.URL) {
+		sameHost := len(via) > 0 && req.URL.Host == via[0].URL.Host && req.URL.Scheme == via[0].URL.Scheme
+		if sameHost && f.Token != "" && allowed(req.URL) {
+			//nolint:gosec // G119: token is only forwarded on redirect to the exact same host and scheme on allowed origins
 			req.Header.Set("Authorization", "Bearer "+f.Token)
 		}
 		return nil
@@ -315,12 +318,15 @@ func extract(r io.Reader, dst, sub string) error {
 			if err := os.MkdirAll(target, 0o755); err != nil {
 				return err
 			}
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg:
 			files++
 			if files > maxFiles {
 				return fmt.Errorf("tarball has more than %d files", maxFiles)
 			}
-			if hdr.Size < 0 || total+hdr.Size > maxTree {
+			if hdr.Size < 0 || hdr.Size > maxFile {
+				return fmt.Errorf("file %q exceeds %d bytes", hdr.Name, maxFile)
+			}
+			if total+hdr.Size > maxTree {
 				return fmt.Errorf("tarball exceeds %d bytes", maxTree)
 			}
 			perm := hdr.FileInfo().Mode().Perm()
@@ -334,7 +340,8 @@ func extract(r io.Reader, dst, sub string) error {
 			if err != nil {
 				return err
 			}
-			n, copyErr := io.Copy(out, tr)
+			// The size checks above bound hdr.Size; LimitReader enforces it on the stream too.
+			n, copyErr := io.Copy(out, io.LimitReader(tr, hdr.Size))
 			closeErr := out.Close()
 			if copyErr != nil {
 				return copyErr
@@ -426,19 +433,19 @@ func HashDir(dir string) (string, error) {
 	sort.Strings(paths)
 
 	h := sha256.New()
-	io.WriteString(h, hashDomain)
+	_, _ = io.WriteString(h, hashDomain)
 	for _, rel := range paths {
 		full := filepath.Join(dir, rel)
 		info, err := os.Stat(full)
 		if err != nil {
 			return "", err
 		}
-		io.WriteString(h, filepath.ToSlash(rel))
-		h.Write([]byte{0})
-		io.WriteString(h, strconv.FormatUint(uint64(info.Mode().Perm()), 8))
-		h.Write([]byte{0})
-		io.WriteString(h, strconv.FormatInt(info.Size(), 10))
-		h.Write([]byte{0})
+		_, _ = io.WriteString(h, filepath.ToSlash(rel))
+		_, _ = h.Write([]byte{0})
+		_, _ = io.WriteString(h, strconv.FormatUint(uint64(info.Mode().Perm()), 8))
+		_, _ = h.Write([]byte{0})
+		_, _ = io.WriteString(h, strconv.FormatInt(info.Size(), 10))
+		_, _ = h.Write([]byte{0})
 		f, err := os.Open(full)
 		if err != nil {
 			return "", err

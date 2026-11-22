@@ -30,9 +30,9 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0022](#0022-atomically-replace-owned-local-build-directories) | Atomically replace owned local build directories | Accepted |
 | [0023](#0023-hash-the-extracted-catalog-tree-in-a-canonical-form) | Hash the extracted catalog tree in a canonical form | Accepted |
 | [0024](#0024-resolve-image-digests-with-the-standard-library) | Resolve image digests with the standard library | Accepted |
-| [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted |
+| [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) | Test against a local QEMU VM from the Ubuntu cloud image | Accepted, amended by 0053 |
 | [0026](#0026-wire-github-catalogs-and-preserve-local-development-overrides) | Wire GitHub catalogs and preserve local development overrides | Accepted |
-| [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted, amended by 0028 |
+| [0027](#0027-activate-a-generation-from-the-store-by-manifest-id) | Activate a generation from the store by manifest id | Accepted, amended by 0028, 0032, 0043 and 0052 |
 | [0028](#0028-store-health-checks-in-the-generation-manifest) | Store health checks in the generation manifest | Accepted |
 | [0029](#0029-verify-deployment-uploads-and-retain-the-activation-result) | Verify deployment uploads and retain the activation result | Accepted |
 | [0030](#0030-address-rendered-files-by-tool-hash-across-generations) | Address rendered files by tool hash across generations | Accepted |
@@ -57,6 +57,8 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0049](#0049-require-an-explicit-opt-in-for-unsigned-development-activators) | Require an explicit opt-in for unsigned development activators | Accepted, amends 0048 |
 | [0050](#0050-honour-or-reject-sse-for-hermes-codex-and-opencode) | Honour or reject SSE for Hermes, Codex and OpenCode | Accepted, amends 0047 |
 | [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage) | Pin built-image inputs with committed lockfiles and a fetch stage | Accepted, amends 0041 |
+| [0052](#0052-record-post-install-completion-by-stack-tool-name) | Record post-install completion by stack tool name | Accepted, amends 0027 |
+| [0053](#0053-select-the-test-lab-guest-os-and-architecture) | Select the test lab guest OS and architecture | Accepted, amends 0025 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
 
@@ -739,6 +741,7 @@ v1 supports public registries with anonymous bearer auth only. Docker credential
 
 - **Status:** Accepted
 - **Date:** 2026-10-19
+- **Amended by:** [0053](#0053-select-the-test-lab-guest-os-and-architecture)
 
 ### Context
 
@@ -796,7 +799,7 @@ Read optional `GITHUB_TOKEN` only at the CLI boundary and use it only on GitHub 
 
 ## 0027. Activate a generation from the store by manifest id
 
-- **Status:** Accepted, amended by [0028](#0028-store-health-checks-in-the-generation-manifest), [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs) and [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert)
+- **Status:** Accepted, amended by [0028](#0028-store-health-checks-in-the-generation-manifest), [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs), [0043](#0043-recreate-only-the-containers-whose-secrets-changed-including-on-revert) and [0052](#0052-record-post-install-completion-by-stack-tool-name)
 - **Date:** 2026-10-20
 
 ### Context
@@ -1634,6 +1637,54 @@ We will:
 - **Inline the lockfile into the Dockerfile with a heredoc:** No format change, but a several-hundred-line Dockerfile is hard to review and to regenerate.
 - **Publish prebuilt images:** Out of scope for OLY-62.
 - **Pin apt package versions for Goose:** Debian removes superseded versions from the mirror, so pins break; a fetch stage avoids shipping them at all.
+
+## 0052. Record post-install completion by stack tool name
+
+- **Status:** Accepted, amends [0027](#0027-activate-a-generation-from-the-store-by-manifest-id)
+- **Date:** 2026-11-22
+
+### Context
+
+Recipes could declare a one-time container command, but the evaluator dropped it before deployment. Container and generation replacements are routine, so their lifetimes are too short for tracking one-time setup.
+
+### Decision
+
+Carry optional `post_install` arguments in each version 1 manifest tool. On forward activation under the server lock, run pending hooks after readiness checks and before requesting confirmation. Use Compose exec scoped to the named service and discard process output. A successful hook atomically publishes an empty `post-install/<tool>` marker under the server root. An unsuccessful hook fails activation and follows the existing revert path. Both explicit rollback and automatic revert skip hooks.
+
+### Consequences
+
+The marker survives rollback, generation garbage collection, and removal and re-addition under the same name. Full data destruction clears it along with the retained volumes. Old manifests omit the field and behave as before. The first successful hook for a name wins, including if confirmation or another tool later fails. Setup changes in persistent volumes may survive rollback. An interrupted command can leave partial effects, and a crash before recording completion can cause a retry. Recipe authors should make the command idempotent.
+
+### Alternatives considered
+
+- Key completion by generation or hook contents. A routine configuration edit or recipe upgrade could repeat one-time setup on retained data.
+- Record completion only when activation is confirmed. A rejected generation could leave durable setup effects that the next apply would repeat.
+- Put completion inside each container. Recreating a container would lose it unless every recipe allocated a persistent path for the activator.
+
+## 0053. Select the test lab guest OS and architecture
+
+- **Status:** Accepted
+- **Date:** 2026-11-22
+- **Amends:** [0025](#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)
+
+### Context
+
+OLY-32 needs to exercise the supported server distributions and arm64 before release. The lab previously booted only Ubuntu 24.04 amd64.
+
+### Decision
+
+Select Ubuntu 24.04, Ubuntu 22.04 or Debian 12 and amd64 or arm64 through environment variables. Keep Ubuntu 24.04 amd64 as the default and preserve its existing state directory. Store each additional guest's image and VM state in its own directory under `.lab/`. Verify new official cloud images against the publisher's SHA-256 (Ubuntu) or SHA-512 (Debian) manifest before caching them. Boot arm64 with QEMU TCG and local UEFI firmware.
+
+### Consequences
+
+- Each guest retains its own overlay, SSH identity and known hosts across restarts. The same loopback port pair can be reused after shutdown.
+- Arm64 needs a separate QEMU binary and firmware. Emulation takes longer and the deployment test cross-compiles the activator for that guest.
+- The real VPS release checks remain required.
+
+### Alternatives considered
+
+- **Reuse one overlay and SSH state for all guests:** switching images could reopen a different guest's disk or collide with a saved host key.
+- **Use a VPS for each lab configuration:** suitable for release validation, with additional provisioning and cost for local iteration.
 
 ## Template
 

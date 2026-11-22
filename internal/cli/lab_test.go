@@ -20,6 +20,9 @@ import (
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
+// labNginxImage pins the multi-architecture nginx index used by both lab recipes.
+const labNginxImage = "nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10"
+
 // Reset the canonical VM before running. All credentials/cache are explicit lab
 // settings; no developer SSH files or real secrets are read.
 func TestLabM1(t *testing.T) {
@@ -93,9 +96,7 @@ func TestLabM1(t *testing.T) {
 	if _, _, e := c.Run(ctx, remote.Sudo([]string{"docker", "info"}), nil); e == nil {
 		t.Fatal("reset the VM first; Docker already installed")
 	}
-	// Pinned multi-architecture nginx index verified during the first lab run.
-	const image = "nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10"
-	pinned := &lock.File{Version: 1, Inputs: map[string]lock.Input{"recipes": {URL: "github:lab/recipes", Rev: strings.Repeat("a", 40), Hash: "sha256-" + strings.Repeat("a", 64)}}, Tools: map[string]lock.Tool{"one": {Image: image}, "two": {Image: image}}}
+	pinned := &lock.File{Version: 1, Inputs: map[string]lock.Input{"recipes": {URL: "github:lab/recipes", Rev: strings.Repeat("a", 40), Hash: "sha256-" + strings.Repeat("a", 64)}}, Tools: map[string]lock.Tool{"one": {Image: labNginxImage}, "two": {Image: labNginxImage}}}
 	if err = lock.Write(filepath.Join(dir, "stack.lock"), pinned); err != nil {
 		t.Fatal(err)
 	}
@@ -151,6 +152,15 @@ func TestLabM1(t *testing.T) {
 		}
 	}
 	run("apply", 0, saved, "--yes", "-activator", binary)
+	checkHookMarker := func() {
+		t.Helper()
+		got := runRemote("docker", "compose", "-p", "olympus", "-f", "/var/lib/olympus/current/compose.yaml", "exec", "-T", "one", "cat", "/tmp/olympus-post-install")
+		if string(got) != "installed\n" {
+			t.Fatalf("in-container post-install marker got %q, want one entry", got)
+		}
+	}
+	checkHookMarker()
+	t.Log("post-install marker present inside the first container")
 	firstIDs := ids()
 	var status []activate.ToolStatus
 	if err = json.Unmarshal([]byte(run("status", 0, "--json", "-activator", binary)), &status); err != nil || len(status) != 2 {
@@ -166,10 +176,14 @@ func TestLabM1(t *testing.T) {
 	if string(delivered) != secretOne+"\n" {
 		t.Fatal("environment delivery changed secret bytes")
 	}
-	run("apply", 0, "--yes", "-activator", binary)
+	if output := run("apply", 0, "--yes", "-activator", binary); !strings.Contains(output, "No changes.") {
+		t.Fatal("re-apply was not a no-op")
+	}
 	if ids() != firstIDs {
 		t.Fatal("no-op apply restarted containers")
 	}
+	checkHookMarker()
+	t.Log("no-op re-apply left the post-install marker unchanged")
 	run("apply", 1, saved, "--yes", "-activator", binary)
 	config := filepath.Join(recipes, "lab-one", "default.conf.tmpl")
 	if err = os.WriteFile(config, []byte("server { listen 80; location / { return 200 'changed'; } }\n"), 0600); err != nil {
@@ -192,7 +206,18 @@ func TestLabM1(t *testing.T) {
 	if idFor(firstIDs, "one") == idFor(changedIDs, "one") || idFor(firstIDs, "two") != idFor(changedIDs, "two") {
 		t.Fatal("config change restarted wrong tools")
 	}
+	// The marker is in the replaced container's writable layer.
+	checkHookSkipped := func() {
+		t.Helper()
+		got := runRemote("docker", "compose", "-p", "olympus", "-f", "/var/lib/olympus/current/compose.yaml", "exec", "-T", "one", "sh", "-c", "test ! -e /tmp/olympus-post-install && echo absent")
+		if string(got) != "absent\n" {
+			t.Fatal("post-install hook reran in the replacement container")
+		}
+	}
+	checkHookSkipped()
 	run("rollback", 0, "-activator", binary)
+	checkHookSkipped()
+	t.Log("post-install hook stayed complete across a container replacement and rollback")
 	rollbackIDs := ids()
 	if idFor(rollbackIDs, "two") != idFor(firstIDs, "two") {
 		t.Fatal("rollback restarted unchanged tool")
@@ -227,6 +252,24 @@ func TestLabM1(t *testing.T) {
 	if e = os.WriteFile(failedRecipe, goodRecipe, 0600); e != nil {
 		t.Fatal(e)
 	}
+	// A newly declared failing hook must roll back, even when the service
+	// configuration itself is unchanged.
+	twoRecipe := filepath.Join(recipes, "lab-two", "recipe.yaml")
+	twoBody, e := os.ReadFile(twoRecipe)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(twoRecipe, append(bytes.Clone(twoBody), []byte("\nhooks:\n  post_install: ['false']\n")...), 0600); e != nil {
+		t.Fatal(e)
+	}
+	run("apply", 3, "--yes", "-activator", binary)
+	if string(runRemote("readlink", "-f", "/var/lib/olympus/current")) != beforeFailure {
+		t.Fatal("post-install failure changed current")
+	}
+	if e = os.WriteFile(twoRecipe, twoBody, 0600); e != nil {
+		t.Fatal(e)
+	}
+	t.Log("failed post-install hook rolled back to the previous generation")
 	// Give the test time to kill the real CLI before confirmation is published.
 	recipePath := filepath.Join(recipes, "lab-one", "recipe.yaml")
 	recipeBody, err := os.ReadFile(recipePath)
@@ -302,7 +345,7 @@ func TestLabM1(t *testing.T) {
 	if strings.TrimSpace(mode) != "600" {
 		t.Fatal("wrong secret mode")
 	}
-	runRemote("docker", "run", "-d", "--name", "olympus-lab-unrelated", image)
+	runRemote("docker", "run", "-d", "--name", "olympus-lab-unrelated", labNginxImage)
 	runRemote("docker", "volume", "create", "olympus-lab-unrelated")
 	run("destroy", 0, "-activator", binary)
 	if strings.TrimSpace(ids()) != "" {
@@ -318,5 +361,5 @@ func TestLabM1(t *testing.T) {
 	runRemote("docker", "volume", "inspect", "olympus-lab-unrelated")
 	runRemote("docker", "rm", "-f", "olympus-lab-unrelated")
 	runRemote("docker", "volume", "rm", "olympus-lab-unrelated")
-	t.Log("full cycle passed with pinned image " + image)
+	t.Log("full cycle passed with pinned image " + labNginxImage)
 }
