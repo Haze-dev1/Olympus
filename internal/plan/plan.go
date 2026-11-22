@@ -11,8 +11,10 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/Haze-dev1/Olympus/internal/activate"
 	"github.com/Haze-dev1/Olympus/internal/encode"
 	"github.com/Haze-dev1/Olympus/internal/generation"
 	"github.com/Haze-dev1/Olympus/internal/recipe"
@@ -281,9 +283,18 @@ func (d *Diff) SecretChanges(changed map[string]bool) {
 	}
 }
 
+const (
+	maxConfigBytes = activate.MaxConfigBytes
+	maxPlanBytes   = 16 << 20
+	maxPlanReads   = 32
+)
+
 // DiffConfig parses oldBytes and newBytes according to filePath's format and returns sorted key-level changes.
 // It falls back to an error for unsupported extensions or invalid structured content.
 func DiffConfig(filePath string, oldBytes, newBytes []byte) ([]KeyChange, error) {
+	if len(oldBytes) > maxConfigBytes || len(newBytes) > maxConfigBytes {
+		return nil, errors.New("config exceeds semantic diff size limit")
+	}
 	format := configFormat(filePath)
 	if format == "" {
 		return nil, fmt.Errorf("unsupported config format: %s", filePath)
@@ -296,7 +307,17 @@ func DiffConfig(filePath string, oldBytes, newBytes []byte) ([]KeyChange, error)
 	if err != nil {
 		return nil, fmt.Errorf("parsing desired config: %w", err)
 	}
-	keys := diffKeys("", oldDoc, newDoc)
+	keys, err := diffKeys("", oldDoc, newDoc)
+	if err != nil {
+		return nil, err
+	}
+	displayBytes := 0
+	for _, key := range keys {
+		displayBytes += len(key.Path) + len(key.Kind) + len(" , ")
+		if displayBytes > 4096 {
+			return nil, errors.New("config changes exceed display limit")
+		}
+	}
 	sort.Slice(keys, func(i, j int) bool {
 		if keys[i].Path == keys[j].Path {
 			return keys[i].Kind < keys[j].Kind
@@ -320,7 +341,7 @@ func configFormat(filePath string) string {
 	}
 }
 
-func diffKeys(prefix string, oldMap, newMap map[string]any) []KeyChange {
+func diffKeys(prefix string, oldMap, newMap map[string]any) ([]KeyChange, error) {
 	keys := map[string]bool{}
 	for k := range oldMap {
 		keys[k] = true
@@ -331,8 +352,17 @@ func diffKeys(prefix string, oldMap, newMap map[string]any) []KeyChange {
 	var changes []KeyChange
 	for _, k := range schema.Keys(keys) {
 		p := k
+		if len(k) > 256 {
+			return nil, errors.New("config key path exceeds display limit")
+		}
+		if k == "" || strings.ContainsAny(k, ".,\\\"") || strings.ContainsFunc(k, func(r rune) bool { return !strconv.IsPrint(r) }) {
+			p = strconv.QuoteToASCII(k)
+		}
 		if prefix != "" {
-			p = prefix + "." + k
+			p = prefix + "." + p
+		}
+		if len(p) > 256 {
+			return nil, errors.New("config key path exceeds display limit")
 		}
 		vOld, hadOld := oldMap[k]
 		vNew, hadNew := newMap[k]
@@ -345,13 +375,17 @@ func diffKeys(prefix string, oldMap, newMap map[string]any) []KeyChange {
 			mOld, okOld := vOld.(map[string]any)
 			mNew, okNew := vNew.(map[string]any)
 			if okOld && okNew {
-				changes = append(changes, diffKeys(p, mOld, mNew)...)
+				nested, err := diffKeys(p, mOld, mNew)
+				if err != nil {
+					return nil, err
+				}
+				changes = append(changes, nested...)
 			} else if !reflect.DeepEqual(vOld, vNew) {
 				changes = append(changes, KeyChange{Path: p, Kind: "changed"})
 			}
 		}
 	}
-	return changes
+	return changes, nil
 }
 
 // ChangedFiles returns the file paths that changed between want and current for each tool.
@@ -393,18 +427,9 @@ func ToolFiles(g *generation.Generation) map[string]map[string][]byte {
 }
 
 // ReadCurrentFiles reads the store files for the specified changed files from the server.
-func ReadCurrentFiles(ctx context.Context, r Reader, root bool, current generation.Manifest, changed map[string][]string) map[string]map[string][]byte {
+func ReadCurrentFiles(ctx context.Context, read func(context.Context, string, string, int, string) ([]byte, error), current generation.Manifest, changed map[string][]string) map[string]map[string][]byte {
 	out := map[string]map[string][]byte{}
-	if r == nil {
-		return out
-	}
-	run := func(args ...string) ([]byte, error) {
-		if !root {
-			args = remote.Sudo(args)
-		}
-		b, _, err := r.Run(ctx, args, nil)
-		return b, err
-	}
+	remaining, reads := maxPlanBytes, 0
 	for _, toolName := range schema.Keys(changed) {
 		tool, ok := current.Tools[toolName]
 		if !ok || !hashPattern.MatchString(tool.Hash) {
@@ -412,12 +437,17 @@ func ReadCurrentFiles(ctx context.Context, r Reader, root bool, current generati
 		}
 		out[toolName] = map[string][]byte{}
 		for _, f := range changed[toolName] {
-			if !recipe.CleanAbsolute(f) || f == "/" || strings.ContainsAny(f, "\x00\r\n\x1b") {
+			if reads == maxPlanReads || remaining <= 0 {
+				return out
+			}
+			if configFormat(f) == "" || !hashPattern.MatchString(tool.Files[f]) || !recipe.CleanAbsolute(f) || f == "/" || strings.ContainsAny(f, "\x00\r\n\x1b") {
 				continue
 			}
-			file := path.Join("/var/lib/olympus/store", tool.Hash, "files", strings.TrimPrefix(f, "/"))
-			b, err := run("head", "-c", "4194305", "--", file)
-			if err == nil && len(b) <= 4<<20 {
+			limit := min(maxConfigBytes, remaining)
+			reads++
+			b, err := read(ctx, tool.Hash, strings.TrimPrefix(f, "/"), limit, tool.Files[f])
+			remaining -= len(b)
+			if err == nil && len(b) <= limit {
 				out[toolName][f] = b
 			}
 		}

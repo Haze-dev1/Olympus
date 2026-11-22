@@ -433,3 +433,27 @@ func TestExtractDecompressionBombCaps(t *testing.T) {
 		}
 	})
 }
+
+func TestExpandedArchiveBudget(t *testing.T) {
+	header := tarHeaderBytes(t, "root/outside/data", maxExpanded)
+	r := io.MultiReader(bytes.NewReader(header), io.LimitReader(zeroReader{}, maxExpanded))
+	if err := extract(r, t.TempDir(), "recipes"); err == nil || !strings.Contains(err.Error(), "expanded tarball exceeds") {
+		t.Fatalf("got %v, want expanded archive limit", err)
+	}
+}
+
+func TestArchiveEntryBudget(t *testing.T) {
+	var archive bytes.Buffer
+	tw := tar.NewWriter(&archive)
+	for range maxFiles + 1 {
+		if err := tw.WriteHeader(&tar.Header{Name: "root/outside/", Typeflag: tar.TypeDir}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := extract(&archive, t.TempDir(), "recipes"); err == nil || !strings.Contains(err.Error(), "entries") {
+		t.Fatalf("got %v, want archive entry limit", err)
+	}
+}

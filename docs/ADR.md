@@ -40,7 +40,7 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0032](#0032-fingerprint-secrets-with-a-server-key-and-restore-partial-installs) | Fingerprint secrets with a server key and restore partial installs | Accepted |
 | [0033](#0033-record-image-tag-overrides-in-the-image-lock) | Record image tag overrides in the image lock | Accepted |
 | [0035](#0035-build-tools-without-an-official-image-from-a-recipe-supplied-dockerfile) | Build tools without an official image from a recipe-supplied Dockerfile | Accepted |
-| [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service) | Deliver writable managed config with a Compose init service | Accepted |
+| [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service) | Deliver writable managed config with a Compose init service | Accepted, amended by 0055 |
 | [0037](#0037-encode-mcp-secrets-as-tool-native-environment-references) | Encode MCP secrets as tool-native environment references | Accepted, amended by 0047 |
 | [0038](#0038-mount-shared-skills-read-only-where-supported-and-copy-them-where-the-tool-writes) | Mount shared skills read-only where supported, and copy them where the tool writes | Accepted |
 | [0039](#0039-configure-hermes-channels-as-environment-variables) | Configure Hermes channels as environment variables | Accepted |
@@ -59,6 +59,8 @@ New ADRs go at the end, take the next number and follow the [template](#template
 | [0051](#0051-pin-built-image-inputs-with-committed-lockfiles-and-a-fetch-stage) | Pin built-image inputs with committed lockfiles and a fetch stage | Accepted, amends 0041, amended by 0056 |
 | [0052](#0052-record-post-install-completion-by-stack-tool-name) | Record post-install completion by stack tool name | Accepted, amends 0027 |
 | [0053](#0053-select-the-test-lab-guest-os-and-architecture) | Select the test lab guest OS and architecture | Accepted, amends 0025 |
+| [0054](#0054-bound-and-verify-semantic-plan-reads) | Bound and verify semantic plan reads | Accepted |
+| [0055](#0055-bind-managed-init-policy-to-tool-identity) | Bind managed init policy to tool identity | Accepted, amends 0036 |
 | [0056](#0056-keep-npm-lifecycle-scripts-out-of-built-images) | Keep npm lifecycle scripts out of built images | Accepted, amends 0051 |
 
 ## 0001. Record architecture decisions as ADRs in this repo
@@ -1034,7 +1036,7 @@ The ingredient is pinned by content, not by a registry digest: the Dockerfile is
 
 ## 0036. Deliver writable managed config with a Compose init service
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0055](#0055-bind-managed-init-policy-to-tool-identity)
 - **Date:** 2026-10-20
 
 ### Context
@@ -1686,6 +1688,49 @@ Select Ubuntu 24.04, Ubuntu 22.04 or Debian 12 and amd64 or arm64 through enviro
 
 - **Reuse one overlay and SSH state for all guests:** switching images could reopen a different guest's disk or collide with a saved host key.
 - **Use a VPS for each lab configuration:** suitable for release validation, with additional provisioning and cost for local iteration.
+
+## 0054. Bound and verify semantic plan reads
+
+- **Status:** Accepted
+- **Date:** 2026-11-22
+
+### Context
+
+Semantic key diffs consume config bodies over SSH and display keys from those bodies in an operator's terminal. The store paths and manifest hashes already identify the files that can contribute to the diff.
+
+### Decision
+
+Read at most 32 supported YAML, TOML or JSON files and 16 MiB of current config per plan, with a 4 MiB per-file limit. Verify the installed activator checksum and version before invoking its read-only `read-config --server` command. On Linux it resolves store paths with `openat2` beneath the filesystem root and disallows symlinks, reads only regular files, and verifies the manifest digest before returning the bytes. Escape controls in key paths and cap display at 256 bytes per path and 4 KiB per file. Always report the changed file path when a read or display check fails.
+
+### Consequences
+
+Plan and apply still report file changes when the installed activator is missing, cannot be verified, or cannot use the required Linux facilities. Plan uses the installed binary and performs no upload. Only use semantic key diffs for formats whose keys are safe metadata.
+
+### Alternatives considered
+
+- **Check a path then read it by name:** path components can change between the check and the read.
+- **Use an inline interpreter for the read:** adds a host runtime dependency and a separate privileged execution path.
+
+## 0055. Bind managed init policy to tool identity
+
+- **Status:** Accepted, amends [0036](#0036-deliver-writable-managed-config-with-a-compose-init-service)
+- **Date:** 2026-11-22
+
+### Context
+
+Tools with the same rendered files and main service formerly shared a store identity even when the managed-copy command changed. Apply could skip the update or find different Compose bytes at an existing generation address.
+
+### Decision
+
+Include the ordered managed-copy destinations and failure policy in tool identity when the tool has an init service. Each failed copy sequence exits init immediately.
+
+### Consequences
+
+The first apply with the new policy replaces affected tools. Prior generations keep their original Compose files for rollback.
+
+### Alternatives considered
+
+- **Change the shell command alone:** existing stacks would not reliably receive the corrected init service.
 
 ## 0056. Keep npm lifecycle scripts out of built images
 

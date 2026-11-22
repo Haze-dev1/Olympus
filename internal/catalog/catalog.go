@@ -31,10 +31,11 @@ const (
 
 	hashDomain = "olympus-catalog-v1\x00"
 
-	maxTarball = 64 << 20
-	maxFile    = 64 << 20
-	maxTree    = 256 << 20
-	maxFiles   = 10000
+	maxTarball  = 64 << 20
+	maxFile     = 64 << 20
+	maxTree     = 256 << 20
+	maxExpanded = maxTree + (16 << 20)
+	maxFiles    = 10000
 )
 
 var (
@@ -287,19 +288,27 @@ func (f Fetcher) download(ctx context.Context, src Source, rev, dst string) erro
 // extract writes the tarball's single top-level directory into dst, keeping
 // only files below sub. It rejects entries that leave dst or the subdirectory.
 func extract(r io.Reader, dst, sub string) error {
-	tr := tar.NewReader(r)
+	limited := &io.LimitedReader{R: r, N: maxExpanded + 1}
+	tr := tar.NewReader(limited)
 	var (
 		total   int64
-		files   int
+		entries int
 		matched bool
 	)
 	for {
 		hdr, err := tr.Next()
+		if limited.N == 0 {
+			return fmt.Errorf("expanded tarball exceeds %d bytes", maxExpanded)
+		}
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
 			return err
+		}
+		entries++
+		if entries > maxFiles {
+			return fmt.Errorf("tarball has more than %d entries", maxFiles)
 		}
 		rel, ok, err := catalogPath(hdr.Name, sub)
 		if err != nil {
@@ -319,10 +328,6 @@ func extract(r io.Reader, dst, sub string) error {
 				return err
 			}
 		case tar.TypeReg:
-			files++
-			if files > maxFiles {
-				return fmt.Errorf("tarball has more than %d files", maxFiles)
-			}
 			if hdr.Size < 0 || hdr.Size > maxFile {
 				return fmt.Errorf("file %q exceeds %d bytes", hdr.Name, maxFile)
 			}
@@ -361,10 +366,16 @@ func extract(r io.Reader, dst, sub string) error {
 			return fmt.Errorf("unsupported tar entry %q (type %d)", hdr.Name, hdr.Typeflag)
 		}
 	}
+	if _, err := io.Copy(io.Discard, limited); err != nil {
+		return err
+	}
+	if limited.N == 0 {
+		return fmt.Errorf("expanded tarball exceeds %d bytes", maxExpanded)
+	}
 	if sub != "" && !matched {
 		return fmt.Errorf("catalog path %q not found in tarball", sub)
 	}
-	if files == 0 {
+	if !matched {
 		return errors.New("tarball contains no files")
 	}
 	return nil

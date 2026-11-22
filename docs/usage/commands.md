@@ -82,6 +82,8 @@ olym update [-f stack.yaml]
 
 Evaluates the desired generation locally, connects to the target server over SSH, executes a read-only preflight check, inspects the current generation on the server, and prints a diff showing container and file changes.
 
+For changed YAML, TOML and JSON configuration, the diff can show escaped key paths. Use this detail only for formats whose keys are safe metadata. If the installed activator cannot be verified or cannot supply a verified file within the read budget, the diff shows the file path.
+
 When `--detailed-exitcode` is passed, `olym plan` exits with status code `2` if differences are detected, or `0` if there are no changes.
 
 ### Usage

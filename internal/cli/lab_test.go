@@ -48,7 +48,11 @@ func TestLabM1(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(recipes, name), 0700); err != nil {
 			t.Fatal(err)
 		}
-		for _, file := range []string{"recipe.yaml", "default.conf.tmpl"} {
+		files := []string{"recipe.yaml", "default.conf.tmpl"}
+		if name == "lab-one" {
+			files = append(files, "settings.yaml.tmpl")
+		}
+		for _, file := range files {
 			b, err := os.ReadFile(filepath.Join("testdata", name, file))
 			if err != nil {
 				t.Fatal(err)
@@ -189,7 +193,19 @@ func TestLabM1(t *testing.T) {
 	if err = os.WriteFile(config, []byte("server { listen 80; location / { return 200 'changed'; } }\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	planText := run("plan", 2, "--detailed-exitcode")
+	settings := filepath.Join(recipes, "lab-one", "settings.yaml.tmpl")
+	if err := os.WriteFile(settings, []byte("response: changed\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	fallback := run("plan", 2, "--detailed-exitcode")
+	if !strings.Contains(fallback, "config: /etc/nginx/conf.d/settings.yaml\n") || strings.Contains(fallback, "response changed") {
+		t.Fatalf("expected file-path fallback without a verifiable activator: %s", fallback)
+	}
+	planText := run("plan", 2, "--detailed-exitcode", "-activator", binary)
+	if !strings.Contains(planText, "/etc/nginx/conf.d/settings.yaml (response changed)") {
+		t.Fatalf("missing semantic config diff: %s", planText)
+	}
+	t.Log("plan showed response changed in settings.yaml")
 	if !strings.Contains(planText, "1 unchanged. 1 to restart") {
 		t.Fatalf("unexpected config diff: %s", planText)
 	}
@@ -252,6 +268,27 @@ func TestLabM1(t *testing.T) {
 	if e = os.WriteFile(failedRecipe, goodRecipe, 0600); e != nil {
 		t.Fatal(e)
 	}
+	// Only the first managed copy has an unusable destination in the volume.
+	runRemote("docker", "compose", "-p", "olympus", "-f", "/var/lib/olympus/current/compose.yaml", "exec", "-T", "one",
+		"sh", "-c", "touch /etc/nginx/conf.d/blocked")
+	initRecipe := bytes.Replace(goodRecipe, []byte("templates:\n"), []byte(`writable:
+  - /etc/nginx/conf.d/blocked/first.yaml
+  - /etc/nginx/conf.d/settings.yaml
+templates:
+  - src: settings.yaml.tmpl
+    dst: /etc/nginx/conf.d/blocked/first.yaml
+`), 1)
+	if e = os.WriteFile(failedRecipe, initRecipe, 0600); e != nil {
+		t.Fatal(e)
+	}
+	run("apply", 3, "--yes", "-activator", binary)
+	if string(runRemote("readlink", "-f", "/var/lib/olympus/current")) != beforeFailure {
+		t.Fatal("managed copy failure changed current")
+	}
+	if e = os.WriteFile(failedRecipe, goodRecipe, 0600); e != nil {
+		t.Fatal(e)
+	}
+	t.Log("first managed-file copy failure prevented activation and restored the previous generation")
 	// A newly declared failing hook must roll back, even when the service
 	// configuration itself is unchanged.
 	twoRecipe := filepath.Join(recipes, "lab-two", "recipe.yaml")
