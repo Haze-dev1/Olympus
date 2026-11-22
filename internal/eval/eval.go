@@ -21,10 +21,14 @@ import (
 	"github.com/Haze-dev1/Olympus/internal/stack"
 )
 
+// DevelopmentVersion is the default version string assigned to unversioned local builds.
 const DevelopmentVersion = "0.1.0-dev"
 
+// Version is the Olympus CLI version, populated via linker flags (-ldflags -X) during release builds.
+// Package-level mutable state is permitted here as an exception for linker injection.
 var Version = DevelopmentVersion
 
+// Service describes a Docker Compose service definition generated for a tool.
 type Service struct {
 	Image       string             `json:"image"`
 	User        string             `json:"user,omitempty"`
@@ -42,20 +46,28 @@ type Service struct {
 	SecurityOpt []string           `json:"security_opt,omitempty"`
 	Labels      map[string]string  `json:"labels"`
 }
+
+// ServiceBuild describes container build options for a Docker Compose service.
 type ServiceBuild struct {
 	Context    string            `json:"context"`
 	Dockerfile string            `json:"dockerfile"`
 	Args       map[string]string `json:"args,omitempty"`
 }
+
+// Depends describes a service dependency relationship in Docker Compose.
 type Depends struct {
 	Condition string `json:"condition"`
 }
+
+// Mount describes a volume mount for a Docker Compose service.
 type Mount struct {
 	Type     string `json:"type"`
 	Source   string `json:"source"`
 	Target   string `json:"target"`
 	ReadOnly bool   `json:"read_only,omitempty"`
 }
+
+// Compose describes the generated Docker Compose project specification.
 type Compose struct {
 	Name     string                       `json:"name"`
 	Services map[string]Service           `json:"services"`
@@ -76,6 +88,7 @@ type Inputs struct {
 	Skills    map[string]map[string][]byte
 }
 
+// Load collects stack recipes, templates, and shared skills into pure evaluation inputs.
 func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 	in := Inputs{Stack: s, Recipes: map[string]*recipe.Recipe{}, Templates: map[string]map[string][]byte{}, Skills: map[string]map[string][]byte{}}
 	var errors []schema.Diagnostic
@@ -165,6 +178,8 @@ func Load(s *stack.Stack, root, stackDir string) (Inputs, []schema.Diagnostic) {
 	}
 	return in, errors
 }
+
+// Build evaluates inputs into a complete generation artifact containing Compose definitions and files.
 func Build(in Inputs) (*generation.Generation, error) {
 	g := &generation.Generation{Files: map[string][]byte{}, Manifest: generation.Manifest{Version: 1, Olym: Version, Inputs: map[string]string{}, Tools: map[string]generation.Tool{}}}
 	compose := Compose{Name: "olympus", Services: map[string]Service{}, Volumes: map[string]map[string]string{}}

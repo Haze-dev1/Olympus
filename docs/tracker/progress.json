@@ -127,14 +127,14 @@
     "preflight": {
       "status": "done",
       "file": "features/preflight.md",
-      "updated": "2026-11-05",
-      "summary": "Read-only preflight in plan/apply: OS, arch vs locked image platforms, RAM, disk and occupied ports (ignoring the current olympus generation). Offline tests only; lab not run (no QEMU on this host)."
+      "updated": "2026-11-22",
+      "summary": "Read-only preflight in plan/apply: OS, arch vs locked image platforms, RAM, disk and occupied ports (ignoring the current olympus generation). Offline tests pass; OLY-70 fixed loopback conflict check (finding 4) with unit and live QEMU lab tests."
     },
     "release-pipeline": {
       "status": "done",
       "file": "features/release-pipeline.md",
-      "updated": "2026-11-08",
-      "summary": "Cross-compile CLI and Linux activator, SHA256SUMS, activator checksum verification against release (A12), tag-triggered release workflow and build provenance. OLY-61 adds an explicit -unsafe-dev-activator opt-in for development builds without a release checksum. Live release verification remains pending."
+      "updated": "2026-11-22",
+      "summary": "Cross-compile CLI and Linux activator, SHA256SUMS, activator checksum verification against release (A12), tag-triggered release workflow and build provenance. OLY-61 adds an explicit -unsafe-dev-activator opt-in for development builds without a release checksum. OLY-70 suppresses dev warning when flag/checksums provided and distinguishes untagged release-script builds (finding 8). Live release verification remains pending."
     },
     "security-review": {
       "status": "in_progress",
