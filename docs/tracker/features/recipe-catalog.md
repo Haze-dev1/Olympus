@@ -1,6 +1,6 @@
 # Recipe catalog
 
-- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose, Aider, OpenClaw, Pi and Oh My Pi recipes added; Pi, Aider, Claude Code, Gemini CLI and OpenClaw lab-verified, and the remaining README claims re-checked against pinned sources on 2026-11-22 (OLY-52). Grok bot blocked on tool identity (OLY-25).
+- **Status:** In progress: OpenBot, Claude Code, Gemini CLI, Goose, Aider, OpenClaw, Pi and Oh My Pi recipes added; Pi, Aider, Claude Code, Gemini CLI, OpenClaw and Oh My Pi lab-verified, and the remaining README claims re-checked against pinned sources on 2026-11-22 (OLY-52). Grok bot blocked on tool identity (OLY-25).
 - **Milestone:** M5
 - **Plan:** [plans/v1.md](../../plans/v1.md)
 
@@ -504,10 +504,14 @@ Arch host (amd64, KVM, Go 1.27.4), fresh `lab/lab.sh reset` each run. Each stack
   - `/var/lib/olympus/secrets/pi/*` were all mode 0600 root, and the container had 0 restarts.
   - No sentinel value appeared in CLI output.
   - A follow-up `plan` that added a remote MCP server, run with the OLY-54 branch binary, printed `mcp.json (mcpServers.docs added)`.
-- **Oh My Pi: not verified live.**
-  - First attempt: `apt-get update` in the fetch stage stalled, a TCP connection idle for over 800 s inside the QEMU user-mode network. After the download was killed, `apply` reported `deploy: activation failed; server rolled back`.
-  - Second attempt: the fetch stage got through `apt`, then downloaded the 284,477,616-byte `omp-linux-x64` at about 33 KiB/s, matching the 36 KB/s the host itself got from GitHub's release CDN. The CLI was stopped at its 25-minute cap with about 17 MB fetched.
-  - Still unverified: the SHA-256 check of the binary, `omp --version`, and the config, MCP and skill files in a running container. Rerun when GitHub downloads are faster.
+- **Oh My Pi: passed (2026-11-22).** Verified live on a reset Ubuntu 24.04 QEMU VM (ports 2272/8149, 6144 MB RAM) using a development CLI (`-unsafe-dev-activator`), Linux activator and sentinel secrets.
+  - GitHub download rate measured from host before run at ~2.3 MB/s; build fetch stage downloaded the 284 MB binary and verified against SHA-256 `a4ce6001ab1012ca835f4184d675437531bd1ac477a7ba8424ed0b5476e9e4cb`.
+  - `apply` succeeded with generation `sha256-26c87cfbbf44…`; `olym status` reported `oh-my-pi running healthy` (generation 1, image `olympus/oh-my-pi:sha256-8ac4522fa066`).
+  - Inside container: `omp --version` printed `omp/18.17.0`.
+  - Writable files and templates delivered by `oh-my-pi-init`: `/root/.omp/agent/config.yml` (seeded `startup.checkUpdate: false`, `update.auto: false`) and `/root/.omp/agent/mcp.json` (kept `"GITHUB_TOKEN": "${GITHUB_TOKEN}"` reference).
+  - Shared skill mount verified at `/root/.omp/agent/skills/lab-skill/SKILL.md`.
+  - Secret files on host under `/var/lib/olympus/secrets/oh-my-pi/` were all mode `0600` root. No sentinel value appeared in CLI output or logs.
+  - No tool ports exposed to host. `destroy` cleanly removed containers.
 
 ## Grok bot (OLY-25) — research only, STOP
 
@@ -553,13 +557,15 @@ Every remaining `UNVERIFIED` bullet in `recipes/*/README.md` was re-checked agai
 - **OpenBot.** Upstream's own "Not confirmed" list at `v0.62.0` matches the README; GHCR index/manifests and the vendored seccomp hash were re-checked, but the image was not pulled. "`openbot status` needs no sign-in" is an inference, not an explicit upstream statement.
 - **OpenCode.** `min_ram: 2GB` is an Olympus estimate; docs drift (site v2, pin v1) was verified; the v1 headless `auth.json` shape is documented in `packages/web/src/content/docs/gitlab.mdx`; `OPENCODE_SERVER_PASSWORD` is not needed on loopback.
 - **OpenClaw.** The stale claim that no QEMU lab VM was available was replaced with the successful 2026-11-22 apply/health evidence below. The browser Control UI pairing and live model session remain unverified.
-- **Pi / Oh My Pi.** Pi's passing 2026-11-21 lab run (92.6 s, `pi --version` `1.5.0`, `${GITHUB_TOKEN}` reference kept, read-only skill, 0600 secrets, 0 restarts) replaced the stale "no lab run" text. Oh My Pi still has no successful lab run: 2026-11-21 attempts stalled at `apt-get update` (>800 s) and then at a 284 MB release download (~33 KiB/s); SHA check, `omp --version` and managed files remain unverified.
+- **Pi / Oh My Pi.** Pi's passing 2026-11-21 lab run (92.6 s, `pi --version` `1.5.0`, `${GITHUB_TOKEN}` reference kept, read-only skill, 0600 secrets, 0 restarts) replaced the stale "no lab run" text. Oh My Pi's passing 2026-11-22 lab run verified the fetch-stage SHA-256 check, healthy container, `omp --version` `omp/18.17.0`, writable `config.yml` (checkUpdate false, auto false), `mcp.json` with unexpanded token ref, mounted skill, 0600 secrets and clean destroy.
 
 ### Lab evidence (OLY-52, 2026-11-22)
 
 Reset QEMU VM on the assigned ports (`2252` / `8129`), `OLYMPUS_LAB_MEMORY=4096`, development CLI with `-unsafe-dev-activator` and a separately built Linux activator. One apply deployed Aider, Claude Code and Gemini CLI from a stack with no secrets and a hand-written digest lock. `apply` exited 0; `olym status` reported all three `running healthy`; `docker exec` printed `aider 0.86.2`, `2.1.318 (Claude Code)` and `0.67.0`; each container had 0 restarts. No provider key was supplied, so no model request was made.
 
 A second apply deployed OpenClaw from a stack with a hand-written digest lock pinned to `ghcr.io/openclaw/openclaw:2026.11.1@sha256:db0e0809…` and a sentinel-only `.env`. `apply` exited 0 with generation `sha256-aa2a1ae0…` (generation 2); `olym status` reported `openclaw  running  healthy`; a host-side `curl http://127.0.0.1:18789/healthz` returned HTTP 200. The container health check reached `healthy` with `RestartCount=0` after unattended doctor and offline state maintenance completed; logs showed `Doctor complete.` and gateway `ready`. No provider key or browser session was used.
+
+A third apply on a reset QEMU VM (ports 2272/8149, `OLYMPUS_LAB_MEMORY=6144`) deployed Oh My Pi (`oh-my-pi`) with a development CLI (`-unsafe-dev-activator`), Linux activator and sentinel secrets. Pre-run curl measured GitHub download at ~2.3 MB/s. The image build downloaded the 284 MB binary and verified SHA-256 `a4ce6001ab1012ca835f4184d675437531bd1ac477a7ba8424ed0b5476e9e4cb` in the fetch stage; `apply` succeeded with generation `sha256-26c87cfbbf44…`; `olym status` reported `oh-my-pi running healthy` (generation 1, image `olympus/oh-my-pi:sha256-8ac4522fa066`). Inside the container, `omp --version` printed `omp/18.17.0`, `/root/.omp/agent/config.yml` had `startup.checkUpdate: false` and `update.auto: false`, `/root/.omp/agent/mcp.json` kept `"GITHUB_TOKEN": "${GITHUB_TOKEN}"`, and `/root/.omp/agent/skills/lab-skill/SKILL.md` was mounted. Secret files on host under `/var/lib/olympus/secrets/oh-my-pi/` were mode `0600` root-only. No sentinel value was leaked in CLI output or logs. Destroy cleanly removed containers and kept volumes.
 
 Live model sessions, real Telegram/Discord delivery, browser Control UI pairing and live MCP connections remain unverified: they need active provider/bot credentials or a browser session that this run does not have.
 
