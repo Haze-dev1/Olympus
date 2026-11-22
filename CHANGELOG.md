@@ -2,6 +2,8 @@
 
 ## Development
 
+- OLY-25: research for the catalog's "a Grok bot" line ended at the task's STOP rule; no recipe was written. The official [Grok Bot](https://docs.x.ai/grok-bot/overview) is a closed, Cursor-account, cloud-computer product with no self-host option; `xai-org/grok-build` is an official but coding-agent CLI; the widely used, maintained open-source "Grok Bot" projects (`milind-soni/OpenMausBot`, `elie222/rakazo`, `stablyai/orca`) are mutually different *alternatives*, not a single named tool. Evidence and the request for a named repository are in `docs/Sources/landscape.md`; no product scope was invented. No code, recipes, testdata or ADR changes; `docs/Sources/landscape.md` and the recipe-catalog tracker record the dated finding. Full validation (`go build`, `go vet`, `go test`, `go test -race -short`, `gofmt -l`, `golangci-lint --new-from-merge-base`) passes. Lab not run; it is only needed once a tool is named.
+
 - Corrected the stale "Phase" line in `AGENTS.md`: it said server commands were not implemented, but M1 to M3 are done and verified on the lab VM. It now points at `docs/tracker/progress.json` for current status. No ADR.
 
 - Fixed `TestLabRealStack` reading stderr together with stdout, so the development-build warning no longer breaks `status --json` parsing; both streams are still checked for sentinel secrets. With it, all three lab tests pass on merged `development`: `TestLabDeploy` (127.9 s), `TestLabM1` (118.1 s) and `TestLabRealStack` (1354.5 s, real Hermes, Codex and OpenCode). Test-only change; no ADR.
