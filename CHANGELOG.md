@@ -3,6 +3,7 @@
 ## Development
 
 - Added `TestLabTwoServers` to compare deployed generation IDs, manifest bytes, running image IDs and platform manifest digests, and rendered config hashes across two fresh lab VMs using the same stack and lock.
+- OLY-32 adds Ubuntu 22.04, Debian 12 and arm64 selections to the disposable QEMU lab. Official image downloads are verified before caching, and each guest keeps separate VM and SSH state. Ubuntu 24.04 amd64 remains the default (ADR 0053).
 - Cleaned remaining lint baseline outside packages edited by concurrent branches (`internal/activate`, `internal/deploy`, `internal/eval`, `internal/remote`).
   - `internal/cli`: handled return values from `json.Encoder.Encode` and `out.Write` in `commands.go` (errcheck); moved test-only `readPlan` helper from `plan.go` to `plan_test.go` (unused); used `strings.Builder` in diagnostic error loop (modernize); simplified error unwrapping in `server.go` using `errors.AsType` (modernize); formatted imports in `terminal_linux.go` (goimports).
   - `cmd/olym`: formatted imports in `main.go` (goimports).

@@ -2,9 +2,9 @@
 
 - **Status:** Done
 - **Milestone:** M1 (supports slices 3–5)
-- **Decision:** [ADR 0025](../../ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image)
+- **Decisions:** [ADR 0025](../../ADR.md#0025-test-against-a-local-qemu-vm-from-the-ubuntu-cloud-image) and [ADR 0053](../../ADR.md#0053-select-the-test-lab-guest-os-and-architecture)
 
-`lab/lab.sh` starts a disposable Ubuntu 24.04 server for testing Olympus against: the official cloud image under QEMU with KVM, cloud-init, a lab-only SSH key and a passwordless-sudo user, reachable only at `127.0.0.1:2222`. Everything lives in `.lab/`.
+`lab/lab.sh` starts a disposable QEMU VM from an official cloud image, with cloud-init, a lab-only SSH identity and a passwordless-sudo user. By default it boots Ubuntu 24.04 amd64 and forwards SSH to `127.0.0.1:2222`. Ubuntu 22.04 and Debian 12 are selectable alongside arm64. All state lives under `.lab/`.
 
 ## Evidence (2026-10-19)
 
@@ -68,3 +68,35 @@ Build, vet, unit and race suites, formatting, lab-tagged vet and changed-line li
 ### Orchestrator rerun of TestLabTwoServers (2026-11-22)
 
 After merging `development`, `TestLabTwoServers` passes on two fresh Ubuntu 24.04 VMs (ports 2232 and 2282) in 90.1 s. Both servers report generation `sha256-931a824d…` and manifest `sha256-cc106b57…`, the same values as the agent's run, with identical running image and platform manifest digests and config hashes. Scope stays registry-pulled images; Dockerfile-built images are not expected to share image IDs (ADRs 0041, 0051).
+## OLY-32 local OS matrix (2026-11-22)
+
+QEMU 11.1.2 used TCG on a Linux amd64 host without `/dev/kvm`. Both official
+images passed checksum verification and the guests reported the expected OS
+and `x86_64` over SSH. Each test started with its own fresh reset.
+
+| Guest | Image checksum | TestLabDeploy | TestLabM1 |
+| --- | --- | ---: | ---: |
+| Ubuntu 22.04 amd64 | Ubuntu SHA-256 | Pass, 106.31 s | Pass, 80.83 s |
+| Debian 12 amd64 | Debian SHA-512 | Pass, 157.17 s | Pass, 111.68 s |
+
+- `TestLabDeploy` installed Docker and Compose through sudo, activated and
+  confirmed a generation, and verified rollback of an unconfirmed generation.
+  `TestLabM1` passed the CLI lifecycle and checked for sentinel leaks in CLI
+  output, durable artifacts, activation logs and container logs.
+- Debian's cloud-init 22.4.2 used the HTTP seed via `ds=nocloud-net`, which also
+  worked on Ubuntu 22.04. Debian's first reset took 41.15 s including download
+  and verification, and the cached reset took 8.84 s. Ubuntu took 157.38 s
+  and 15.68 s, respectively. Both VMs stopped and both lab ports were released.
+  [cloud-init NoCloud documentation](https://docs.cloud-init.io/en/22.4.2/topics/datasources/nocloud.html)
+- The selector regression check failed against the baseline and passed with
+  the change. An offline fixture exercised matching and mismatched checksums.
+  Go build, vet, unit tests, race tests, formatting and lint passed. Initial
+  sandbox runs blocked DNS, loopback sockets and writes to the default Go
+  cache. Reruns used network access and a temporary Go cache.
+- Linux arm64 cross-compilation passed. Live arm64 is open because the host
+  had neither the emulator nor AArch64 UEFI firmware. Real VPS and macOS
+  validation remain open. This pass required no Olympus product fixes.
+
+### Orchestrator review of OLY-32 (2026-11-22)
+
+Renumbered the guest-selection ADR to 0053 (0052 went to OLY-63) and merged `development`. On the merged branch the full offline set and `lab/lab_test.sh` pass. `TestLabM1` passes on fresh VMs of the default Ubuntu 24.04 (159.1 s, confirming the switch to the `nocloud-net` seed mode does not break the default guest) and Debian 12 (120.3 s), both including the OLY-63 post-install hook checks. arm64 remains unrun: the host has no `qemu-system-aarch64` or AArch64 UEFI firmware.
