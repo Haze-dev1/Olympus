@@ -169,7 +169,7 @@ func storeRefs(compose []byte) []string {
 // dirSize is the number of regular-file bytes under path.
 func dirSize(path string) int64 {
 	var total int64
-	filepath.WalkDir(path, func(_ string, entry fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(path, func(_ string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}

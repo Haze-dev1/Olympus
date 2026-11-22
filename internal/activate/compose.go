@@ -52,6 +52,7 @@ func (c Compose) Build(ctx context.Context, file string) error {
 			continue
 		}
 		seen[image] = true
+		//nolint:gosec // G204: image is parsed from compose service config, passed as separate argv argument (A2)
 		if exec.CommandContext(ctx, c.bin(), "image", "inspect", image).Run() == nil {
 			continue
 		}
@@ -104,6 +105,7 @@ func (c Compose) run(ctx context.Context, args []string) error {
 	if out == nil {
 		out = io.Discard
 	}
+	//nolint:gosec // G204: arguments are discrete argv elements constructed by c.args(), no shell interpolation (A2)
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	// One writer for both streams: os/exec copies them in separate goroutines.
 	sink := &syncWriter{w: io.MultiWriter(out, &tail)}
@@ -212,7 +214,7 @@ func (c Checker) checkHTTP(ctx context.Context, check *HTTPCheck) error {
 		return fmt.Errorf("GET %s: %w", url, err)
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return fmt.Errorf("GET %s: %s", url, resp.Status)
 	}

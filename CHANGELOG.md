@@ -2,6 +2,12 @@
 
 ## Development
 
+- OLY-64: fix security-relevant lint findings and clean touched packages.
+  - `internal/catalog`: capped per-file (`64 MiB`) and total extracted tree bytes (`256 MiB`) in `extract` using `io.LimitReader` and early header size validation to prevent decompression bombs (gosec G110); removed deprecated `tar.TypeRegA` (staticcheck SA1019); restricted redirect policy so `Authorization` bearer tokens are never forwarded to a different host or scheme on redirect (gosec G119); checked sha256 `io.WriteString` return values (errcheck).
+  - `internal/activate`: handled errors from `clearConfirm` during activation and rollback before publishing or pointing current, safely reverting and aborting if stale confirmation cannot be cleared; added `removeConfirm` test hook; checked `io.Copy` in compose health checks (errcheck); handled `filepath.WalkDir` in `dirSize` (errcheck).
+  - Reviewed command executions in `internal/activate/commands.go`, `compose.go`, and `internal/remote/remote.go` against Rule A2: confirmed all commands invoke discrete argv argument lists without shell interpolation (or connect to standard UNIX domain socket for ssh-agent); added `//nolint:gosec` with explicit rationales.
+  - Added unit tests for archive caps, redirect token confinement across hosts, and clearConfirm failure rollbacks. Whole-file `errcheck`, `gosec`, and `staticcheck` are 0 issues across `internal/catalog/...`, `internal/activate/...`, `internal/remote/...`. Baseline issues dropped from 55 to 36. No ADR: bug and security fixes enforcing existing rules and architecture.
+
 - Corrected the stale "Phase" line in `AGENTS.md`: it said server commands were not implemented, but M1 to M3 are done and verified on the lab VM. It now points at `docs/tracker/progress.json` for current status. No ADR.
 
 - Fixed `TestLabRealStack` reading stderr together with stdout, so the development-build warning no longer breaks `status --json` parsing; both streams are still checked for sentinel secrets. With it, all three lab tests pass on merged `development`: `TestLabDeploy` (127.9 s), `TestLabM1` (118.1 s) and `TestLabRealStack` (1354.5 s, real Hermes, Codex and OpenCode). Test-only change; no ADR.

@@ -357,6 +357,60 @@ func TestActivateConfirmedBecomesCurrent(t *testing.T) {
 	}
 }
 
+func TestActivateRollsBackIfClearConfirmFails(t *testing.T) {
+	f := newFixture(t)
+	id := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.health[id] = map[string]Health{"observatory": {HTTP: &HTTPCheck{Port: 8080, Path: "/healthz"}}}
+
+	var calls int
+	f.removeConfirm = func() error {
+		calls++
+		if calls > 1 {
+			return errors.New("simulated disk error removing confirm")
+		}
+		return nil
+	}
+
+	result := make(chan error, 1)
+	go func() { result <- f.Activate(context.Background(), id) }()
+	state := f.waitAwaiting(t)
+	if err := f.Confirm(id, state.Nonce); err != nil {
+		t.Fatalf("confirm %s: %v", id, err)
+	}
+	err := f.wait(t, result)
+	if err == nil {
+		t.Fatal("expected activate to fail when clearConfirm fails, but got nil")
+	}
+}
+
+func TestRollbackRollsBackIfClearConfirmFails(t *testing.T) {
+	f := newFixture(t)
+	first := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	second := f.addGeneration(t, "gen2", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
+	f.activate(t, first)
+	f.activate(t, second)
+
+	var calls int
+	f.removeConfirm = func() error {
+		calls++
+		if calls > 1 {
+			return errors.New("simulated disk error removing confirm during rollback")
+		}
+		return nil
+	}
+
+	result := make(chan error, 1)
+	go func() { result <- f.Rollback(context.Background()) }()
+	state := f.waitAwaiting(t)
+	if err := f.Confirm(first, state.Nonce); err != nil {
+		t.Fatal(err)
+	}
+	err := f.wait(t, result)
+	if err == nil {
+		t.Fatal("expected rollback to fail when clearConfirm fails, but got nil")
+	}
+}
+
 func TestActivateDeadlineRollsBack(t *testing.T) {
 	f := newFixture(t)
 	id := f.addGeneration(t, "gen1", map[string]generation.Tool{"observatory": tool()}, "services: {}\n")
