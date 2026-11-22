@@ -73,3 +73,7 @@ and `x86_64` over SSH. Each test started with its own fresh reset.
 - Linux arm64 cross-compilation passed. Live arm64 is open because the host
   had neither the emulator nor AArch64 UEFI firmware. Real VPS and macOS
   validation remain open. This pass required no Olympus product fixes.
+
+### Orchestrator review of OLY-32 (2026-11-22)
+
+Renumbered the guest-selection ADR to 0053 (0052 went to OLY-63) and merged `development`. On the merged branch the full offline set and `lab/lab_test.sh` pass. `TestLabM1` passes on fresh VMs of the default Ubuntu 24.04 (159.1 s, confirming the switch to the `nocloud-net` seed mode does not break the default guest) and Debian 12 (120.3 s), both including the OLY-63 post-install hook checks. arm64 remains unrun: the host has no `qemu-system-aarch64` or AArch64 UEFI firmware.
