@@ -136,7 +136,7 @@
     "security-review": {
       "status": "in_progress",
       "file": "features/security-review.md",
-      "updated": "2026-11-19",
+      "updated": "2026-11-22",
       "summary": "OLY-33 source review documented. OLY-61 fixes F3: development builds require -unsafe-dev-activator for an activator with no release checksum; release builds unchanged. Security data-flow note added in docs/security/data-flow.md. OLY-62 fixes F2 offline: npm recipes install from committed lockfiles with npm ci and Goose ships only its verified binary (no image built yet). F1 live checks and F4 remain open."
     },
     "user-docs": {
