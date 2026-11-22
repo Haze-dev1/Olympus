@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -317,6 +318,36 @@ func TestLatestAndCredentialConfinement(t *testing.T) {
 	}
 }
 
+func TestRedirectNeverSendsTokenToDifferentHost(t *testing.T) {
+	const token = "sentinel-token-12345"
+	var server2ReceivedAuth string
+
+	server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server2ReceivedAuth = r.Header.Get("Authorization")
+		w.Write([]byte(`{"sha":"` + testRev + `"}`))
+	}))
+	defer server2.Close()
+
+	server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, server2.URL, http.StatusFound)
+	}))
+	defer server1.Close()
+
+	f := Fetcher{
+		APIURL:  server1.URL,
+		BaseURL: server2.URL,
+		Token:   token,
+	}
+
+	_, err := f.Latest(context.Background(), Source{Owner: "owner", Repo: "repo"})
+	if err != nil {
+		t.Fatalf("Latest failed: %v", err)
+	}
+	if server2ReceivedAuth != "" {
+		t.Fatalf("expected no Authorization header on redirected host, got %q", server2ReceivedAuth)
+	}
+}
+
 func TestLatestPreservesRefSlashes(t *testing.T) {
 	for _, ref := range []string{"", "development", "feat/real-stack", "refs/heads/feature/x", "release+candidate/v1"} {
 		t.Run(ref, func(t *testing.T) {
@@ -337,4 +368,68 @@ func TestLatestPreservesRefSlashes(t *testing.T) {
 			}
 		})
 	}
+}
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 0
+	}
+	return len(p), nil
+}
+
+func tarHeaderBytes(t *testing.T, name string, size int64) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	if err := tw.WriteHeader(&tar.Header{
+		Name:     name,
+		Mode:     0o644,
+		Size:     size,
+		Typeflag: tar.TypeReg,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func TestExtractDecompressionBombCaps(t *testing.T) {
+	t.Run("per-file cap", func(t *testing.T) {
+		var buf bytes.Buffer
+		tw := tar.NewWriter(&buf)
+		hdr := &tar.Header{
+			Name:     "recipes/big.txt",
+			Mode:     0o644,
+			Size:     maxFile + 1,
+			Typeflag: tar.TypeReg,
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatal(err)
+		}
+		_ = tw.Close()
+
+		dst := t.TempDir()
+		err := extract(&buf, dst, "")
+		if err == nil || !strings.Contains(err.Error(), "exceeds") {
+			t.Fatalf("expected error exceeding file cap, got: %v", err)
+		}
+	})
+
+	t.Run("total tree cap", func(t *testing.T) {
+		// 4 files of maxFile (4 * 64MB = 256MB = maxTree), plus 1 byte in a 5th file
+		var readers []io.Reader
+		for i := 1; i <= 4; i++ {
+			hdr := tarHeaderBytes(t, filepath.Join("recipes", strings.Repeat("a", i)+".txt"), maxFile)
+			readers = append(readers, bytes.NewReader(hdr), io.LimitReader(zeroReader{}, maxFile))
+		}
+		hdr5 := tarHeaderBytes(t, "recipes/overflow.txt", 1)
+		readers = append(readers, bytes.NewReader(hdr5))
+
+		dst := t.TempDir()
+		err := extract(io.MultiReader(readers...), dst, "")
+		if err == nil || !strings.Contains(err.Error(), "tarball exceeds") {
+			t.Fatalf("expected error exceeding total tree cap, got: %v", err)
+		}
+	})
 }

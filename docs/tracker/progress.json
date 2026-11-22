@@ -149,7 +149,7 @@
       "status": "in_progress",
       "file": "features/lint-baseline.md",
       "updated": "2026-11-21",
-      "summary": "golangci-lint config adapted from Caddy; 55 existing findings listed, 3 security-relevant; lint gates only changed lines until cleared."
+      "summary": "OLY-64: resolved all security-relevant findings (G110 decompression bomb caps, G119 redirect token confinement, clearConfirm error checking in activate/rollback) and A2 command reviews with //nolint:gosec and errcheck fixes; baseline findings down from 55 to 36."
     }
   },
   "decisions": [
