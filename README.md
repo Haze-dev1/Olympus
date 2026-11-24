@@ -1,8 +1,24 @@
 # Olympus
 
+[![CI](https://github.com/Haze-dev1/Olympus/actions/workflows/ci.yml/badge.svg)](https://github.com/Haze-dev1/Olympus/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Haze-dev1/Olympus)](https://github.com/Haze-dev1/Olympus/releases)
+
 Sets up a whole AI system on your own server from one YAML file: personal agents (Hermes, OpenClaw), coding agents (Claude Code, Codex, OpenCode, pi) and workspaces, with MCP servers, skills and chat channels defined once and shared. A lock file makes the setup reproducible, the way Terraform and Nix are. The command-line tool is `olym`.
 
 **Not** a hosting service, an agent framework or an orchestrator. It installs and connects existing tools on a server you control.
+
+## Features
+
+- **One file, whole stack.** Agents, MCP servers, skills and chat channels live in a single `stack.yaml` and are defined once, then shared.
+- **Reproducible.** `stack.lock` pins catalog revisions and image digests, so the same file gives the same server.
+- **Safe to change.** `plan` shows what will change before `apply`. Apply is health-checked and rolls back unless the CLI reconnects and confirms. `rollback`, `gc` and `destroy` are built in. Secrets stay in a local `.env` and never enter generated files.
+- **Verified releases.** Release binaries ship with `SHA256SUMS` and GitHub build provenance. The CLI checks the server-side activator against an embedded checksum before running it.
+- **Runs on a server you control.** Linux over SSH with Docker Compose. The CLI runs on macOS or Linux (amd64 and arm64).
+
+### Supported tools
+
+Recipes ship in [`recipes/`](recipes/) for Hermes, OpenClaw, OpenBot, Claude Code, Codex, OpenCode, Gemini CLI, Goose, Aider, pi and oh-my-pi.
 
 ## Quickstart
 
@@ -93,27 +109,20 @@ olym apply
 
 See [docs/usage/commands.md](docs/usage/commands.md) for all command options and [docs/usage/stack-reference.md](docs/usage/stack-reference.md) for the complete configuration reference. A comprehensive sample is available in [examples/full-stack/stack.yaml](examples/full-stack/stack.yaml).
 
-## Status
+## Build from source
 
-M1 runs with Go 1.26 or newer. The core supports check, build, plan, apply, status, rollback, GC and destroy:
+Requires Go 1.26 or newer.
 
 ```sh
-go build -o /tmp/olym ./cmd/olym/
-/tmp/olym check -f stack.yaml
-/tmp/olym build -f stack.yaml -o .olympus/build
-/tmp/olym plan -f stack.yaml -out plan.json
-/tmp/olym apply plan.json --yes -f stack.yaml
-/tmp/olym status -f stack.yaml --json
-/tmp/olym rollback -f stack.yaml
-/tmp/olym gc -f stack.yaml -keep 5
-/tmp/olym destroy -f stack.yaml
+go build -o olym ./cmd/olym
+./olym check -f stack.yaml
 ```
 
-`check` verifies secret names in `.env` beside the stack file. `check` or `update` pins catalog revisions and image digests in stack.lock. An explicit `-recipes` selects local development recipes. `build` writes Compose, tool files and a hashed manifest without resolving secrets. The sample is in [testdata/sample/](testdata/sample/); provide `GH_TOKEN` in a local `.env` beside its stack file. Its image is fictional and is never pulled.
+Commands: `check`, `build`, `update`, `plan`, `apply`, `status`, `rollback`, `gc`, `destroy`. See [CLI Commands](docs/usage/commands.md). Try the [examples](examples/) offline with `olym check -recipes ./recipes`.
 
-Rebuilds stage a complete generation in a sibling directory and atomically replace output owned by Olympus. An existing directory without a valid Olympus manifest is refused. Native atomic publication is supported on Linux and macOS, on amd64 and arm64; an unsupported operation fails without replacing the previous output. Apply uploads verified tool entries and starts a detached server activator, which rolls back unless the CLI reconnects and confirms. `--yes` skips only local approval. Secret rotations recreate only the affected tools. Destroy asks first and keeps volumes and server state unless `--delete-data` is supplied. Unknown SSH hosts require terminal approval; use `-known-hosts` or `OLYM_KNOWN_HOSTS` for an isolated trust file. An explicit `-activator <Linux binary>` selects a development build; an activator without a release checksum also needs `-unsafe-dev-activator`.
+## Status
 
-The complete command cycle is tested on the disposable amd64 Ubuntu lab with a pinned test image. Production recipes and the later milestones remain separate work. See [M1 evidence](docs/tracker/features/core-plan-apply.md) for failures, limits and the tagged lab command.
+`v0.1.0` is the first release. The full command cycle is tested on a disposable Ubuntu lab VM; see [M1 evidence](docs/tracker/features/core-plan-apply.md) for failures and limits. Expect breaking changes to `stack.yaml` before 1.0. See the [CHANGELOG](CHANGELOG.md).
 
 ## Docs
 
@@ -126,3 +135,11 @@ The complete command cycle is tested on the disposable amd64 Ubuntu lab with a p
 - [Design doc](docs/architecture/design.md): architecture, example files, security defaults, future ideas
 - [Architecture decisions](docs/ADR.md)
 - [Landscape research](docs/Sources/landscape.md)
+
+## Contributing
+
+Work happens on branches cut from `development` and lands through pull requests; see [AGENTS.md](AGENTS.md) for the branch policy, code standard and security rules. Report security issues privately through GitHub's security advisories, not public issues.
+
+## License
+
+Olympus is licensed under the [Apache License 2.0](LICENSE). Tools that recipes install keep their own licenses; each recipe README records them.
